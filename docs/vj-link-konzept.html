@@ -1,0 +1,957 @@
+<title>VJ-Link Softwarekonzept</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: Spezifikation mit fester Inhaltsleiste links, Lesespalte rechts; Skizzen als dunkle App-Fenster in voller Spaltenbreite */
+:root{
+  --bg:#F3F4F7; --surface:#FFFFFF; --ink:#141720; --muted:#596073; --line:#D9DCE4;
+  --accent:#C2185B; --accent-soft:#FBE3ED;
+  --must:#0B7A4A; --should:#9A5800; --later:#596073;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  /* App-Skizzen bleiben in beiden Themes dunkel, wie das spätere Programm */
+  --app-bg:#0C0E13; --app-panel:#151821; --app-raise:#1E222E; --app-line:#2A2F3D;
+  --app-text:#DCE1EA; --app-dim:#7E879A; --app-accent:#FF5C93; --app-live:#FF3B3B; --app-ok:#3DDC84;
+  --sA:#FF3B3B; --sB:#FFB020; --sC:#3DDC84; --sD:#22C8F0; --sE:#B45CFF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1117; --surface:#171A22; --ink:#E6E9F0; --muted:#9AA2B4; --line:#2A2F3B;
+    --accent:#FF6FA0; --accent-soft:#3A1D2A; --must:#4FD69C; --should:#F2B45A; --later:#9AA2B4;
+    --app-bg:#07080B; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1117; --surface:#171A22; --ink:#E6E9F0; --muted:#9AA2B4; --line:#2A2F3B;
+  --accent:#FF6FA0; --accent-soft:#3A1D2A; --must:#4FD69C; --should:#F2B45A; --later:#9AA2B4;
+  --app-bg:#07080B; color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;}
+.wrap{max-width:1240px;margin:0 auto;padding-block:40px 80px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;grid-template-columns:210px minmax(0,1fr);gap:56px;}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px);align-self:start;font-size:14px;}
+nav.toc .brand{font-family:var(--f-display);font-weight:800;font-size:18px;letter-spacing:.01em;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+nav.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:2px;counter-reset:t}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 8px;border-radius:4px}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--ink);background:var(--accent-soft);outline:none}
+.slots{display:inline-flex;gap:3px}
+.slots i{width:8px;height:8px;border-radius:2px;display:block}
+.slots i:nth-child(1){background:var(--sA)}.slots i:nth-child(2){background:var(--sB)}.slots i:nth-child(3){background:var(--sC)}.slots i:nth-child(4){background:var(--sD)}.slots i:nth-child(5){background:var(--sE)}
+
+main{min-width:0;display:grid;gap:72px}
+section{display:grid;gap:20px;min-width:0}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(40px,6vw,68px);font-weight:800;letter-spacing:-.02em}
+h2{font-size:clamp(26px,3.2vw,34px);font-weight:700;letter-spacing:-.01em}
+h3{font-size:19px;font-weight:700}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.lead{font-size:20px;line-height:1.5;color:var(--ink);max-width:60ch}
+.muted{color:var(--muted)}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+a{color:var(--accent)}
+
+.hero{display:grid;gap:22px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.hero .meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+.hero h1 span{color:var(--accent)}
+
+.principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.principles div{background:var(--surface);padding:18px 20px;display:grid;gap:6px;align-content:start}
+.principles b{font-family:var(--f-display);font-size:17px}
+.principles span{color:var(--muted);font-size:15px}
+
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px}
+.flow .node{flex:1 1 130px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px 14px;display:grid;gap:4px;align-content:start;min-width:0}
+.flow .node b{font-family:var(--f-display);font-size:16px}
+.flow .node span{font-size:13.5px;color:var(--muted);line-height:1.45}
+.flow .arrow{align-self:center;color:var(--muted);font-family:var(--f-mono)}
+
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}
+.cols > div{display:grid;gap:8px;align-content:start;min-width:0}
+ul.plain{margin:0;padding-left:20px;display:grid;gap:6px;max-width:68ch}
+ul.plain li::marker{color:var(--accent)}
+
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.ch{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td.grp{font-family:var(--f-display);font-weight:700;white-space:nowrap}
+
+.tag{display:inline-block;font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.06em;padding:2px 7px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.tag.must{color:var(--must)}.tag.should{color:var(--should)}.tag.later{color:var(--later)}
+
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px 32px}
+.features > div{display:grid;gap:10px;align-content:start;min-width:0}
+.features ul{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.features li{display:grid;grid-template-columns:62px minmax(0,1fr);gap:10px;font-size:15px;line-height:1.45}
+
+.note{border-left:3px solid var(--accent);padding:4px 0 4px 16px;color:var(--ink);max-width:70ch}
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.phase{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px 20px;display:grid;gap:10px;align-content:start}
+.phase .num{font-family:var(--f-mono);font-size:12px;color:var(--accent);font-weight:600;letter-spacing:.08em}
+.phase ul{margin:0;padding-left:18px;font-size:14.5px;display:grid;gap:4px}
+
+/* ---------- Skizzen ---------- */
+figure{margin:0;display:grid;gap:12px;min-width:0}
+figcaption{font-size:14px;color:var(--muted);max-width:80ch}
+figcaption b{color:var(--ink)}
+.mock-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--line)}
+.mock{min-width:960px;background:var(--app-bg);color:var(--app-text);font-family:var(--f-body);font-size:12px;line-height:1.35;display:grid}
+.m-top{display:flex;align-items:center;gap:18px;padding:10px 14px;border-bottom:1px solid var(--app-line);background:var(--app-panel)}
+.m-logo{font-family:var(--f-display);font-weight:800;font-size:14px;display:flex;align-items:center;gap:7px}
+.m-tabs{display:flex;gap:2px;background:var(--app-bg);padding:3px;border-radius:6px}
+.m-tabs span{padding:5px 12px;border-radius:4px;color:var(--app-dim);font-weight:600;font-size:11px;letter-spacing:.06em}
+.m-tabs span.on{background:var(--app-raise);color:var(--app-text)}
+.m-tempo{display:flex;align-items:center;gap:12px;margin-left:auto}
+.m-bpm{font-family:var(--f-mono);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.beats{display:flex;gap:4px}.beats i{width:12px;height:12px;border-radius:2px;background:var(--app-raise);display:block}.beats i.on{background:var(--app-accent)}
+.pill{font-family:var(--f-mono);font-size:10.5px;padding:3px 7px;border-radius:3px;background:var(--app-raise);color:var(--app-dim);white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.pill.ok{color:var(--app-ok)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+.btn-bo{background:var(--app-live);color:#fff;font-weight:800;font-size:11px;letter-spacing:.08em;padding:7px 12px;border-radius:4px}
+.m-status{display:flex;gap:6px}
+.m-body{display:grid;gap:1px;background:var(--app-line)}
+.m-body > *{background:var(--app-bg);padding:12px;min-width:0}
+.m-h{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--app-dim);font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.m-foot{display:flex;align-items:center;gap:16px;padding:10px 14px;border-top:1px solid var(--app-line);background:var(--app-panel)}
+.fader{flex:1;height:8px;background:var(--app-raise);border-radius:4px;position:relative}
+.fader i{position:absolute;inset:0 auto 0 0;background:var(--app-text);border-radius:4px;display:block}
+.seg{display:flex;gap:2px}.seg span{padding:4px 9px;background:var(--app-raise);border-radius:3px;color:var(--app-dim);font-family:var(--f-mono);font-size:11px}.seg span.on{background:var(--app-text);color:var(--app-bg)}
+.pin{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--app-accent);color:#fff;font-family:var(--f-mono);font-size:10px;font-weight:700;flex:none}
+
+/* Vorschaubilder (generativ gemalt) */
+.t1{background:radial-gradient(circle at 50% 50%,var(--sA) 0 8%,transparent 9% 18%,var(--sA) 19% 22%,transparent 23% 34%,var(--sA) 35% 37%,transparent 38%),#14060a}
+.t2{background:repeating-linear-gradient(115deg,var(--sD) 0 6px,#071419 6px 18px)}
+.t3{background:conic-gradient(from 30deg,var(--sB),var(--sE),var(--sB),var(--sE),var(--sB))}
+.t4{background:radial-gradient(ellipse at 50% 120%,var(--sC),transparent 60%),linear-gradient(#030806,#0b1f15)}
+.t5{background:linear-gradient(90deg,transparent 0 45%,var(--sE) 45% 55%,transparent 55%),linear-gradient(transparent 0 45%,var(--sE) 45% 55%,transparent 55%),#0c0614}
+.t6{background:repeating-radial-gradient(circle at 30% 40%,var(--sB) 0 3px,#160d00 3px 10px)}
+.t7{background:linear-gradient(160deg,var(--sD),var(--sE) 60%,var(--sA))}
+.t8{background:repeating-conic-gradient(var(--sC) 0 10deg,#03100a 10deg 30deg)}
+.t0{background:var(--app-panel);border:1px dashed var(--app-line)}
+
+/* Show */
+.show-body{grid-template-columns:minmax(0,1fr) 230px}
+.monitors{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.mon{display:grid;gap:5px}
+.mon .lbl{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.1em;color:var(--app-dim);font-weight:600}
+.mon.live .lbl b{color:var(--app-live)}
+.screen{aspect-ratio:16/6;border-radius:4px;border:2px solid var(--app-line)}
+.mon.live .screen{border-color:var(--app-live)}
+.lgrid{display:grid;gap:6px}
+.lrow{display:grid;grid-template-columns:120px repeat(8,minmax(0,1fr));gap:6px;align-items:stretch}
+.lname{background:var(--app-panel);border-radius:4px;padding:6px 8px;display:grid;gap:5px;align-content:center}
+.lname b{font-size:11px}.lname em{font-style:normal;color:var(--app-dim);font-size:10px}
+.op{height:4px;background:var(--app-raise);border-radius:2px;position:relative}.op i{position:absolute;inset:0 auto 0 0;background:var(--app-ok);border-radius:2px;display:block}
+.cell{aspect-ratio:16/10;border-radius:4px;position:relative;overflow:hidden}
+.cell span{position:absolute;left:0;right:0;bottom:0;padding:2px 4px;font-size:9.5px;background:linear-gradient(transparent,rgba(0,0,0,.85));color:#fff}
+.cell.on{outline:2px solid var(--app-ok);outline-offset:1px}
+.cell.cue{outline:2px dashed var(--app-text);outline-offset:1px}
+.slotlist{display:grid;gap:5px;margin-bottom:14px}
+.slot{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;background:var(--app-panel);border-radius:4px;padding:5px 7px}
+.slot i{height:18px;border-radius:3px;display:block}
+.slot b{font-family:var(--f-mono);font-size:11px}
+.slot em{font-style:normal;color:var(--app-dim);font-size:10px;font-family:var(--f-mono)}
+.scenes{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:14px}
+.scenes span{background:var(--app-panel);border-radius:4px;padding:9px 8px;font-weight:600;font-size:11px}
+.scenes span.on{background:var(--app-text);color:var(--app-bg)}
+.autovj{background:var(--app-panel);border-radius:4px;padding:8px;display:grid;gap:5px}
+.toggle{width:28px;height:16px;border-radius:8px;background:var(--app-ok);position:relative;display:inline-block}
+.toggle::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.toggle.off{background:var(--app-raise)}.toggle.off::after{right:auto;left:2px;background:var(--app-dim)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* Editor */
+.ed-body{grid-template-columns:190px minmax(0,1fr) 260px}
+.search{background:var(--app-panel);border:1px solid var(--app-line);border-radius:4px;padding:6px 8px;color:var(--app-dim);margin-bottom:10px}
+.lib{display:grid;gap:3px;margin-bottom:12px}
+.lib span{padding:5px 7px;border-radius:3px;display:flex;align-items:center;gap:7px}
+.lib span i{width:16px;height:12px;border-radius:2px;display:block;flex:none}
+.lib span.sel{background:var(--app-raise)}
+.stage{aspect-ratio:16/7;border-radius:4px;margin-bottom:10px;position:relative}
+.stage .k{position:absolute;inset:0;background:conic-gradient(from 0deg at 50% 50%,var(--sB) 0 30deg,#120a00 30deg 60deg,var(--sB) 60deg 90deg,#120a00 90deg 120deg,var(--sB) 120deg 150deg,#120a00 150deg 180deg,var(--sB) 180deg 210deg,#120a00 210deg 240deg,var(--sB) 240deg 270deg,#120a00 270deg 300deg,var(--sB) 300deg 330deg,#120a00 330deg 360deg);border-radius:4px;-webkit-mask:radial-gradient(circle,transparent 0 12%,#000 13% 40%,transparent 41% 46%,#000 47%);mask:radial-gradient(circle,transparent 0 12%,#000 13% 40%,transparent 41% 46%,#000 47%)}
+.stage{background:#120a00}
+.stack{display:grid;gap:5px}
+.fx{display:grid;grid-template-columns:14px 18px minmax(0,1fr) 90px auto;gap:8px;align-items:center;background:var(--app-panel);border:1px solid var(--app-line);border-radius:4px;padding:7px 9px}
+.fx.sel{border-color:var(--app-accent)}
+.fx .grip{color:var(--app-dim);font-family:var(--f-mono);letter-spacing:-1px}
+.fx .kind{font-size:9.5px;color:var(--app-dim);text-transform:uppercase;letter-spacing:.08em}
+.fx .mini{height:4px;background:var(--app-raise);border-radius:2px;position:relative}.fx .mini i{position:absolute;inset:0 auto 0 0;background:var(--app-text);border-radius:2px;display:block}
+.chk{width:14px;height:14px;border-radius:3px;background:var(--app-ok)}
+.addfx{border:1px dashed var(--app-line);border-radius:4px;padding:7px;text-align:center;color:var(--app-dim)}
+.param{display:grid;gap:5px;padding:8px 0;border-bottom:1px solid var(--app-line)}
+.param .row b{font-weight:600}.param .row span{font-family:var(--f-mono);color:var(--app-dim)}
+.slider{height:6px;background:var(--app-raise);border-radius:3px;position:relative}
+.slider i{position:absolute;inset:0 auto 0 0;background:var(--app-text);border-radius:3px;display:block}
+.slider.mod i{background:var(--app-accent)}
+.slider .range{position:absolute;top:-3px;bottom:-3px;border:1px solid var(--app-accent);border-radius:4px}
+.mod-tag{font-family:var(--f-mono);font-size:10px;color:var(--app-accent);display:flex;align-items:center;gap:5px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.chips span{font-family:var(--f-mono);font-size:10px;padding:4px 7px;border-radius:3px;background:var(--app-raise);border:1px solid var(--app-line)}
+
+/* Ausgabe */
+.out-body{grid-template-columns:250px minmax(0,1fr)}
+.outs{display:grid;gap:5px;margin-bottom:12px}
+.out{background:var(--app-panel);border:1px solid var(--app-line);border-radius:4px;padding:8px;display:grid;gap:3px}
+.out.sel{border-color:var(--app-accent)}
+.out b{font-size:12px}.out em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--app-dim)}
+.prop{display:grid;grid-template-columns:90px 1fr;gap:6px 8px;align-items:center}
+.prop span{color:var(--app-dim)}
+.field{background:var(--app-panel);border:1px solid var(--app-line);border-radius:3px;padding:4px 7px;font-family:var(--f-mono);font-size:11px}
+.toolbar{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+.toolbar span{padding:5px 9px;border-radius:3px;background:var(--app-panel);border:1px solid var(--app-line);font-size:11px}
+.toolbar span.on{background:var(--app-text);color:var(--app-bg);border-color:var(--app-text)}
+.panes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.canvas{aspect-ratio:3840/1080;position:relative;border-radius:3px;background:linear-gradient(90deg,#12040a,#1a0a24 50%,#04141a)}
+.slice{position:absolute;border:2px solid var(--app-text);display:flex;align-items:flex-start;justify-content:flex-start;padding:3px}
+.slice.s2{border-color:var(--app-accent)}
+.slice.s3{border-style:dashed;border-color:var(--app-dim)}
+.map svg{display:block;width:100%;height:auto;border-radius:3px}
+
+/* Verbinden */
+.con-body{grid-template-columns:minmax(0,1fr) 250px}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.card{background:var(--app-panel);border:1px solid var(--app-line);border-radius:5px;padding:9px 10px;display:grid;gap:4px}
+.card .row b{font-size:12.5px}
+.card em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--app-dim)}
+.card.ok .row .dot{color:var(--app-ok)}.card.off .row .dot{color:var(--app-dim)}
+.patch{display:grid;gap:1px;background:var(--app-line);border:1px solid var(--app-line);border-radius:4px;overflow:hidden}
+.patch > div{display:grid;grid-template-columns:54px 130px minmax(0,1fr) 34px;gap:10px;align-items:center;background:var(--app-bg);padding:5px 9px;font-family:var(--f-mono);font-size:10.5px}
+.patch > div.gh{background:var(--app-panel);color:var(--app-dim);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase}
+.patch .bar{height:6px;background:var(--app-raise);border-radius:3px;position:relative}
+.patch .bar i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--app-text);display:block}
+.patch .v{text-align:right;color:var(--app-dim);font-variant-numeric:tabular-nums}
+.export{display:grid;gap:5px}
+.export span{background:var(--app-panel);border:1px solid var(--app-line);border-radius:4px;padding:7px 9px;display:flex;justify-content:space-between}
+.export span em{font-style:normal;color:var(--app-dim);font-family:var(--f-mono);font-size:10px}
+.primary{background:var(--app-text);color:var(--app-bg);border-radius:4px;padding:8px;text-align:center;font-weight:700;margin-top:4px}
+
+/* Tablet/Phone */
+.remote-row{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:start}
+.phone{width:100%;max-width:300px;justify-self:center;background:var(--app-bg);color:var(--app-text);border-radius:28px;border:6px solid var(--app-raise);padding:18px 14px;display:grid;gap:12px;font-size:12px}
+.phone .m-bpm{font-size:26px;text-align:center}
+.phone .beats{justify-content:center}.phone .beats i{width:22px;height:8px}
+.pbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pbtns span{background:var(--app-panel);border-radius:8px;padding:18px 8px;text-align:center;font-weight:700;font-size:13px}
+.pbtns span.on{background:var(--app-text);color:var(--app-bg)}
+.pslots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.pslots i{aspect-ratio:1;border-radius:6px;display:block}
+.pfoot{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pfoot span{border-radius:8px;padding:12px;text-align:center;font-weight:800;letter-spacing:.06em;background:var(--app-raise)}
+.pfoot span.bo{background:var(--app-live);color:#fff}
+
+ol.legend{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 24px;font-size:14px}
+ol.legend li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:start}
+ol.legend .pin{margin-top:2px}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns:minmax(0,1fr);gap:32px}
+  nav.toc{position:static}
+  nav.toc ol{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .remote-row{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:no-preference){
+  .beats i.on{animation:pulse .47s steps(1) infinite}
+  @keyframes pulse{50%{opacity:.55}}
+}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Inhalt">
+  <div class="brand"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+  <ol>
+    <li><a href="#idee">Idee und Zielgruppe</a></li>
+    <li><a href="#prinzipien">Leitprinzipien</a></li>
+    <li><a href="#modell">Grundmodell</a></li>
+    <li><a href="#show">Show-Ansicht</a></li>
+    <li><a href="#pult">Pult-Anbindung</a></li>
+    <li><a href="#sync">Takt und Sync</a></li>
+    <li><a href="#ljlink">LJ-Link-Anbindung</a></li>
+    <li><a href="#editor">Effekt-Editor</a></li>
+    <li><a href="#ausgabe">Ausgänge und Mapping</a></li>
+    <li><a href="#extras">Weitere Funktionen</a></li>
+    <li><a href="#technik">Technik</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#markt">Markt</a></li>
+    <li><a href="#offen">Offene Entscheidungen</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="hero" id="idee">
+  <div class="eyebrow">Softwarekonzept · Entwurf 1 · 7. November 2026</div>
+  <h1>VJ-Link<span>.</span></h1>
+  <p class="lead">Visuals, die das Lichtpult wie ein Gerät steuert. Ein VJ-Programm für LJs, das in fünf Minuten Bilder liefert, im Takt bleibt und die Farben vom Licht übernimmt.</p>
+  <div class="meta"><span>Arbeitstitel, Schwesterprojekt von LJ-Link</span><span>Direkt mit LJ-Link gekoppelt, läuft auch allein</span><span>macOS · Windows</span><span>DE / EN</span></div>
+  <p>Die meisten VJ-Programme sind entweder sehr mächtig und schwer zu lernen oder einfach, aber vom Lichtpult abgekoppelt. Wer im Club oder auf einer Veranstaltung Licht fährt, will die LED-Wand nicht auch noch an einem zweiten Rechner bedienen. VJ-Link setzt deshalb an einer Stelle an, die LJ-Link schon gut kann: <b>es hört zu</b>. Takt kommt über Ableton Link, LJ-Link oder OSC. Farben und Szenen kommen per Art-Net oder sACN vom Pult. Das Programm selbst bleibt während der Show im Hintergrund.</p>
+  <div class="cols">
+    <div><h3>Für wen</h3><p class="muted">LJs in Clubs, Mobile-DJs mit eigener Licht- und Videotechnik, Bands mit LED-Wand, Verleiher und Event-Techniker, die schnell ein stimmiges Bild brauchen.</p></div>
+    <div><h3>Wofür nicht</h3><p class="muted">Keine Broadcast-Regie, keine Medienserver-Konkurrenz für Großshows mit Timecode-Programmierung, kein Werkzeug für Shader-Entwicklung. Das bleibt bei den großen Systemen.</p></div>
+  </div>
+</header>
+
+<section id="prinzipien">
+  <div class="eyebrow">Leitprinzipien</div>
+  <h2>Fünf Regeln, an denen jede Funktion gemessen wird</h2>
+  <div class="principles">
+    <div><b>Das Pult führt</b><span>Alles, was in der Show passiert, ist per DMX oder OSC steuerbar. Der LJ muss den VJ-Rechner nicht anfassen.</span></div>
+    <div><b>Fünf Minuten bis zum ersten Bild</b><span>Starter-Paket mit Generatoren, Vorlagen für typische Setups, automatische Erkennung von Bildschirmen und Pulten.</span></div>
+    <div><b>Eine Ansicht, eine Aufgabe</b><span>Vier Bereiche: Show, Bauen, Ausgabe, Verbinden. Keine verschachtelten Fenster, keine versteckten Menüs.</span></div>
+    <div><b>Alles läuft im Takt</b><span>Jede Bewegung, jeder Übergang und jeder Clip-Wechsel kann an Beat, Takt oder Phrase hängen.</span></div>
+    <div><b>Show-sicher</b><span>Die Ausgänge laufen weiter, auch wenn die Oberfläche hängt. Nach einem Absturz ist das Bild in Sekunden zurück.</span></div>
+  </div>
+</section>
+
+<section id="modell">
+  <div class="eyebrow">Grundmodell</div>
+  <h2>Von der Quelle bis zum Bildschirm</h2>
+  <p>Das Modell bleibt bewusst flach. Wer Ebenen aus Photoshop oder Kanäle aus einem Mischpult kennt, versteht es sofort.</p>
+  <div class="flow">
+    <div class="node"><b>Clip</b><span>Video, Bild, Generator, Text, Kamera oder NDI-Quelle. Jeder Clip hat einen eigenen Effektstapel.</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Ebene</b><span>4 Ebenen im Standard, bis zu 8. Deckkraft, Mischmodus, Farbquelle, Effekte.</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Szene</b><span>Speichert, welcher Clip auf welcher Ebene läuft und wie. Abrufbar per Pult.</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Leinwand</b><span>Eine große Arbeitsfläche, z. B. 3840 × 1080. Hier wird komponiert.</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Ausgang</b><span>Schneidet Bereiche aus der Leinwand, verzerrt sie passend und schickt sie an Bildschirm, Beamer oder Stream.</span></div>
+  </div>
+  <p class="note">Der zentrale Gedanke: <b>Jede Ebene ist für das Lichtpult ein Gerät.</b> Sie wird gepatcht wie ein Moving Head, hat Kanäle für Deckkraft, Clip, Farbe und Effekte und landet in den Gruppen und Presets, die der LJ ohnehin benutzt.</p>
+</section>
+
+<section id="show">
+  <div class="eyebrow">Skizze 1 · Show-Ansicht</div>
+  <h2>Was der LJ während der Show sieht</h2>
+  <p>Die Show-Ansicht ist die Startansicht. Sie zeigt Vorschau und Ausgang, das Clip-Raster der Ebenen, die fünf Farbslots und die Szenen. Alles ist mit einem Klick erreichbar, und alles ist parallel auch vom Pult steuerbar.</p>
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze der Show-Ansicht">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span class="on">SHOW</span><span>BAUEN</span><span>AUSGABE</span><span>VERBINDEN</span></div>
+        <div class="m-tempo"><span class="pin">1</span>
+          <span class="m-bpm">128.00</span><span class="beats"><i class="on"></i><i></i><i></i><i></i></span>
+          <span class="pill ok"><span class="dot"></span>LINK · 3</span><span class="pill">TAKT 33.1</span><span class="pill">PHRASE CHORUS</span>
+        </div>
+        <div class="m-status"><span class="pill ok"><span class="dot"></span>ART-NET</span><span class="pill ok"><span class="dot"></span>OSC</span><span class="pill">60 FPS · GPU 38 %</span></div>
+        <span class="btn-bo">BLACKOUT</span>
+      </div>
+      <div class="m-body show-body">
+        <div>
+          <div class="monitors">
+            <div class="mon"><div class="lbl"><span>VORSCHAU · NÄCHSTE SZENE „DROP“</span><span class="pin">2</span></div><div class="screen t3"></div></div>
+            <div class="mon live"><div class="lbl"><b>● AUSGANG</b><span>LED-WAND + BEAMER</span></div><div class="screen t1"></div></div>
+          </div>
+          <div class="m-h"><span>Clip-Raster · Bank 1 „Techno“</span><span class="pin">3</span></div>
+          <div class="lgrid">
+            <div class="lrow"><div class="lname"><b>E4 · Overlay</b><em>Addieren · Slot E</em><div class="op"><i style="width:35%"></i></div></div>
+              <div class="cell t5 on"><span>Kreuz</span></div><div class="cell t2"><span>Scanlines</span></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div></div>
+            <div class="lrow"><div class="lname"><b>E3 · Text</b><em>Normal · Weiß</em><div class="op"><i style="width:0%"></i></div></div>
+              <div class="cell t0"><span>DJ-Name</span></div><div class="cell t0"><span>Tracktitel</span></div><div class="cell t0"><span>Logo</span></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div></div>
+            <div class="lrow"><div class="lname"><b>E2 · Muster</b><em>Bildschirm · Slot B</em><div class="op"><i style="width:70%"></i></div></div>
+              <div class="cell t6"><span>Punkte</span></div><div class="cell t3 cue"><span>Kaleido</span></div><div class="cell t8 on"><span>Strahlen</span></div><div class="cell t2"><span>Streifen</span></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div></div>
+            <div class="lrow"><div class="lname"><b>E1 · Basis</b><em>Normal · Slot A</em><div class="op"><i style="width:100%"></i></div></div>
+              <div class="cell t1 on"><span>Tunnel</span></div><div class="cell t4"><span>Nebel</span></div><div class="cell t7"><span>Verlauf</span></div><div class="cell t6"><span>Partikel</span></div><div class="cell t8"><span>Sonne</span></div><div class="cell t0"></div><div class="cell t0"></div><div class="cell t0"></div></div>
+          </div>
+        </div>
+        <div>
+          <div class="m-h"><span>Farbslots</span><span class="pin">4</span></div>
+          <div class="slotlist">
+            <div class="slot"><i style="background:var(--sA)"></i><b>A</b><em>PULT · CH 9</em></div>
+            <div class="slot"><i style="background:var(--sB)"></i><b>B</b><em>PULT · CH 13</em></div>
+            <div class="slot"><i style="background:var(--sC)"></i><b>C</b><em>PULT · CH 17</em></div>
+            <div class="slot"><i style="background:var(--sD)"></i><b>D</b><em>FEST</em></div>
+            <div class="slot"><i style="background:var(--sE)"></i><b>E</b><em>OSC</em></div>
+          </div>
+          <div class="m-h"><span>Szenen</span><span class="pin">5</span></div>
+          <div class="scenes"><span>Intro</span><span>Build</span><span class="on">Chorus</span><span>Drop</span><span>Ambient</span><span>Pause</span></div>
+          <div class="autovj">
+            <div class="row"><b>Auto-VJ</b><span class="toggle"></span></div>
+            <span style="color:var(--app-dim)">Wechselt bei Phrasenwechsel, sonst alle 16 Takte</span>
+          </div>
+        </div>
+      </div>
+      <div class="m-foot">
+        <span class="pin">6</span><b>MASTER</b><div class="fader"><i style="width:82%"></i></div>
+        <span style="color:var(--app-dim)">Übergang</span><div class="seg"><span>Schnitt</span><span class="on">1 Takt</span><span>4 Takte</span></div>
+        <span style="color:var(--app-dim)">Tempo</span><div class="seg"><span>½×</span><span class="on">1×</span><span>2×</span></div>
+        <span class="pill">TAP</span>
+      </div>
+    </div></div>
+    <figcaption><b>Show-Ansicht.</b> Grüner Rahmen: läuft gerade. Gestrichelter Rahmen: steht in der Vorschau und geht beim nächsten Übergang live. Das Raster scrollt nicht seitlich; mehr Clips liegen in Bänken.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Tempo-Leiste</b> mit BPM, Beat-Anzeige, Quelle (hier Ableton Link mit 3 Teilnehmern), Takt und Phrase. Ein Klick wählt die Tempo-Quelle, wie der SEND-BPM-Wähler in LJ-Link.</span></li>
+    <li><span class="pin">2</span><span><b>Vorschau und Ausgang.</b> Der Ausgang hat den roten LIVE-Rahmen aus LJ-Link, damit die Bildsprache in beiden Programmen gleich ist.</span></li>
+    <li><span class="pin">3</span><span><b>Clip-Raster.</b> Eine Zeile pro Ebene, 8 Clips pro Bank. Klick startet sofort, Umschalt-Klick legt in die Vorschau.</span></li>
+    <li><span class="pin">4</span><span><b>Farbslots A bis E.</b> Zeigen live, welche Farbe vom Pult kommt. Generatoren färben sich nach diesen Slots.</span></li>
+    <li><span class="pin">5</span><span><b>Szenen</b> als große Tasten. Dieselben Szenen liegen auf einem DMX-Kanal und einer OSC-Adresse.</span></li>
+    <li><span class="pin">6</span><span><b>Master, Übergang, Tempo-Faktor, Tap.</b> Übergänge dauern standardmäßig einen Takt und starten auf dem nächsten Einser.</span></li>
+  </ol>
+</section>
+
+<section id="pult">
+  <div class="eyebrow">Skizze 2 · Pult-Anbindung</div>
+  <h2>Das Lichtpult steuert VJ-Link wie ein Gerät</h2>
+  <p>Kern der Anbindung ist ein <b>DMX-Eingang über Art-Net und sACN</b>. Damit funktioniert VJ-Link mit grandMA2, grandMA3, Daslight, ChamSys, Avolites, Onyx, QLC+ und jedem anderen Pult, das Netzwerk-DMX ausgibt. Für Pulte, die nur ein DMX-Kabel haben, nimmt VJ-Link auch einen USB-DMX-Eingang an (z. B. Enttec DMX USB Pro).</p>
+  <p>VJ-Link erzeugt die passenden <b>Geräteprofile zum Import</b>: GDTF für grandMA3 und alle Pulte, die GDTF lesen, ein Fixture-XML für grandMA2, ein Profil für die Daslight-Bibliothek und eine Kanalliste als CSV/PDF für alles andere. So muss niemand Kanäle von Hand anlegen.</p>
+
+  <h3>Die fünf Farbslots</h3>
+  <p>Der Wunsch nach 1 bis 5 RGB-Anbindungen wird zu fünf <b>Farbslots A bis E</b>. Jeder Slot ist im Pult ein eigenes kleines RGB-Gerät mit Dimmer, Rot, Grün und Blau. Der LJ legt sie in seine Farbgruppen, und die Visuals färben sich automatisch mit, wenn er auf dem Pult Farbe wechselt. Generatoren und Effekte verweisen auf „Slot A“ statt auf eine feste Farbe. Ein Videoclip kann über den Effekt „Färben“ ebenfalls einem Slot folgen.</p>
+  <p>Jeder Slot kann auch fest eingestellt werden, per OSC kommen oder aus einem Ausschnitt des Bildes gemessen werden (siehe Pixel-Mapping in der Roadmap).</p>
+
+  <h3>Kanalbelegung, Modus „Standard“ (68 Kanäle)</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Gerät</th><th>Kanal</th><th>Funktion</th><th>Wertebereich</th></tr></thead>
+    <tbody>
+      <tr><td class="grp" rowspan="8">Master</td><td class="ch">1</td><td>Master-Dimmer</td><td>0–255 → 0–100 %</td></tr>
+      <tr><td class="ch">2</td><td>Strobe</td><td>0 aus, 8–255 langsam bis schnell, taktgebunden</td></tr>
+      <tr><td class="ch">3</td><td>Szene</td><td>0 halten, 1–255 Szene 1–255</td></tr>
+      <tr><td class="ch">4</td><td>Übergang</td><td>Schnitt, ¼, ½, 1, 2, 4, 8 Takte</td></tr>
+      <tr><td class="ch">5</td><td>Tempo-Faktor</td><td>¼×, ½×, 1×, 2×, 4×</td></tr>
+      <tr><td class="ch">6</td><td>Effekt-Intensität gesamt</td><td>0–100 %</td></tr>
+      <tr><td class="ch">7</td><td>Auto-VJ</td><td>0–127 aus, 128–255 an</td></tr>
+      <tr><td class="ch">8</td><td>Reserve / Blackout</td><td>250–255 Blackout</td></tr>
+      <tr><td class="grp">Farbslot A–E</td><td class="ch">9–28</td><td>je 4 Kanäle: Dimmer, Rot, Grün, Blau</td><td>A = 9–12, B = 13–16, C = 17–20, D = 21–24, E = 25–28</td></tr>
+      <tr><td class="grp" rowspan="10">Ebene 1–4<br><span class="muted" style="font-weight:400;font-family:var(--f-body);font-size:13px">je 10 Kanäle,<br>ab 29 / 39 / 49 / 59</span></td><td class="ch">+0</td><td>Deckkraft</td><td>0–100 %</td></tr>
+      <tr><td class="ch">+1</td><td>Clip-Bank</td><td>1–32</td></tr>
+      <tr><td class="ch">+2</td><td>Clip</td><td>0 aus, 1–64</td></tr>
+      <tr><td class="ch">+3</td><td>Farbquelle</td><td>Original, Slot A–E, Verlauf A→B, Regenbogen</td></tr>
+      <tr><td class="ch">+4</td><td>Geschwindigkeit</td><td>Rückwärts, Stopp, ½×, 1×, 2×, taktgebunden</td></tr>
+      <tr><td class="ch">+5</td><td>Effekt 1 Stärke</td><td>Erster Effekt im Stapel des Clips</td></tr>
+      <tr><td class="ch">+6</td><td>Effekt 2 Stärke</td><td>Zweiter Effekt</td></tr>
+      <tr><td class="ch">+7</td><td>Effekt 3 Stärke</td><td>Dritter Effekt</td></tr>
+      <tr><td class="ch">+8</td><td>Strobe Ebene</td><td>wie Master</td></tr>
+      <tr><td class="ch">+9</td><td>Mischmodus</td><td>Normal, Addieren, Bildschirm, Multiplizieren, Differenz</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">Zusätzlich gibt es den Modus „Basis“ (28 Kanäle: Master + Farbslots, ideal für kleine Pulte wie Daslight-Einsteigerversionen) und „Erweitert“ mit Position, Zoom und Drehung pro Ebene.</p>
+
+  <h3>Empfohlener Weg je Pult</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Pult</th><th>Steuerung</th><th>Tempo</th></tr></thead>
+    <tbody>
+      <tr><td>grandMA3 / onPC</td><td>Art-Net oder sACN mit GDTF-Profil; Szenen zusätzlich per OSC aus Makros</td><td>VJ-Link nimmt Ableton Link oder LJ-Link direkt</td></tr>
+      <tr><td>grandMA2 / onPC</td><td>Art-Net oder sACN mit Fixture-XML</td><td>wie oben; MA2 selbst bleibt reiner DMX-Sender</td></tr>
+      <tr><td>Daslight 4 / 5</td><td>Art-Net, wo die Version es ausgibt, sonst DMX-Kabel in USB-DMX-Eingang</td><td>Ableton Link, wie bei LJ-Link bereits getestet</td></tr>
+      <tr><td>ChamSys, Avolites, Onyx, QLC+</td><td>Art-Net oder sACN, Profil als GDTF oder Kanalliste</td><td>Ableton Link, OSC oder LJ-Link</td></tr>
+      <tr><td>Kein Pult</td><td>Tablet-Fernbedienung, MIDI-Controller oder Auto-VJ</td><td>Ableton Link, Audio-Eingang oder Tap</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">Welche Pult-Versionen Art-Net in welcher Lizenzstufe ausgeben, muss im Prototyp je Modell geprüft werden.</p>
+
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze der Ansicht Verbinden">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span>SHOW</span><span>BAUEN</span><span>AUSGABE</span><span class="on">VERBINDEN</span></div>
+        <div class="m-tempo"><span class="m-bpm">128.00</span><span class="beats"><i class="on"></i><i></i><i></i><i></i></span></div>
+        <span class="btn-bo">BLACKOUT</span>
+      </div>
+      <div class="m-body con-body">
+        <div>
+          <div class="m-h"><span>Eingänge und Ausgänge</span><span class="pin">1</span></div>
+          <div class="cards">
+            <div class="card ok"><div class="row"><b>Art-Net</b><span class="dot"></span></div><em>Universe 0:1 · Adresse 1 · 44 Pakete/s</em><em>Quelle: grandMA3 192.168.1.20</em></div>
+            <div class="card off"><div class="row"><b>sACN</b><span class="dot"></span></div><em>aus</em><em>Universe 1</em></div>
+            <div class="card ok"><div class="row"><b>Ableton Link</b><span class="dot"></span></div><em>3 Teilnehmer · 128.00 BPM</em><em>Quantum 4</em></div>
+            <div class="card ok"><div class="row"><b>LJ-Link</b><span class="dot"></span></div><em>2 Decks · Master Deck 2</em><em>Beatgrid, Phrasen, Cues</em></div>
+            <div class="card ok"><div class="row"><b>OSC</b><span class="dot"></span></div><em>Eingang Port 8000</em><em>Rückmeldung an 192.168.1.30:9000</em></div>
+            <div class="card off"><div class="row"><b>MIDI</b><span class="dot"></span></div><em>Kein Gerät</em><em>Lernen-Modus verfügbar</em></div>
+          </div>
+          <div class="m-h"><span>DMX-Patch · Modus Standard · 68 Kanäle</span><span class="pin">2</span></div>
+          <div class="patch">
+            <div class="gh"><span>Kanal</span><span>Funktion</span><span>Wert live</span><span></span></div>
+            <div><span>1</span><span>Master-Dimmer</span><span class="bar"><i style="width:82%"></i></span><span class="v">209</span></div>
+            <div><span>3</span><span>Szene</span><span class="bar"><i style="width:1.2%"></i></span><span class="v">3</span></div>
+            <div><span>9–12</span><span>Slot A · RGB</span><span class="bar"><i style="width:100%;background:var(--sA)"></i></span><span class="v">255</span></div>
+            <div><span>13–16</span><span>Slot B · RGB</span><span class="bar"><i style="width:88%;background:var(--sB)"></i></span><span class="v">224</span></div>
+            <div><span>17–20</span><span>Slot C · RGB</span><span class="bar"><i style="width:60%;background:var(--sC)"></i></span><span class="v">153</span></div>
+            <div><span>29</span><span>E1 Deckkraft</span><span class="bar"><i style="width:100%"></i></span><span class="v">255</span></div>
+            <div><span>31</span><span>E1 Clip</span><span class="bar"><i style="width:0.4%"></i></span><span class="v">1</span></div>
+            <div><span>34</span><span>E1 Effekt 1</span><span class="bar"><i style="width:45%"></i></span><span class="v">115</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="m-h"><span>Geräteprofil exportieren</span><span class="pin">3</span></div>
+          <div class="export">
+            <span>grandMA3 <em>GDTF</em></span>
+            <span>grandMA2 <em>XML</em></span>
+            <span>Daslight <em>Bibliothek</em></span>
+            <span>Andere Pulte <em>GDTF</em></span>
+            <span>Kanalliste <em>CSV / PDF</em></span>
+            <div class="primary">Profil speichern</div>
+          </div>
+          <div class="m-h" style="margin-top:16px"><span>Startadresse</span></div>
+          <div class="prop"><span>Universe</span><div class="field">0:1</div><span>Adresse</span><div class="field">1</div><span>Modus</span><div class="field">Standard · 68</div></div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>Verbinden.</b> Jede Verbindung zeigt in einer Zeile, ob Daten ankommen und woher. Der Patch zeigt Live-Werte, damit man beim Einrichten sofort sieht, ob das Pult richtig sendet.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Verbindungskarten.</b> Grün heißt: Daten kommen an. Netzwerk und Absender werden automatisch erkannt.</span></li>
+    <li><span class="pin">2</span><span><b>Patch mit Live-Werten.</b> Ersetzt das Rätselraten, ob die Adresse stimmt.</span></li>
+    <li><span class="pin">3</span><span><b>Profil-Export.</b> Ein Klick erzeugt das passende Geräteprofil für das gewählte Pult.</span></li>
+  </ol>
+
+  <h3>OSC-Adressen</h3>
+  <p>Für Pulte mit OSC (grandMA3, ChamSys), für TouchOSC-Layouts und für andere Software gibt es ein festes, dokumentiertes Adressschema. VJ-Link meldet Zustände auf denselben Adressen zurück, damit Taster auf einem Tablet ihren Zustand anzeigen.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Adresse</th><th>Argumente</th><th>Wirkung</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">/vjlink/scene/go</td><td class="ch">i</td><td>Szene abrufen (mit eingestelltem Übergang)</td></tr>
+      <tr><td class="ch">/vjlink/master/dimmer</td><td class="ch">f 0–1</td><td>Master-Helligkeit</td></tr>
+      <tr><td class="ch">/vjlink/layer/{1–8}/opacity</td><td class="ch">f 0–1</td><td>Deckkraft einer Ebene</td></tr>
+      <tr><td class="ch">/vjlink/layer/{1–8}/clip</td><td class="ch">i</td><td>Clip auf einer Ebene starten</td></tr>
+      <tr><td class="ch">/vjlink/slot/{a–e}/rgb</td><td class="ch">f f f</td><td>Farbslot setzen</td></tr>
+      <tr><td class="ch">/vjlink/fx/{ebene}/{effekt}/{parameter}</td><td class="ch">f</td><td>Jeden Effektparameter direkt setzen</td></tr>
+      <tr><td class="ch">/vjlink/tap · /vjlink/blackout</td><td class="ch">– · i</td><td>Tap-Tempo, Blackout an/aus</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="sync">
+  <div class="eyebrow">Takt und Sync</div>
+  <h2>Woher VJ-Link den Takt kennt</h2>
+  <p>Wie in LJ-Link gibt es eine <b>Tempo-Quelle</b> mit Automatik. VJ-Link nimmt die beste verfügbare Quelle in dieser Reihenfolge und zeigt immer an, welche gerade aktiv ist:</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Rang</th><th>Quelle</th><th>Was sie liefert</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">1</td><td><b>LJ-Link (direkt)</b></td><td>Tempo, Beat-Phase, Takt, Phrasen aus der rekordbox-Analyse (Intro, Up, Chorus, Down, Outro), Track-Wechsel, Hot Cues, Energie aus der Wellenform. Tracktitel nur, wenn LJ-Link nicht im Privatsphäre-Modus ist.</td></tr>
+      <tr><td class="ch">2</td><td><b>Ableton Link</b></td><td>Tempo, Beat- und Takt-Phase. Funktioniert mit Daslight, Ableton, Traktor, Serato (mit Link) und LJ-Link.</td></tr>
+      <tr><td class="ch">3</td><td><b>OSC</b></td><td>BPM-Wert und Beat-Impulse von außen</td></tr>
+      <tr><td class="ch">4</td><td><b>MIDI-Clock</b></td><td>Tempo von Drumcomputern, DJ-Software, Pulten</td></tr>
+      <tr><td class="ch">5</td><td><b>Audio-Eingang</b></td><td>Beat-Erkennung plus Bass, Mitten und Höhen als Modulationsquellen</td></tr>
+      <tr><td class="ch">6</td><td><b>Tap</b></td><td>Taste, MIDI-Note, DMX-Kanal oder OSC</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Die direkte LJ-Link-Verbindung ist das stärkste Alleinstellungsmerkmal. Andere VJ-Programme kennen das Tempo. VJ-Link kennt zusätzlich die Songstruktur und kann einen Szenenwechsel auf den nächsten Chorus oder Drop legen.</p>
+</section>
+
+<section id="ljlink">
+  <div class="eyebrow">Skizze 3 · LJ-Link-Anbindung</div>
+  <h2>Alle Daten aus LJ-Link, direkt in die Visuals</h2>
+  <p>VJ-Link empfängt <b>alles, was LJ-Link über die Decks weiß</b>, über eine eigene direkte Verbindung. Läuft LJ-Link auf demselben Rechner oder im selben Netzwerk, finden sich beide Programme automatisch. Es gibt nichts einzustellen, außer auf „Verbinden“ zu klicken. Jeder Datenpunkt kann eine Szene auslösen, einen Clip starten, einen Effektregler bewegen oder einen Text füllen.</p>
+
+  <div class="cols">
+    <div><h3>Betrieb mit LJ-Link</h3>
+      <p class="muted">LJ-Link wird zur Taktquelle Nummer 1 und liefert zusätzlich Songstruktur, Cues und Mixer-Zustand. Die Visuals reagieren auf den Track, nicht nur auf das Tempo.</p>
+    </div>
+    <div><h3>Betrieb ohne LJ-Link</h3>
+      <p class="muted">VJ-Link ist ein vollständiges eigenes Programm. Ohne LJ-Link laufen Takt über Ableton Link, OSC, MIDI, Audio oder Tap, Steuerung über Pult, Tablet oder Maus. Regeln, die LJ-Link-Daten brauchen, werden grau angezeigt und schalten auf ihren Ersatz um (z. B. „alle 16 Takte“ statt „bei Phrasenwechsel“).</p>
+    </div>
+    <div><h3>Verbindung bricht ab</h3>
+      <p class="muted">Fällt LJ-Link mitten in der Show weg, läuft der Takt aus der letzten bekannten Phase weiter und wechselt nahtlos auf die nächste Quelle. Kein Ruckler, kein schwarzes Bild. Sobald LJ-Link zurück ist, übernimmt es wieder auf dem nächsten Einser.</p>
+    </div>
+  </div>
+
+  <h3>Was LJ-Link liefert</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Bereich</th><th>Daten</th><th>Beispiel in VJ-Link</th></tr></thead>
+    <tbody>
+      <tr><td class="grp">Takt</td><td>BPM, Pitch, Beat im Takt, Taktnummer, Beat-Phase, gewählte SEND-BPM-Quelle</td><td>Alle Beat-LFOs und Übergänge laufen exakt auf dem Beatgrid des Master-Decks</td></tr>
+      <tr><td class="grp">Decks</td><td>Pro Deck: Play/Pause, Master, Sync, On Air, Spielposition, Restzeit, Gerätemodell</td><td>Deck geht on air → Ebene dieses Decks blendet ein</td></tr>
+      <tr><td class="grp">Track</td><td>Titel, Artist, Cover, Tonart, Track-Wechsel</td><td>Laufschrift mit Titel, Cover als Clip, neuer Track → neue Szene</td></tr>
+      <tr><td class="grp">Struktur</td><td>Phrasen aus der rekordbox-Analyse (Intro, Up, Chorus, Down, Outro), Bar-Starts</td><td>Chorus → Szene „Drop“, Outro → Ambient</td></tr>
+      <tr><td class="grp">Cues</td><td>Hot Cues A–H, Memory Cues, Loops (an/aus, Länge)</td><td>Hot Cue C erreicht → Strobe 1 Takt; Loop aktiv → Effekt „Feedback“ steigt</td></tr>
+      <tr><td class="grp">Wellenform</td><td>Energie und Frequenzanteile an der aktuellen Position, Vorschau der nächsten Takte</td><td>Bass-Energie moduliert Zoom; Breakdown wird erkannt, bevor er kommt</td></tr>
+      <tr><td class="grp">Mixer</td><td>On-Air-Kanäle (Pioneer), echte Fader-Stellungen (Denon StageLinQ)</td><td>Crossfader zwischen Deck 1 und 2 blendet zwischen zwei Ebenen</td></tr>
+      <tr><td class="grp">Zustand</td><td>Privatsphäre-Modus, Demo-Modus, verbundene Geräte</td><td>Bei Privatsphäre-Modus werden Titel und Cover nicht angezeigt</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">Welche Daten verfügbar sind, hängt wie in LJ-Link vom Gerät ab: Phrasen gibt es nur bei rekordbox-analysierten Tracks über Pro DJ Link, Fader-Stellungen nur bei Denon, Serato liefert keine Spielposition. VJ-Link zeigt pro Deck an, was gerade ankommt.</p>
+
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze der LJ-Link-Regeln">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span>SHOW</span><span>BAUEN</span><span>AUSGABE</span><span class="on">VERBINDEN</span></div>
+        <span class="pill ok"><span class="dot"></span>LJ-LINK · MacBook-Booth · 2 Decks</span>
+        <div class="m-tempo"><span class="m-bpm">128.00</span><span class="beats"><i class="on"></i><i></i><i></i><i></i></span></div>
+        <span class="btn-bo">BLACKOUT</span>
+      </div>
+      <div class="m-body con-body">
+        <div>
+          <div class="m-h"><span>Decks aus LJ-Link</span><span class="pin">1</span></div>
+          <div class="cards" style="grid-template-columns:1fr 1fr">
+            <div class="card ok" style="border-color:var(--app-live)"><div class="row"><b>Deck 2 · CDJ-3000</b><span class="pill" style="color:var(--app-live)">ON AIR · MASTER</span></div><em>„Example Track“ · 128.00 · 8A</em><em>Phrase CHORUS · Takt 33 · noch 4 Takte</em><div class="op"><i style="width:62%"></i></div></div>
+            <div class="card"><div class="row"><b>Deck 1 · CDJ-3000</b><span class="pill">CUE</span></div><em>„Next Track“ · 127.00 · 9A</em><em>Phrase INTRO · Hot Cue A gesetzt</em><div class="op"><i style="width:4%"></i></div></div>
+          </div>
+          <div class="m-h"><span>Regeln · Wenn … dann …</span><span class="pin">2</span></div>
+          <div class="patch">
+            <div class="gh" style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span></span><span>Wenn (LJ-Link)</span><span>Dann (VJ-Link)</span><span>Ersatz</span></div>
+            <div style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span class="chk"></span><span>Phrase wird CHORUS</span><span>Szene „Drop“ · Übergang 1 Takt</span><span class="v">–</span></div>
+            <div style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span class="chk"></span><span>Phrase wird OUTRO / DOWN</span><span>Szene „Ambient“ · 4 Takte</span><span class="v">16 T</span></div>
+            <div style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span class="chk"></span><span>Track-Wechsel (On Air)</span><span>Clip-Bank weiter · Titel 8 Takte einblenden</span><span class="v">–</span></div>
+            <div style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span class="chk"></span><span>Hot Cue C erreicht</span><span>Strobe Master · 1 Takt</span><span class="v">–</span></div>
+            <div style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span class="chk"></span><span>Loop aktiv</span><span>E2 Effekt 1 „Feedback“ → 80 %</span><span class="v">–</span></div>
+            <div style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span class="chk"></span><span>Wellenform Bass-Energie</span><span>Modulation: Zoom Kaleidoskop</span><span class="v">Audio</span></div>
+            <div style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span class="chk" style="background:var(--app-raise)"></span><span style="color:var(--app-dim)">Crossfader (nur Denon)</span><span style="color:var(--app-dim)">Blende E1 ↔ E2</span><span class="v">aus</span></div>
+            <div style="grid-template-columns:24px 200px minmax(0,1fr) 60px"><span></span><span class="addfx" style="padding:4px">+ Regel</span><span></span><span></span></div>
+          </div>
+        </div>
+        <div>
+          <div class="m-h"><span>Verbindung</span><span class="pin">3</span></div>
+          <div class="prop">
+            <span>Quelle</span><div class="field">Automatisch</div>
+            <span>Gefunden</span><div class="field">MacBook-Booth</div>
+            <span>Takt</span><div class="field">Master-Deck</div>
+            <span>Bei Ausfall</span><div class="field">Ableton Link</div>
+          </div>
+          <div class="m-h" style="margin-top:16px"><span>Wer hat Vorrang?</span><span class="pin">4</span></div>
+          <div class="export">
+            <span>Pult (DMX) <em>1</em></span>
+            <span>LJ-Link-Regeln <em>2</em></span>
+            <span>Auto-VJ <em>3</em></span>
+          </div>
+          <p style="color:var(--app-dim);margin-top:10px;max-width:none">Ruft das Pult eine Szene ab, pausieren die Regeln für 8 Takte.</p>
+          <div class="autovj" style="margin-top:10px"><div class="row"><b>Ohne LJ-Link</b><span class="toggle off"></span></div><span style="color:var(--app-dim)">Vorschau: so läuft die Show, wenn LJ-Link fehlt</span></div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>LJ-Link-Regeln.</b> Oben die Decks, wie LJ-Link sie sieht, mit demselben roten On-Air-Rahmen. Darunter einfache Wenn-dann-Regeln. Die Spalte „Ersatz“ zeigt, was passiert, wenn LJ-Link nicht verbunden ist.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Deck-Karten</b> mit Track, Phrase, Position und Status, direkt aus LJ-Link.</span></li>
+    <li><span class="pin">2</span><span><b>Regeln</b> verbinden LJ-Link-Ereignisse mit Szenen, Clips und Effekten. Es gibt fertige Regelsätze, z. B. „Club Standard“.</span></li>
+    <li><span class="pin">3</span><span><b>Verbindung</b> findet LJ-Link automatisch und legt fest, wohin der Takt bei einem Ausfall wechselt.</span></li>
+    <li><span class="pin">4</span><span><b>Vorrang.</b> Das Pult gewinnt immer. Ein Schalter zeigt, wie sich die Show ohne LJ-Link verhält.</span></li>
+  </ol>
+
+  <h3>Technische Umsetzung in LJ-Link</h3>
+  <ul class="plain">
+    <li>LJ-Link bekommt einen neuen Ausgang „VJ-Link“, neben grandMA, OSC und Ableton Link. Er ist standardmäßig an, sobald VJ-Link im Netzwerk gefunden wird.</li>
+    <li>Übertragung über WebSocket mit JSON-Nachrichten (Deck-Zustände 30-mal pro Sekunde, Ereignisse wie Beat, Phrase und Cue sofort). Takt-Phase zusätzlich über Ableton Link, damit beide Programme auf dieselbe Uhr schauen.</li>
+    <li>Automatisches Finden über Bonjour/mDNS. Feste IP-Adresse als Ausweg, wie bei der manuellen Netzwerkeinrichtung in LJ-Link.</li>
+    <li>Die Schnittstelle wird offen dokumentiert, damit auch andere Programme sie nutzen können.</li>
+    <li>LJ-Link sendet nur. VJ-Link schickt nichts an LJ-Link oder an die DJ-Geräte zurück, so wie LJ-Link heute auch nichts an die Decks sendet.</li>
+  </ul>
+</section>
+
+<section id="editor">
+  <div class="eyebrow">Skizze 4 · Effekt-Editor</div>
+  <h2>Effekte bauen ohne Programmieren</h2>
+  <p>Der Editor arbeitet mit einem <b>Stapel statt mit Knoten</b>. Oben steht die Quelle, darunter folgen Effekte, die von oben nach unten wirken. Das reicht für fast alles, was in einer Club-Show gebraucht wird, und jeder versteht es ohne Einführung. Wer tiefer will, importiert ISF-Shader, ein offenes Shader-Format mit großer frei verfügbarer Sammlung.</p>
+  <div class="cols">
+    <div><h3>Bausteine</h3>
+      <ul class="plain">
+        <li><b>Quellen:</b> Tunnel, Strahlen, Partikel, Raster, Wellen, Rauschen, Formen, Verlauf, Text, Laufschrift, Wellenform aus LJ-Link</li>
+        <li><b>Form:</b> Kaleidoskop, Spiegeln, Kacheln, Drehen, Zoom, Verschieben, Polar</li>
+        <li><b>Stil:</b> Weichzeichnen, Leuchten, RGB-Versatz, Glitch, Pixel, Feedback, Kanten, Invertieren</li>
+        <li><b>Farbe:</b> Färben nach Slot, Verlauf zwischen Slots, Farbton, Kontrast, Schwellwert</li>
+      </ul>
+    </div>
+    <div><h3>Modulation per Ziehen</h3>
+      <p class="muted">Jeder Regler kann bewegt werden, ohne Kurven zu zeichnen: eine Modulationsquelle aus der Leiste auf den Regler ziehen, Bereich einstellen, fertig. Quellen sind Beat-LFO (¼, ½, 1, 4 Takte, Sinus, Säge, Rechteck), Audio-Bänder, DMX-Kanäle, OSC-Adressen, MIDI-Regler und Ereignisse wie „Phrasenwechsel“ oder „Hot Cue C“.</p>
+    </div>
+  </div>
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze des Effekt-Editors">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span>SHOW</span><span class="on">BAUEN</span><span>AUSGABE</span><span>VERBINDEN</span></div>
+        <span style="color:var(--app-dim)">Clip „Kaleido Gold“ · Ebene 2 · Bank 1</span>
+        <div class="m-tempo"><span class="m-bpm">128.00</span><span class="beats"><i class="on"></i><i></i><i></i><i></i></span></div>
+        <span class="btn-bo">BLACKOUT</span>
+      </div>
+      <div class="m-body ed-body">
+        <div>
+          <div class="m-h"><span>Bibliothek</span><span class="pin">1</span></div>
+          <div class="search">Suchen …</div>
+          <div class="m-h"><span>Quellen</span></div>
+          <div class="lib"><span><i class="t1"></i>Tunnel</span><span class="sel"><i class="t8"></i>Strahlen</span><span><i class="t6"></i>Partikel</span><span><i class="t4"></i>Nebel</span></div>
+          <div class="m-h"><span>Effekte</span></div>
+          <div class="lib"><span>Kaleidoskop</span><span>Spiegeln</span><span>RGB-Versatz</span><span>Feedback</span><span>Glitch</span><span>Färben</span></div>
+          <div class="m-h"><span>Medien</span></div>
+          <div class="lib"><span><i class="t7"></i>logo_club.png</span><span><i class="t2"></i>loop_042.mov</span></div>
+        </div>
+        <div>
+          <div class="m-h"><span>Vorschau</span><span class="pin">2</span></div>
+          <div class="stage"><div class="k"></div></div>
+          <div class="m-h"><span>Stapel · wirkt von oben nach unten</span><span class="pin">3</span></div>
+          <div class="stack">
+            <div class="fx"><span class="grip">⋮⋮</span><span class="chk"></span><div><div class="kind">Quelle</div><b>Strahlen</b></div><div class="mini"><i style="width:100%"></i></div><span class="pill">12 Strahlen</span></div>
+            <div class="fx sel"><span class="grip">⋮⋮</span><span class="chk"></span><div><div class="kind">Form</div><b>Kaleidoskop</b></div><div class="mini"><i style="width:70%"></i></div><span class="mod-tag"><span class="dot"></span>Beat ¼</span></div>
+            <div class="fx"><span class="grip">⋮⋮</span><span class="chk"></span><div><div class="kind">Stil</div><b>Leuchten</b></div><div class="mini"><i style="width:40%"></i></div><span class="mod-tag"><span class="dot"></span>Bass</span></div>
+            <div class="fx"><span class="grip">⋮⋮</span><span class="chk"></span><div><div class="kind">Farbe</div><b>Färben nach Slot B</b></div><div class="mini"><i style="width:100%;background:var(--sB)"></i></div><span class="pill">Slot B</span></div>
+            <div class="addfx">+ Effekt hinzufügen oder aus der Bibliothek hierher ziehen</div>
+          </div>
+        </div>
+        <div>
+          <div class="m-h"><span>Kaleidoskop</span><span class="pin">4</span></div>
+          <div class="param"><div class="row"><b>Segmente</b><span>6</span></div><div class="slider"><i style="width:30%"></i></div></div>
+          <div class="param"><div class="row"><b>Drehung</b><span>0–180°</span></div><div class="slider mod"><i style="width:52%"></i><span class="range" style="left:10%;width:70%"></span></div><span class="mod-tag"><span class="dot"></span>Beat-LFO ¼ · Säge · 100 %</span></div>
+          <div class="param"><div class="row"><b>Zoom</b><span>1.4×</span></div><div class="slider mod"><i style="width:40%"></i><span class="range" style="left:25%;width:35%"></span></div><span class="mod-tag"><span class="dot"></span>Audio Bass · 60 %</span></div>
+          <div class="param"><div class="row"><b>Mitte X / Y</b><span>0.50 / 0.50</span></div><div class="slider"><i style="width:50%"></i></div></div>
+          <div class="param" style="border:0"><div class="row"><b>Pult-Kanal</b><span>E2 · Effekt 1</span></div></div>
+          <div class="m-h" style="margin-top:6px"><span>Modulation · auf Regler ziehen</span><span class="pin">5</span></div>
+          <div class="chips"><span>Beat ¼</span><span>Beat 1</span><span>4 Takte</span><span>Bass</span><span>Mitten</span><span>Höhen</span><span>Phrase</span><span>DMX 34</span><span>OSC</span><span>MIDI</span></div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>Effekt-Editor.</b> Links Bausteine, in der Mitte Vorschau und Stapel, rechts die Regler des gewählten Effekts. Ein pinker Regler ist moduliert; der Rahmen zeigt den Bereich, in dem er sich bewegt.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Bibliothek</b> mit Quellen, Effekten und eigenen Medien. Ziehen in den Stapel oder ins Clip-Raster.</span></li>
+    <li><span class="pin">2</span><span><b>Vorschau</b> in Echtzeit, unabhängig vom Ausgang. Bauen während der Show ist möglich.</span></li>
+    <li><span class="pin">3</span><span><b>Stapel.</b> Reihenfolge per Ziehen, jeder Effekt einzeln abschaltbar. Die ersten drei Effekte liegen automatisch auf den Pult-Kanälen „Effekt 1–3“.</span></li>
+    <li><span class="pin">4</span><span><b>Regler</b> des gewählten Effekts. Höchstens sechs pro Effekt, damit es übersichtlich bleibt.</span></li>
+    <li><span class="pin">5</span><span><b>Modulationsquellen</b> zum Ziehen. Ein Doppelklick auf einen modulierten Regler entfernt die Modulation wieder.</span></li>
+  </ol>
+</section>
+
+<section id="ausgabe">
+  <div class="eyebrow">Skizze 5 · Ausgänge und Mapping</div>
+  <h2>Beliebig viele Ausgänge, jede Auflösung, einfaches Mapping</h2>
+  <div class="cols">
+    <div><h3>Ausgänge</h3>
+      <ul class="plain">
+        <li>Jeder angeschlossene Bildschirm, Beamer oder LED-Prozessor wird erkannt und als Ausgang angeboten.</li>
+        <li>Freie Auflösung pro Ausgang, auch ungewöhnliche LED-Formate wie 1152 × 192 oder 2560 × 384.</li>
+        <li>Ausgangsarten: Vollbild auf Monitor, Fenster, NDI, Syphon (macOS), Spout (Windows), später Art-Net-Pixel für LED-Streifen.</li>
+        <li>Testbild pro Ausgang mit Nummer, Auflösung und Raster.</li>
+        <li>Ausgang kann eine Szene ignorieren, z. B. damit der DJ-Pult-Monitor immer das Logo zeigt.</li>
+      </ul>
+    </div>
+    <div><h3>Mapping in drei Stufen</h3>
+      <ul class="plain">
+        <li><b>Ausschnitt:</b> Rechteck aus der Leinwand wählen. Reicht für LED-Wände.</li>
+        <li><b>Eckpunkte:</b> Vier Ecken ziehen, um Beamer-Trapez auszugleichen oder auf eine schräge Fläche zu legen.</li>
+        <li><b>Raster und Masken:</b> 3 × 3 oder 5 × 5 Punkte für gebogene Flächen, Masken zum Ausschneiden (z. B. DJ-Pult).</li>
+        <li>Foto der Bühne als Hintergrund laden, Flächen direkt darauf zeichnen. Pfeiltasten für pixelgenaues Feinjustieren.</li>
+      </ul>
+    </div>
+  </div>
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze der Ausgabe-Ansicht mit Mapping">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span>SHOW</span><span>BAUEN</span><span class="on">AUSGABE</span><span>VERBINDEN</span></div>
+        <span style="color:var(--app-dim)">Vorlage „LED-Wand + 1 Beamer“</span>
+        <div class="m-tempo"><span class="m-bpm">128.00</span><span class="beats"><i class="on"></i><i></i><i></i><i></i></span></div>
+        <span class="btn-bo">BLACKOUT</span>
+      </div>
+      <div class="m-body out-body">
+        <div>
+          <div class="m-h"><span>Ausgänge</span><span class="pin">1</span></div>
+          <div class="outs">
+            <div class="out"><div class="row"><b>1 · LED-Wand</b><span class="pill ok"><span class="dot"></span>60 Hz</span></div><em>1920 × 640 · HDMI 1</em></div>
+            <div class="out sel"><div class="row"><b>2 · Beamer Bühne</b><span class="pill ok"><span class="dot"></span>60 Hz</span></div><em>1920 × 1080 · DisplayPort 1</em></div>
+            <div class="out"><div class="row"><b>3 · Stream</b><span class="pill">NDI</span></div><em>1280 × 720 · „VJ-Link Main“</em></div>
+            <div class="addfx">+ Ausgang hinzufügen</div>
+          </div>
+          <div class="m-h"><span>Beamer Bühne</span><span class="pin">2</span></div>
+          <div class="prop">
+            <span>Gerät</span><div class="field">DisplayPort 1</div>
+            <span>Auflösung</span><div class="field">1920 × 1080</div>
+            <span>Bildrate</span><div class="field">60 Hz</div>
+            <span>Inhalt</span><div class="field">Leinwand · Bereich 2</div>
+            <span>Testbild</span><span class="toggle off"></span>
+          </div>
+        </div>
+        <div>
+          <div class="toolbar"><span class="pin">3</span><span>Ausschnitt</span><span class="on">Eckpunkte</span><span>Raster 3 × 3</span><span>Maske</span><span>Fläche zeichnen</span><span style="margin-left:auto">Bühnenfoto laden</span><span>Testbild</span></div>
+          <div class="panes">
+            <div>
+              <div class="m-h"><span>Leinwand 3840 × 1080</span><span class="pin">4</span></div>
+              <div class="canvas">
+                <div class="slice" style="left:0;top:0;width:50%;height:59.3%"><span class="pin" style="background:var(--app-text);color:var(--app-bg)">1</span></div>
+                <div class="slice s2" style="left:50%;top:0;width:50%;height:100%"><span class="pin">2</span></div>
+                <div class="slice s3" style="left:4%;top:62%;width:33%;height:33%"><span class="pin" style="background:var(--app-dim)">3</span></div>
+              </div>
+              <p style="color:var(--app-dim);margin-top:8px;max-width:none">Bereiche dürfen sich überlappen. Der Stream zeigt hier eine verkleinerte Kopie eines Teils der LED-Wand.</p>
+            </div>
+            <div class="map">
+              <div class="m-h"><span>Mapping · Ausgang 2</span><span class="pin">5</span></div>
+              <svg viewBox="0 0 400 240" role="img" aria-label="Verzerrte Fläche mit vier Eckpunkten über einem Bühnenfoto">
+                <rect x="0" y="0" width="400" height="240" fill="var(--app-raise)"/>
+                <path d="M0 215 L80 170 L320 170 L400 215" fill="none" stroke="var(--app-line)" stroke-width="2"/>
+                <path d="M80 170 L80 20 M320 170 L320 10" fill="none" stroke="var(--app-line)" stroke-width="2"/>
+                <polygon points="70,40 330,25 350,190 55,205" fill="var(--sE)" fill-opacity=".28" stroke="var(--app-accent)" stroke-width="2"/>
+                <g stroke="var(--app-accent)" stroke-opacity=".5" stroke-width="1" fill="none">
+                  <line x1="156.7" y1="35" x2="153.3" y2="200"/><line x1="243.3" y1="30" x2="251.7" y2="195"/>
+                  <line x1="65" y1="95" x2="336.7" y2="80"/><line x1="60" y1="150" x2="343.3" y2="135"/>
+                </g>
+                <rect x="160" y="150" width="82" height="52" fill="var(--app-bg)" fill-opacity=".85" stroke="var(--app-text)" stroke-dasharray="4 3"/>
+                <text x="201" y="180" fill="var(--app-dim)" font-size="10" text-anchor="middle" font-family="JetBrains Mono, monospace">Maske DJ-Pult</text>
+                <g fill="var(--app-accent)" stroke="var(--app-bg)" stroke-width="2">
+                  <circle cx="70" cy="40" r="6"/><circle cx="330" cy="25" r="6"/><circle cx="350" cy="190" r="6"/><circle cx="55" cy="205" r="6"/>
+                </g>
+                <text x="12" y="232" fill="var(--app-dim)" font-size="10" font-family="JetBrains Mono, monospace">Ecke oben rechts: x 1580 · y 112</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>Ausgabe.</b> Links die Ausgänge, rechts die Leinwand mit ihren Bereichen und das Mapping des gewählten Ausgangs über einem Bühnenfoto. Die Maske schneidet das DJ-Pult aus, damit der Beamer den DJ nicht blendet.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Ausgänge</b> mit Status. Fällt ein Bildschirm weg, bleibt der Ausgang erhalten und meldet sich, sobald er zurück ist.</span></li>
+    <li><span class="pin">2</span><span><b>Einstellungen</b> des gewählten Ausgangs. Auflösung frei eintragbar.</span></li>
+    <li><span class="pin">3</span><span><b>Werkzeuge</b> in der Reihenfolge, in der man sie meistens braucht.</span></li>
+    <li><span class="pin">4</span><span><b>Leinwand</b> mit den Bereichen, die jeder Ausgang zeigt.</span></li>
+    <li><span class="pin">5</span><span><b>Mapping</b> mit Eckpunkten, Hilfsraster und Maske. Die Koordinaten stehen immer in Ausgangs-Pixeln da.</span></li>
+  </ol>
+</section>
+
+<section id="extras">
+  <div class="eyebrow">Weitere Funktionen</div>
+  <h2>Was zusätzlich gebraucht wird</h2>
+  <p>Neben den gewünschten Kernfunktionen braucht ein VJ-Programm im Showbetrieb eine Reihe von Dingen, die man erst vermisst, wenn sie fehlen. Priorität: <span class="tag must">MUSS</span> für die erste Version, <span class="tag should">SOLL</span> für Version 1.0, <span class="tag later">SPÄTER</span> danach.</p>
+  <div class="features">
+    <div><h3>Show-Sicherheit</h3><ul>
+      <li><span class="tag must">MUSS</span><span>Ausgabe in eigenem Prozess: Hängt die Oberfläche, laufen die Bilder weiter.</span></li>
+      <li><span class="tag must">MUSS</span><span>Automatisches Speichern und Wiederherstellen nach Absturz, inklusive Ausgänge und laufender Szene.</span></li>
+      <li><span class="tag must">MUSS</span><span>Blackout und Ersatzbild (z. B. Logo) per Taste, Pult und OSC.</span></li>
+      <li><span class="tag must">MUSS</span><span>Anzeige von Bildrate und GPU-Last mit Warnung, bevor es ruckelt.</span></li>
+      <li><span class="tag should">SOLL</span><span>Sperrmodus: Show-Ansicht nur bedienen, nichts versehentlich löschen.</span></li>
+      <li><span class="tag should">SOLL</span><span>Start direkt in die letzte Show, ohne Klick (für fest installierte Clubs).</span></li>
+    </ul></div>
+    <div><h3>Medien</h3><ul>
+      <li><span class="tag must">MUSS</span><span>Ziehen und Ablegen von Videos und Bildern, Vorschaubilder automatisch.</span></li>
+      <li><span class="tag must">MUSS</span><span>Starter-Paket mit rund 40 Generatoren, damit man ohne eigenes Material loslegen kann.</span></li>
+      <li><span class="tag should">SOLL</span><span>Umwandeln beim Import in ein schnell abspielbares Format (HAP).</span></li>
+      <li><span class="tag should">SOLL</span><span>Projekt packen: alle Medien in einen Ordner sammeln, um die Show auf einen anderen Rechner zu bringen.</span></li>
+      <li><span class="tag should">SOLL</span><span>Fehlende Dateien automatisch suchen.</span></li>
+    </ul></div>
+    <div><h3>Live-Quellen und Text</h3><ul>
+      <li><span class="tag must">MUSS</span><span>Text-Generator für DJ-Namen, Logo, Laufschrift.</span></li>
+      <li><span class="tag should">SOLL</span><span>Tracktitel und Wellenform live aus LJ-Link (Privatsphäre-Modus wird beachtet).</span></li>
+      <li><span class="tag should">SOLL</span><span>Kamera und Capture-Karte als Quelle, z. B. für DJ-Close-ups.</span></li>
+      <li><span class="tag should">SOLL</span><span>NDI-, Syphon- und Spout-Eingang.</span></li>
+    </ul></div>
+    <div><h3>Bedienung</h3><ul>
+      <li><span class="tag must">MUSS</span><span>Vorlagen für typische Setups: „1 LED-Wand“, „2 Beamer“, „LED-Wand + Pult-Front“.</span></li>
+      <li><span class="tag must">MUSS</span><span>Deutsch und Englisch, Tag- und Nachtmodus wie in LJ-Link.</span></li>
+      <li><span class="tag should">SOLL</span><span>Fernbedienung im Browser für Tablet und Handy (Skizze unten).</span></li>
+      <li><span class="tag should">SOLL</span><span>MIDI-Lernen für Controller wie APC40 oder Launchpad.</span></li>
+      <li><span class="tag should">SOLL</span><span>Auto-VJ: wechselt Szenen selbstständig bei Phrasen oder alle n Takte.</span></li>
+      <li><span class="tag should">SOLL</span><span>Rückgängig und Wiederholen in allen Editoren.</span></li>
+    </ul></div>
+    <div><h3>Ausbau</h3><ul>
+      <li><span class="tag later">SPÄTER</span><span>Pixel-Mapping: Bildausschnitte als Art-Net an LED-Streifen und Pixel-Bars senden.</span></li>
+      <li><span class="tag later">SPÄTER</span><span>Farbe aus dem Bild messen und als Farbslot an das Pult zurückgeben.</span></li>
+      <li><span class="tag later">SPÄTER</span><span>Weiche Überblendung zwischen zwei Beamern (Edge Blending).</span></li>
+      <li><span class="tag later">SPÄTER</span><span>Ausgang aufnehmen, z. B. für Social-Media-Clips.</span></li>
+      <li><span class="tag later">SPÄTER</span><span>Cue-Liste mit Zeitcode für vorprogrammierte Shows.</span></li>
+    </ul></div>
+  </div>
+
+  <div class="remote-row">
+    <div style="display:grid;gap:14px;align-content:start">
+      <div class="eyebrow">Skizze 6 · Fernbedienung</div>
+      <h3>Tablet und Handy im selben Netzwerk</h3>
+      <p>Wie bei LJ-Link läuft eine Weboberfläche im Netzwerk mit. Ohne App-Installation zeigt sie die wichtigsten Tasten: Szenen, Farbslots, Tap und Blackout. Gedacht für den DJ, der selbst Visuals umschalten will, oder für den LJ, der beim Einrichten vor der LED-Wand steht.</p>
+      <p class="muted">Die Fernbedienung zeigt nur, was in der Show gebraucht wird. Bauen und Mapping bleiben am Rechner. Ein optionaler PIN schützt vor Gästen im Club-WLAN.</p>
+    </div>
+    <div class="phone" role="img" aria-label="Skizze der Fernbedienung auf dem Handy">
+      <div class="row"><span class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</span><span class="pill ok"><span class="dot"></span>LINK</span></div>
+      <div class="m-bpm">128.00</div>
+      <div class="beats"><i class="on"></i><i></i><i></i><i></i></div>
+      <div class="pbtns"><span>Intro</span><span>Build</span><span class="on">Chorus</span><span>Drop</span><span>Ambient</span><span>Logo</span></div>
+      <div class="pslots"><i style="background:var(--sA)"></i><i style="background:var(--sB)"></i><i style="background:var(--sC)"></i><i style="background:var(--sD)"></i><i style="background:var(--sE)"></i></div>
+      <div class="pfoot"><span>TAP</span><span class="bo">BLACKOUT</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="technik">
+  <div class="eyebrow">Technik</div>
+  <h2>Aufbau und Technologie</h2>
+  <div class="flow">
+    <div class="node"><b>Oberfläche</b><span>Web-Oberfläche im Desktop-Fenster, dieselbe Oberfläche als Fernbedienung im Browser</span></div>
+    <div class="arrow">⇄</div>
+    <div class="node"><b>Steuer-Kern</b><span>Projekt, Szenen, Tempo, alle Protokolle: Art-Net, sACN, OSC, Ableton Link, MIDI, LJ-Link</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Render-Engine</b><span>Eigener Prozess auf der Grafikkarte: Ebenen, Effekte, Leinwand, Mapping</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Ausgänge</b><span>Bildschirme, NDI, Syphon, Spout, später Art-Net-Pixel</span></div>
+  </div>
+  <div class="cols">
+    <div><h3>Empfehlung</h3>
+      <p>Render-Engine und Kern in <b>Rust mit wgpu</b>. Das läuft nativ auf Metal (macOS) und DirectX 12 / Vulkan (Windows). Die Oberfläche als Web-Oberfläche in einem schlanken Desktop-Rahmen (z. B. Tauri), weil LJ-Link bereits eine Browser-Oberfläche hat und die Fernbedienung so ohne Mehraufwand entsteht.</p>
+      <p class="muted">Alternative: Java mit LWJGL, um Code aus LJ-Link direkt zu übernehmen. Dagegen spricht, dass OpenGL auf macOS veraltet ist und Video-Dekodierung auf der Grafikkarte in Java deutlich mühsamer ist.</p>
+    </div>
+    <div><h3>Bausteine und Lizenzen</h3>
+      <ul class="plain">
+        <li><b>Video:</b> HAP für schnelle Wiedergabe, H.264/H.265/ProRes über die Hardware-Dekoder des Systems.</li>
+        <li><b>Shader:</b> Eigene Effekte in WGSL, ISF-Import über eine GLSL-Übersetzung.</li>
+        <li><b>Ableton Link:</b> offizielle Bibliothek; GPL-lizenziert oder mit kommerzieller Lizenz von Ableton. Wie bei LJ-Link schon gelöst, muss aber zur Lizenz von VJ-Link passen.</li>
+        <li><b>NDI:</b> SDK mit eigenen Lizenzbedingungen, vor Veröffentlichung klären.</li>
+        <li><b>LJ-Link:</b> neue, kleine Schnittstelle (z. B. WebSocket oder OSC), über die LJ-Link Beat, Phrase und Track-Ereignisse sendet.</li>
+      </ul>
+    </div>
+  </div>
+  <h3>Leistungsziele</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Ziel</th><th>Wert</th></tr></thead>
+    <tbody>
+      <tr><td>Bildrate bei 4 Ebenen, 2 × 1080p + 1 LED-Wand</td><td class="ch">60 fps auf Apple M1 bzw. Mittelklasse-GPU</td></tr>
+      <tr><td>Verzögerung Pult-Befehl bis Bild</td><td class="ch">unter 2 Frames (≈ 33 ms)</td></tr>
+      <tr><td>Programmstart bis Ausgabe</td><td class="ch">unter 5 s</td></tr>
+      <tr><td>Wiederherstellung nach Absturz der Oberfläche</td><td class="ch">Ausgabe läuft ohne Unterbrechung weiter</td></tr>
+      <tr><td>Wiederherstellung nach Absturz der Engine</td><td class="ch">unter 3 s bis zum letzten Bild</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="roadmap">
+  <div class="eyebrow">Roadmap</div>
+  <h2>In drei Schritten zur Version 1.0</h2>
+  <div class="phases">
+    <div class="phase"><div class="num">PHASE 1 · PROTOTYP</div><h3>Erstes Bild im Takt</h3>
+      <ul><li>4 Ebenen, Clip-Raster, Szenen</li><li>20 Generatoren, 12 Effekte, Stapel-Editor</li><li>Ableton Link, Tap, OSC-Eingang</li><li>LJ-Link direkt: Takt, Decks, Track-Wechsel, Phrasen</li><li>Art-Net-Eingang mit Farbslots A–E</li><li>2 Ausgänge, Ausschnitt und Eckpunkte</li><li>Profil-Export GDTF und Kanalliste</li></ul>
+      <p class="muted" style="font-size:14px">Test: eine echte Club-Nacht mit grandMA3 und Daslight.</p></div>
+    <div class="phase"><div class="num">PHASE 2 · BETA</div><h3>Show-tauglich</h3>
+      <ul><li>Beliebig viele Ausgänge, NDI, Syphon, Spout</li><li>Raster-Mapping, Masken, Bühnenfoto</li><li>LJ-Link komplett: Cues, Loops, Wellenform, Mixer, Regel-Editor</li><li>Modulation per Ziehen, Audio-Eingang</li><li>MIDI-Lernen, Fernbedienung im Browser</li><li>Absturz-Wiederherstellung, Sperrmodus</li><li>Profile für grandMA2 und Daslight</li></ul></div>
+    <div class="phase"><div class="num">PHASE 3 · VERSION 1.0</div><h3>Rund und erweiterbar</h3>
+      <ul><li>Auto-VJ</li><li>ISF-Import</li><li>Kamera und Capture-Eingang</li><li>HAP-Umwandlung, Projekt packen</li><li>Starter-Paket mit 40 Generatoren</li><li>Danach: Pixel-Mapping, Edge Blending, Aufnahme</li></ul></div>
+  </div>
+</section>
+
+<section id="markt">
+  <div class="eyebrow">Markt</div>
+  <h2>Was es schon gibt und wo die Lücke ist</h2>
+  <p>OSC und Ableton Link allein sind kein Alleinstellungsmerkmal; einige der großen Programme können das bereits. Die Lücke liegt in der Kombination aus <b>Einfachheit</b>, <b>Pult als Hauptbedienung</b> und der <b>Songstruktur aus LJ-Link</b>.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Programm</th><th>Stärke</th><th>Warum VJ-Link trotzdem Platz hat</th></tr></thead>
+    <tbody>
+      <tr><td><b>Resolume Avenue / Arena</b></td><td>Branchenstandard, riesiger Funktionsumfang</td><td>Lange Einarbeitung; Mapping und Pult-Anbindung erst in der teureren Arena-Version</td></tr>
+      <tr><td><b>TouchDesigner</b></td><td>Fast alles möglich</td><td>Eine Programmierumgebung, kein fertiges Show-Werkzeug</td></tr>
+      <tr><td><b>MadMapper</b></td><td>Stark beim Mapping und bei LED</td><td>Weniger auf schnelles Clip-VJing im Club ausgelegt</td></tr>
+      <tr><td><b>Synesthesia</b></td><td>Schöne audio-reaktive Shader, einfach</td><td>Wenig auf Lichtpult-Steuerung und Mapping ausgerichtet</td></tr>
+      <tr><td><b>VDMX</b></td><td>Sehr flexibel, modular</td><td>Nur macOS, aufwendiges Einrichten</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">Die Einordnung beruht auf dem allgemeinen Stand der Programme. Vor einer Veröffentlichung sollten Funktionen und Preise der aktuellen Versionen noch einmal geprüft werden.</p>
+</section>
+
+<section id="offen">
+  <div class="eyebrow">Offene Entscheidungen</div>
+  <h2>Was vor dem Prototyp geklärt werden sollte</h2>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Frage</th><th>Vorschlag</th></tr></thead>
+    <tbody>
+      <tr><td>Name</td><td>„VJ-Link“ als Arbeitstitel, passend zu LJ-Link</td></tr>
+      <tr><td>Lizenz und Preis</td><td>Open Source wie LJ-Link, oder kostenlose Grundversion mit 2 Ausgängen und bezahlter Pro-Version. Hängt auch an Ableton Link und NDI.</td></tr>
+      <tr><td>Ein Programm oder zwei?</td><td>Zwei getrennte Programme mit fester Verbindung. LJ-Link bleibt schlank, VJ-Link braucht eine starke Grafikkarte.</td></tr>
+      <tr><td>Technik</td><td>Rust und wgpu für die Engine, Web-Oberfläche. Vorher kurzer Test: 4 Ebenen, 2 Ausgänge, 60 fps auf einem älteren MacBook.</td></tr>
+      <tr><td>Mindest-Hardware</td><td>Apple Silicon oder Windows mit eigener Grafikkarte; Intel-Macs nur mit Einschränkungen</td></tr>
+      <tr><td>Test-Pulte</td><td>grandMA3 onPC und Daslight zuerst, weil beides schon mit LJ-Link getestet ist</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</main>
+</div>
