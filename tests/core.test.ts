@@ -86,8 +86,7 @@ describe("DMX", () => {
     f[CH.slotBase - 1] = 255; f[CH.slotBase] = 255; f[CH.slotBase + 1] = 0; f[CH.slotBase + 2] = 0;
     const fx = d.decode(f, s);
     expect(s.master).toBeCloseTo(0.5, 1);
-    expect(fx.scene).toBe(4);
-    expect(s.layers[0]!.clip).toBe("synth-grid");
+    expect(fx.scene).toBe(4); // Abruf selbst macht recallScene (mit Überblendung)
     expect(s.slots[0]).toEqual([1, 0, 0]);
   });
   it("wendet nur Änderungen an: Oberfläche bleibt wirksam", () => {
@@ -238,5 +237,75 @@ describe("Control-Registry", () => {
     expect(handleOsc(c, { address: "/vjlink/ctl/strobe.speed", args: [0.8] }, 0)).toBe(true);
     expect(c.show.strobe.speed).toBeCloseTo(0.8);
     expect(handleOsc(c, { address: "/vjlink/ctl/unbekannt", args: [1] }, 0)).toBe(false);
+  });
+});
+
+import { recallScene, tickTransition } from "../src/core/control";
+import { cloneLayers, transitionProgress } from "../src/core/show";
+import { POST_EFFECTS } from "../src/core/effects";
+import { POST_IDS } from "../src/engine/shaders";
+
+describe("Überblendung", () => {
+  it("startet auf dem nächsten Beat und endet nach der eingestellten Dauer", () => {
+    const c = ctx();
+    c.tempo.update("manual", 120, 0, 0); // 2 Beats pro Sekunde
+    c.show.transitionBeats = 2;
+    const before = c.show.layers[0]!.clip;
+    recallScene(c, 3, 250); // Beat 0,5
+    const t = c.show.transition!;
+    expect(t.startBeat).toBe(1);
+    expect(t.from[0]!.clip).toBe(before);
+    expect(c.show.layers[0]!.clip).toBe("synth-grid");
+    expect(transitionProgress(t, 0.9)).toBe(0);
+    expect(transitionProgress(t, 2)).toBeCloseTo(0.5);
+    tickTransition(c, 1000); expect(c.show.transition).not.toBeNull(); // Beat 2
+    tickTransition(c, 1600); expect(c.show.transition).toBeNull();     // Beat 3,2
+  });
+  it("Übergang 0 ist ein harter Schnitt", () => {
+    const c = ctx(); c.show.transitionBeats = 0;
+    recallScene(c, 1, 0);
+    expect(c.show.transition).toBeNull();
+  });
+  it("Szenen und Überblendung teilen keine Effekt-Objekte", () => {
+    const c = ctx();
+    recallScene(c, 0, 0);
+    const from = c.show.transition!.from;
+    c.show.layers[0]!.effects[0]!.amount = 0.9;
+    expect(from[0]!.effects[0]!.amount).toBe(0);
+    const copy = cloneLayers(c.show.layers);
+    copy[0]!.effects[0]!.amount = 0.1;
+    expect(c.show.layers[0]!.effects[0]!.amount).toBe(0.9);
+  });
+});
+
+describe("Effekt-Stapel", () => {
+  it("jeder Effekt der Liste existiert im Shader und umgekehrt", () => {
+    expect(POST_EFFECTS.map(e => e.id)).toEqual([...POST_IDS]);
+  });
+  it("Pult-Kanäle Effekt 1–3 steuern die ersten drei Effekte", () => {
+    const s = defaultShow(); const d = new DmxDecoder();
+    const f = new Uint8Array(512); const base = 29 - 1; // Ebene 1
+    f[base + 5] = 255; f[base + 7] = 51;
+    d.decode(f, s);
+    expect(s.layers[0]!.effects[0]!.amount).toBe(1);
+    expect(s.layers[0]!.effects[2]!.amount).toBeCloseTo(0.2);
+  });
+  it("MIDI/OSC-Regler und LJ-Link-Regel treffen den Stapel", () => {
+    const c = ctx();
+    setControl(c, "layer.2.fx.2", 0.6);
+    expect(c.show.layers[1]!.effects[1]!.amount).toBe(0.6);
+    handleLj(c, { t: "event", kind: "loop", deck: 1, active: true }, 0);
+    expect(c.show.layers[1]!.effects[0]!.amount).toBe(0.8);
+    c.show.layers[3]!.effects = [];
+    expect(setControl(c, "layer.4.fx.1", 1)).toBe(true); // kein Absturz bei leerem Stapel
+    expect(CONTROL_BY_ID.get("layer.4.fx.1")!.get(c)).toBe(0);
+  });
+  it("Blende-Regler zeigt die Dauer an", () => {
+    const c = ctx();
+    setControl(c, "transition.beats", 1);
+    expect(c.show.transitionBeats).toBe(8);
+    expect(CONTROL_BY_ID.get("transition.beats")!.format!(c)).toBe("8 Beats");
+    setControl(c, "transition.beats", 0);
+    expect(CONTROL_BY_ID.get("transition.beats")!.format!(c)).toBe("Schnitt");
   });
 });

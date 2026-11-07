@@ -36,7 +36,7 @@ export const EFFECTS: readonly EffectDef[] = [
   e(10, "plexus", "Wireframe-Plexus", "geometry", "generator", "planned", "Vernetzte 3D-Punkte, die sich verformen."),
   e(11, "hypercube", "Würfel / Tesserakt", "geometry", "generator", "planned", "Ineinander verdrehte Körper."),
   e(12, "vector-gobos", "Vektor-Gobos", "geometry", "generator", "planned", "Kreuze, Dreiecke, Hexagone im Takt skaliert.", ["beat"]),
-  e(13, "kaleidoscope", "Kaleidoskop", "geometry", "post", "planned", "Spiegelungen, die zu radialen Mustern werden."),
+  e(13, "kaleidoscope", "Kaleidoskop", "geometry", "post", "ready", "Spiegelungen, die zu radialen Mustern werden."),
   // Partikel und Natur
   e(14, "starfield", "Sternenfeld", "particles", "generator", "ready", "Sterne fliegen auf dich zu, Hyperdrive bei Beat.", ["beat"]),
   e(15, "bokeh", "Staub und Bokeh", "particles", "generator", "planned", "Weiche, langsam schwebende Lichtpunkte."),
@@ -46,12 +46,12 @@ export const EFFECTS: readonly EffectDef[] = [
   e(19, "ripples", "Wellen / Wasser", "particles", "generator", "planned", "Wellenlandschaft, die auf Frequenzen schwingt.", ["bass"]),
   e(20, "fire", "Feuer", "particles", "generator", "planned", "Flammen und Rauch.", ["bass"]),
   // Retro und Analog
-  e(21, "feedback", "Video-Feedback", "retro", "post", "planned", "Unendlicher Spiegel mit Korridoren."),
+  e(21, "feedback", "Video-Feedback", "retro", "post", "ready", "Unendlicher Spiegel mit Korridoren."),
   e(22, "liquid-light", "Liquid Light", "retro", "generator", "planned", "Öl-Wasser-Mischung wie vom Tageslichtprojektor."),
-  e(23, "glitch", "Glitch und Rauschen", "retro", "post", "planned", "VHS-Fehler, Scanlines, Schnee.", ["beat"]),
-  e(24, "crt", "CRT und Pixel", "retro", "post", "planned", "Röhrenmonitor-Look oder grobe Pixel."),
+  e(23, "glitch", "Glitch und Rauschen", "retro", "post", "ready", "VHS-Fehler, Scanlines, Schnee.", ["beat"]),
+  e(24, "crt", "CRT und Pixel", "retro", "post", "ready", "Röhrenmonitor-Look oder grobe Pixel."),
   e(25, "ascii", "ASCII-Video", "retro", "post", "planned", "Bild als Buchstabenraster."),
-  e(26, "strobe-zoom", "Strobe-Zoom", "retro", "post", "planned", "Schnelles Ein- und Auszoomen im Takt.", ["beat"]),
+  e(26, "strobe-zoom", "Strobe-Zoom", "retro", "post", "ready", "Schnelles Ein- und Auszoomen im Takt.", ["beat"]),
   // Optische Raumeffekte
   e(27, "mirror-ball", "Spiegelkugel", "optical", "generator", "planned", "Tausende drehende Lichtpunkte im Raum."),
   e(28, "uv-glow", "UV / Schwarzlicht", "optical", "generator", "planned", "Fluoreszierende Muster auf Schwarz."),
@@ -69,3 +69,21 @@ export const EFFECT_BY_ID: ReadonlyMap<string, EffectDef> = new Map(EFFECTS.map(
 /** Clips, die der Spieler heute abspielen kann (Reihenfolge = Position im Clip-Raster). */
 export const READY_GENERATORS: readonly EffectDef[] =
   EFFECTS.filter(x => x.kind === "generator" && x.status === "ready");
+
+/** Effekte im Stapel einer Ebene. Reihenfolge = Nummer im Shader (src/engine/shaders.ts, POST_IDS). */
+export interface PostEffectDef { id: string; name: string; info: string; /** Nummer in der Wunschliste, falls vorhanden. */ no?: number }
+
+export const POST_EFFECTS: readonly PostEffectDef[] = [
+  { id: "kaleidoscope", name: "Kaleidoskop", info: "Spiegelt in 3 bis 12 Segmente, dreht langsam.", no: 13 },
+  { id: "mirror", name: "Spiegeln", info: "Links auf rechts, ab halber Stärke auch oben auf unten." },
+  { id: "rgb-shift", name: "RGB-Versatz", info: "Farbkanäle laufen auseinander, stärker auf dem Beat." },
+  { id: "glitch", name: "Glitch", info: "Zeilen springen, Farben tauschen, Rauschen.", no: 23 },
+  { id: "crt", name: "Röhre", info: "Scanlines, Wölbung und dunkle Ecken.", no: 24 },
+  { id: "pixelate", name: "Pixel", info: "Grobe Pixel, je stärker, desto gröber.", no: 24 },
+  { id: "feedback", name: "Feedback", info: "Das letzte Bild bleibt stehen und zoomt nach innen.", no: 21 },
+  { id: "glow", name: "Leuchten", info: "Weicher Schein um helle Stellen." },
+  { id: "strobe-zoom", name: "Beat-Zoom", info: "Zoomt auf jedem Beat kurz heran.", no: 26 },
+  { id: "invert", name: "Invertieren", info: "Kehrt die Farben um." },
+];
+
+export const POST_BY_ID: ReadonlyMap<string, PostEffectDef> = new Map(POST_EFFECTS.map(x => [x.id, x]));

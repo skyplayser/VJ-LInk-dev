@@ -49,7 +49,7 @@ function fader(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HT
   window.addEventListener("pointerup", () => { dragging = false; });
   input.addEventListener("input", () => { setControl(ctx, d.id, Number(input.value) / 1000); show(); });
   input.addEventListener("dblclick", () => { setControl(ctx, d.id, d.id === "master" ? 1 : 0); });
-  const show = () => { val.textContent = String(Math.round(d.get(ctx) * 100)); };
+  const show = () => { val.textContent = d.format ? d.format(ctx) : String(Math.round(d.get(ctx) * 100)); };
   updaters.push(() => { if (!dragging) input.value = String(Math.round(d.get(ctx) * 1000)); show(); });
   wrap.append(val, input, el("span", "name", d.label));
   wrap.title = d.id;

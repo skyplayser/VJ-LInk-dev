@@ -14,7 +14,9 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Bereich | Stand |
 |---|---|
 | Engine | WebGL2-Compositor mit 4 Ebenen, Mischmodi (Normal, Addieren, Bildschirm, Multiplizieren), Deckkraft, Farbquellen (Slot A–E, Verlauf, Regenbogen), Master, Strobe, Blackout |
-| Visuals | 8 Generatoren: Balken-Spektrum, Kreis-Equalizer, Oszilloskop, Pulsierende Ringe, Tunnel, Synthwave-Raster, Sternenfeld, Plasma |
+| Effekte | Effekt-Stapel pro Ebene (bis 6): Kaleidoskop, Spiegeln, RGB-Versatz, Glitch, Röhre, Pixel, Feedback, Leuchten, Beat-Zoom, Invertieren. Effekt 1–3 jeder Ebene per Pult, MIDI-Registry und OSC |
+| Szenen | Überblendung im Takt (Schnitt bis 8 Beats), beginnt auf dem nächsten Schlag |
+| Visuals | Live-Vorschau jedes Clips im Clip-Raster, mit Farbe und Effekten der Ebene. 8 Generatoren: Balken-Spektrum, Kreis-Equalizer, Oszilloskop, Pulsierende Ringe, Tunnel, Synthwave-Raster, Sternenfeld, Plasma |
 | Katalog | Alle 35 Visuals der Wunschliste mit Status (`bereit` / `geplant`) |
 | Takt | Quellen-Rangfolge LJ-Link → Ableton Link → OSC → MIDI → Audio → Tap, Tap-Tempo, Rückfall bei Ausfall ohne Phasensprung |
 | Pult | Art-Net und sACN als Eingang, DMX-Belegung „Standard“ (70 Kanäle), nur geänderte Kanäle wirken, Kanalliste als CSV |
@@ -26,7 +28,7 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 
 ## Noch offen
 
-Effekt-Editor, Mapping (Ausschnitt, Eckpunkte, Raster), Video-Clips, Szenen-Übergänge (der Wert wird gelesen, aber noch nicht überblendet), Ableton Link, MIDI-Controller und MIDI-Lernen, Audio-Eingang, GDTF-/XML-Profile, Fernbedienung im Browser, die 27 weiteren Visuals. MIDI-Controller als Nächstes. Reihenfolge und Aufwand siehe `docs/ROADMAP.md`.
+Modulation der Effekt-Regler, Mapping (Ausschnitt, Eckpunkte, Raster), Video-Clips, Speichern und Laden, Ableton Link, MIDI-Controller und MIDI-Lernen, Audio-Eingang, GDTF-/XML-Profile, Fernbedienung im Browser, die 27 weiteren Visuals. MIDI-Controller als Nächstes. Reihenfolge und Aufwand siehe `docs/ROADMAP.md`.
 
 ## Starten
 

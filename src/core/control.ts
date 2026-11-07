@@ -2,7 +2,7 @@
 import { TempoClock } from "./tempo";
 import { matchRules, reduceLj, type LjMessage, type LjState, type Rule, type RuleAction } from "./ljlink";
 import type { OscMessage } from "./osc";
-import { SLOT_NAMES, applyScene, clamp01, type Scene, type ShowState } from "./show";
+import { SLOT_NAMES, applyScene, clamp01, cloneLayers, transitionProgress, type Scene, type ShowState } from "./show";
 import { READY_GENERATORS } from "./effects";
 import { setControl } from "./controls";
 
@@ -15,13 +15,31 @@ export interface ControlContext {
   bank: number;
 }
 
-export function recallScene(c: ControlContext, indexOrName: number | string): boolean {
+/**
+ * Szene abrufen. Mit Übergangsdauer > 0 wird vom aktuellen Bild zur Szene überblendet,
+ * beginnend auf dem nächsten Schlag. 0 = harter Schnitt.
+ */
+export function recallScene(c: ControlContext, indexOrName: number | string, nowMs = Date.now()): boolean {
   const i = typeof indexOrName === "number" ? indexOrName : c.scenes.findIndex(s => s.name === indexOrName);
   const sc = c.scenes[i];
   if (!sc) return false;
+  const beats = c.show.transitionBeats;
+  if (beats > 0) {
+    const beat = c.tempo.beatAt(nowMs);
+    // Läuft schon eine Blende, startet die neue vom aktuellen Ziel aus (kein Rücksprung auf den alten Stand).
+    c.show.transition = { from: cloneLayers(c.show.layers), startBeat: Math.ceil(beat - 1e-6), beats };
+  } else {
+    c.show.transition = null;
+  }
   applyScene(c.show, sc);
   c.show.scene = i + 1;
   return true;
+}
+
+/** Beendete Überblendung aufräumen. Einmal pro Bild aufrufen. */
+export function tickTransition(c: ControlContext, nowMs: number): void {
+  const t = c.show.transition;
+  if (t && transitionProgress(t, c.tempo.beatAt(nowMs)) >= 1) c.show.transition = null;
 }
 
 const num = (v: unknown, d = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : d);
@@ -73,7 +91,7 @@ export function runAction(c: ControlContext, a: RuleAction): void {
   switch (a.do) {
     case "scene": recallScene(c, a.name); break;
     case "strobe": c.show.strobe.untilBeat = c.tempo.beatAt(Date.now()) + a.beats; break;
-    case "fx": { const l = c.show.layers[a.layer]; if (l) l.fx[a.index] = a.value; break; }
+    case "fx": { const slot = c.show.layers[a.layer]?.effects[a.index]; if (slot) slot.amount = a.value; break; }
     case "nextBank": c.bank += 1; break;
   }
 }

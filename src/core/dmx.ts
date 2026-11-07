@@ -1,7 +1,7 @@
 // DMX-Belegung „Standard“ (68 Kanäle) laut Konzept. Das Pult sendet, VJ-Link liest.
 import { READY_GENERATORS } from "./effects";
 import {
-  BLEND_MODES, COLOR_SOURCES, LAYER_COUNT, applyScene, clamp01, type Scene, type ShowState,
+  BLEND_MODES, COLOR_SOURCES, LAYER_COUNT, clamp01, type Scene, type ShowState,
 } from "./show";
 
 export const DMX_MODE_STANDARD_CHANNELS = 70;
@@ -28,7 +28,7 @@ export function resolveClip(bank: number, clip: number): string | null {
 }
 
 export interface DmxEffects {
-  /** Neuer Szenenaufruf. */
+  /** Szene 1–255 soll abgerufen werden (Aufrufer nutzt recallScene). */
   scene?: number;
   tempoFactor?: number;
 }
@@ -73,8 +73,8 @@ export class DmxDecoder {
         s.strobe.on = v >= 8; if (v >= 8) s.strobe.speed = (v - 8) / 247; return;
       case CH.strobeIntensity: s.strobe.intensity = f; return;
       case CH.strobeSync: s.strobe.sync = v < 128; return; // 0–127 im Takt, 128–255 freie Hz
-      case CH.scene:
-        if (v > 0) { const sc = this.scenes[v - 1]; if (sc) { applyScene(s, sc); s.scene = v; out.scene = v; } }
+      case CH.scene: // Abruf übernimmt recallScene() (mit Überblendung)
+        if (v > 0 && this.scenes[v - 1]) out.scene = v;
         return;
       case CH.transition: s.transitionBeats = TRANSITION_BEATS[stepOf(v, TRANSITION_BEATS.length)]!; return;
       case CH.tempoFactor: out.tempoFactor = TEMPO_FACTORS[stepOf(v, TEMPO_FACTORS.length)]!; return;
@@ -100,9 +100,9 @@ export class DmxDecoder {
         case LAYER_CH.clip: l.clip = resolveClip(this.bank.get(li) ?? 1, v); break;
         case LAYER_CH.color: l.colorSource = COLOR_SOURCES[stepOf(v, COLOR_SOURCES.length)]!; break;
         case LAYER_CH.speed: l.speed = v === 0 ? -1 : v < 64 ? 0 : v < 96 ? 0.5 : v < 160 ? 1 : 2; break;
-        case LAYER_CH.fx1: l.fx[0] = clamp01(f); break;
-        case LAYER_CH.fx2: l.fx[1] = clamp01(f); break;
-        case LAYER_CH.fx3: l.fx[2] = clamp01(f); break;
+        case LAYER_CH.fx1: case LAYER_CH.fx2: case LAYER_CH.fx3: {
+          const slot = l.effects[off - LAYER_CH.fx1]; if (slot) slot.amount = clamp01(f); break;
+        }
         case LAYER_CH.strobe: l.strobe = v < 8 ? 0 : 1 + Math.round((1 - f) * 7); break;
         case LAYER_CH.blend: l.blend = BLEND_MODES[stepOf(v, BLEND_MODES.length)]!; break;
       }

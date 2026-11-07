@@ -15,8 +15,27 @@ export interface LayerState {
   colorSource: ColorSource;
   /** Faktor, 0 = Stopp, negativ = rückwärts. */
   speed: number;
-  fx: [number, number, number];
+  /** Effekt-Stapel, wirkt von oben nach unten. Die ersten drei liegen auf Pult/MIDI „Effekt 1–3“. */
+  effects: EffectSlot[];
   strobe: number;
+}
+
+export interface EffectSlot {
+  /** ID aus POST_EFFECTS (src/core/effects.ts). */
+  id: string;
+  on: boolean;
+  /** Stärke 0–1. 0 = wirkungslos. */
+  amount: number;
+}
+
+export const MAX_EFFECTS = 6;
+
+/** Läuft gerade eine Überblendung: von `from` zum aktuellen Zustand. */
+export interface Transition {
+  from: LayerState[];
+  /** Beat, an dem die Blende beginnt (auf den nächsten Schlag gerundet). */
+  startBeat: number;
+  beats: number;
 }
 
 export interface StrobeState {
@@ -44,6 +63,7 @@ export interface ShowState {
   scene: number;
   /** Übergangsdauer in Beats (0 = Schnitt). */
   transitionBeats: number;
+  transition: Transition | null;
   fxMaster: number;
   autoVj: boolean;
   layers: LayerState[];
@@ -52,15 +72,33 @@ export interface ShowState {
   audio: { bass: number; mid: number; high: number };
 }
 
+/** Standard-Stapel: drei Effekte mit Stärke 0, damit „Effekt 1–3“ am Pult sofort etwas bewirken. */
+export const defaultEffects = (): EffectSlot[] => [
+  { id: "kaleidoscope", on: true, amount: 0 },
+  { id: "rgb-shift", on: true, amount: 0 },
+  { id: "feedback", on: true, amount: 0 },
+];
+
 export const defaultLayer = (): LayerState => ({
-  clip: null, opacity: 1, blend: "normal", colorSource: "original", speed: 1, fx: [0, 0, 0], strobe: 0,
+  clip: null, opacity: 1, blend: "normal", colorSource: "original", speed: 1, effects: defaultEffects(), strobe: 0,
 });
+
+/** Tiefe Kopie der Ebenen (Szenen und Überblendungen dürfen nichts teilen). */
+export const cloneLayers = (layers: readonly LayerState[]): LayerState[] =>
+  layers.map(l => ({ ...l, effects: l.effects.map(e => ({ ...e })) }));
+
+/** Fortschritt der Überblendung 0–1 beim Beat `beat`; 1 = keine Blende aktiv. */
+export function transitionProgress(t: Transition | null, beat: number): number {
+  if (!t || t.beats <= 0) return 1;
+  const p = (beat - t.startBeat) / t.beats;
+  return p < 0 ? 0 : p > 1 ? 1 : p;
+}
 
 export function defaultShow(): ShowState {
   const layers = Array.from({ length: LAYER_COUNT }, defaultLayer);
   layers[0] = { ...layers[0]!, clip: "tunnel", colorSource: "A" };
   return {
-    master: 1, strobe: defaultStrobe(), blackout: false, scene: 0, transitionBeats: 1, fxMaster: 1, autoVj: false,
+    master: 1, strobe: defaultStrobe(), blackout: false, scene: 0, transitionBeats: 1, transition: null, fxMaster: 1, autoVj: false,
     layers,
     slots: [[1, 0.1, 0.35], [1, 0.7, 0.1], [0.2, 0.9, 0.5], [0.1, 0.8, 1], [0.7, 0.35, 1]],
     audio: { bass: 0, mid: 0, high: 0 },
@@ -85,7 +123,9 @@ export const DEFAULT_SCENES: readonly Scene[] = [
 export function applyScene(state: ShowState, scene: Scene): void {
   scene.layers.forEach((patch, i) => {
     const layer = state.layers[i];
-    if (patch && layer) Object.assign(layer, patch);
+    if (!patch || !layer) return;
+    Object.assign(layer, patch);
+    if (patch.effects) layer.effects = patch.effects.map(e => ({ ...e }));
   });
 }
 

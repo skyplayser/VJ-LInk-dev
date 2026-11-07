@@ -3,7 +3,7 @@ import { Engine } from "../engine/engine";
 import { GEN_IDS } from "../engine/shaders";
 import { TempoClock } from "../core/tempo";
 import { DmxDecoder, DMX_MODE_STANDARD_CHANNELS, CH, channelListCsv } from "../core/dmx";
-import { handleLj, handleOsc, recallScene, type ControlContext } from "../core/control";
+import { handleLj, handleOsc, recallScene, tickTransition, type ControlContext } from "../core/control";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
 import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
 import { BLEND_MODES, COLOR_SOURCES, DEFAULT_SCENES, LAYER_COUNT, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
@@ -11,6 +11,9 @@ import { frameBeat, type ControlEvent, type DisplayInfo, type Frame, type NetSta
 import { bridge } from "./bridge";
 import { setControl } from "../core/controls";
 import { buildDeck } from "./deck";
+import { ThumbView } from "./thumbs";
+import { FxPanel } from "./fxpanel";
+import { transitionProgress } from "../core/show";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] => {
@@ -49,6 +52,7 @@ function onControl(e: ControlEvent): void {
       lastDmx = e.data; lastDmxAt = now;
       const fx = decoder.decode(e.data, ctx.show);
       if (fx.tempoFactor !== undefined) ctx.tempo.factor = fx.tempoFactor;
+      if (fx.scene !== undefined) recallScene(ctx, fx.scene - 1, now);
       break;
     }
     case "osc": handleOsc(ctx, { address: e.address, args: e.args }, now); break;
@@ -74,6 +78,11 @@ function buildGrid(): void {
   for (let l = LAYER_COUNT - 1; l >= 0; l--) {
     const row = el("div", "lrow");
     const name = el("div", "lname");
+    name.title = "Anklicken: Effekte dieser Ebene bearbeiten";
+    name.addEventListener("click", e => {
+      if ((e.target as HTMLElement).closest("input,select")) return;
+      fxPanel.select(l);
+    });
     name.append(el("b", "", `E${l + 1} · ${l === 0 ? "Basis" : "Overlay"}`));
     const op = el("input"); op.type = "range"; op.min = "0"; op.max = "100"; op.ariaLabel = `Deckkraft Ebene ${l + 1}`;
     op.addEventListener("input", () => { ctx.show.layers[l]!.opacity = Number(op.value) / 100; });
@@ -253,8 +262,10 @@ function setPill(id: string, state: "ok" | "off" | "warn", text?: string): void 
 function frame(): void {
   const now = Date.now();
   ctx.tempo.tick(now);
+  tickTransition(ctx, now);
   const beat = ctx.tempo.beatAt(now);
   engine?.render(ctx.show, beat, now, ctx.tempo.bpm);
+  thumbs.draw(now);
 
   if (now - lastPublish > 33 && bridge) {
     lastPublish = now;
@@ -277,7 +288,12 @@ function updateUi(now: number, beat: number): void {
   setPill("st-dmx", dmxLive ? "ok" : "off"); setPill("st-osc", (netStatus?.osc.packets ?? 0) > 0 ? "ok" : "off");
   setPill("st-lj", ctx.lj.connected ? "ok" : "off");
   $("st-fps").textContent = engine ? `${Math.round(engine.info.fps)} FPS · ${engine.info.frameMs.toFixed(1)} ms` : "– FPS";
-  if (engine) $("mon-info").textContent = `${preview.width} × ${preview.height}`;
+  if (engine) {
+    const t = s.transition;
+    $("mon-info").textContent = t
+      ? `Überblendung ${Math.round(transitionProgress(t, beat) * 100)} % · ${preview.width} × ${preview.height}`
+      : `${preview.width} × ${preview.height}`;
+  }
   $("blackout").classList.toggle("on", s.blackout);
 
   for (let l = 0; l < LAYER_COUNT; l++) {
@@ -288,6 +304,7 @@ function updateUi(now: number, beat: number): void {
   const rows = document.querySelectorAll<HTMLElement>("#grid .lrow");
   rows.forEach((row, ri) => {
     const l = LAYER_COUNT - 1 - ri; const layer = s.layers[l]!;
+    row.classList.toggle("sel", l === fxPanel.layer);
     const sels = row.querySelectorAll<HTMLSelectElement>("select");
     const color = sels[0]!, blend = sels[1]!;
     if (document.activeElement !== color) color.value = layer.colorSource;
@@ -296,10 +313,14 @@ function updateUi(now: number, beat: number): void {
   document.querySelectorAll("#scenes button").forEach((b, i) => b.classList.toggle("on", s.scene === i + 1));
   (window as unknown as { refreshSlots: () => void }).refreshSlots();
   updateDeck();
+  fxPanel.update();
   if ($("tab-connect").classList.contains("on")) drawConnect(now);
 }
 
+const fxPanel = new FxPanel(ctx, $("fx-title"), $("fx-list"), $<HTMLSelectElement>("fx-add"));
 buildGrid(); buildSidebar(); buildCatalog(); bindSettings();
+fxPanel.select(0);
+const thumbs = new ThumbView($("grid"), clipCells, ctx);
 const updateDeck = buildDeck(ctx, $("deck"));
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.
 for (const g of READY_GENERATORS) if (!GEN_IDS.includes(g.id as typeof GEN_IDS[number]) || !EFFECT_BY_ID.has(g.id)) console.error("Generator fehlt in der Engine:", g.id);

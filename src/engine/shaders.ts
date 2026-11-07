@@ -20,14 +20,12 @@ uniform vec2  uRes;
 uniform float uTime;      // Ebenen-Zeit in Sekunden (mit Geschwindigkeit)
 uniform float uBeat;      // fortlaufender Beat
 uniform float uPulse;     // 1 auf dem Beat, fällt ab
-uniform float uOpacity;
 uniform float uKey;       // 1 = Helligkeit bestimmt die Deckkraft (Overlay-Ebenen)
 uniform int   uGen;
 uniform int   uColorMode; // 0 original, 1 Slot, 2 Verlauf A→B, 3 Regenbogen
 uniform vec3  uColA;
 uniform vec3  uColB;
 uniform float uBands[8];
-uniform vec3  uFx;        // x Helligkeit, y Spiegeln, z Pixeln
 
 const float PI = 3.14159265;
 
@@ -151,10 +149,6 @@ vec3 plasma(vec2 uv){
 
 void main(){
   vec2 uv = vUv;
-  // Eingebaute Mini-Effekte der Ebene: Spiegeln und Pixeln (Platzhalter für den späteren Effekt-Stapel)
-  if (uFx.y > 0.01) uv.x = mix(vUv.x, abs(vUv.x - 0.5) * 2.0, smoothstep(0.0, 0.5, uFx.y));
-  if (uFx.z > 0.01) { float cells = mix(240.0, 24.0, uFx.z); uv = (floor(uv * cells) + 0.5) / cells; }
-
   vec3 c;
   if (uGen == 0) c = barSpectrum(uv);
   else if (uGen == 1) c = radialEq(uv);
@@ -170,8 +164,124 @@ void main(){
   else if (uColorMode == 2) c = mix(uColA, uColB, clamp(vUv.y * 0.6 + lum * 0.5, 0.0, 1.0)) * (0.15 + lum * 1.1);
   else if (uColorMode == 3) c = hsv(fract(vUv.x * 0.5 + lum * 0.4 + uTime * 0.08), 0.85, lum * 1.2);
 
-  c *= 1.0 + uFx.x;
   float key = mix(1.0, smoothstep(0.0, 0.12, max(c.r, max(c.g, c.b))), uKey);
-  float a = uOpacity * key;
-  outColor = vec4(c * a, a);  // vormultipliziert
+  outColor = vec4(c * key, key);  // vormultipliziert; Deckkraft kommt beim Mischen
+}`;
+
+// ---- Effekt-Stapel ------------------------------------------------------------------
+/** Reihenfolge = uEffect-Nummer. Muss zu POST_EFFECTS in src/core/effects.ts passen. */
+export const POST_IDS = ["kaleidoscope", "mirror", "rgb-shift", "glitch", "crt", "pixelate", "feedback", "glow", "strobe-zoom", "invert"] as const;
+
+export const POST_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uTex;
+uniform sampler2D uPrev;   // nur Feedback: letztes Bild dieser Ebene
+uniform vec2  uRes;
+uniform float uAmount;
+uniform float uTime;
+uniform float uPulse;
+uniform int   uEffect;
+const float PI = 3.14159265;
+
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec4 tex(vec2 uv){ return texture(uTex, uv); }
+vec2 mirrorRepeat(vec2 x){ return 1.0 - abs(1.0 - mod(x, 2.0)); }
+
+void main(){
+  vec2 uv = vUv;
+  float a = clamp(uAmount, 0.0, 1.0);
+  float aspect = uRes.x / uRes.y;
+  vec4 c;
+  if (uEffect == 0) {            // Kaleidoskop
+    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+    float r = length(p);
+    float ang = atan(p.y, p.x) + uTime * 0.15;
+    float seg = floor(mix(3.0, 12.0, a));
+    float w = 2.0 * PI / seg;
+    ang = abs(mod(ang, w) - w * 0.5);
+    vec2 q = vec2(cos(ang), sin(ang)) * r;
+    q.x /= aspect;
+    c = mix(tex(uv), tex(mirrorRepeat(q + 0.5)), smoothstep(0.0, 0.12, a));
+  } else if (uEffect == 1) {     // Spiegeln
+    vec2 m = uv;
+    m.x = 0.5 - abs(uv.x - 0.5);
+    if (a > 0.5) m.y = 0.5 - abs(uv.y - 0.5);
+    c = tex(m);
+  } else if (uEffect == 2) {     // RGB-Versatz
+    float d = a * 0.03 * (0.4 + 0.6 * uPulse);
+    vec4 r = tex(uv + vec2(d, 0.0)), g = tex(uv), b = tex(uv - vec2(d, 0.0));
+    c = vec4(r.r, g.g, b.b, max(max(r.a, g.a), b.a));
+  } else if (uEffect == 3) {     // Glitch
+    float t = floor(uTime * 12.0);
+    float row = floor(uv.y * 24.0);
+    float h = hash(vec2(row, t));
+    vec2 g = uv;
+    if (h < a * 0.6) g.x += (hash(vec2(t, row)) - 0.5) * 0.25 * a;
+    c = tex(g);
+    if (h < a * 0.3) c.rgb = c.gbr;
+    float n = hash(uv * uRes + t) * a * 0.15;
+    c.rgb += n; c.a = max(c.a, n);
+    c.rgb *= 1.0 - 0.25 * a * step(0.5, fract(uv.y * uRes.y * 0.5));
+  } else if (uEffect == 4) {     // Röhre
+    vec2 p = uv - 0.5;
+    vec2 b = p * (1.0 + 0.25 * a * dot(p, p)) + 0.5;
+    c = (b.x < 0.0 || b.x > 1.0 || b.y < 0.0 || b.y > 1.0) ? vec4(0.0) : tex(b);
+    float scan = 0.5 + 0.5 * sin(b.y * uRes.y * PI * 0.5);
+    c.rgb *= mix(1.0, 0.55 + 0.45 * scan, a);
+    c.rgb *= mix(1.0, smoothstep(0.85, 0.3, length(p)), a);
+  } else if (uEffect == 5) {     // Pixel
+    float cells = mix(200.0, 12.0, a);
+    vec2 cs = vec2(cells * aspect, cells);
+    c = tex((floor(uv * cs) + 0.5) / cs);
+  } else if (uEffect == 6) {     // Feedback
+    vec2 p = uv - 0.5;
+    float z = 1.0 + 0.03 * a;
+    float rt = 0.02 * a * sin(uTime * 0.3);
+    vec2 q = mat2(cos(rt), -sin(rt), sin(rt), cos(rt)) * p / z + 0.5;
+    vec4 prev = texture(uPrev, q) * (0.80 + 0.17 * a);
+    c = max(tex(uv), prev);
+  } else if (uEffect == 7) {     // Leuchten
+    vec4 base = tex(uv), acc = vec4(0.0);
+    float r = 0.004 + 0.014 * a;
+    vec2 k = vec2(1.0 / aspect, 1.0);
+    for (int i = 0; i < 12; i++) {
+      float an = float(i) * PI / 6.0;
+      vec2 d = vec2(cos(an), sin(an)) * r * k;
+      acc += tex(uv + d) + tex(uv + d * 2.0);
+    }
+    c = min(base + acc / 24.0 * a * 1.6, vec4(1.0));
+    c.a = max(c.a, max(c.r, max(c.g, c.b)));
+  } else if (uEffect == 8) {     // Beat-Zoom
+    float z = 1.0 + a * 0.35 * uPulse;
+    c = tex((uv - 0.5) / z + 0.5);
+  } else {                       // Invertieren (vormultipliziert)
+    vec4 t = tex(uv);
+    c = mix(t, vec4(t.a - t.rgb, t.a), a);
+  }
+  outColor = c;
+}`;
+
+/** Ebene auf die Komposition legen (Deckkraft; Mischmodus macht gl.blendFunc). */
+export const COMPOSITE_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uTex;
+uniform float uOpacity;
+void main(){ outColor = texture(uTex, vUv) * uOpacity; }`;
+
+/** Letzter Schritt: Überblendung alt → neu, Master und Strobe. */
+export const FINAL_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uFrom;
+uniform sampler2D uTo;
+uniform float uMix;
+uniform float uGain;
+void main(){
+  vec3 c = mix(texture(uFrom, vUv).rgb, texture(uTo, vUv).rgb, uMix);
+  outColor = vec4(c * uGain, 1.0);
 }`;

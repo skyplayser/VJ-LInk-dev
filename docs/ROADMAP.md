@@ -26,15 +26,15 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 |---|---|---|---|
 | 2.1 | Projekte | Speichern und Laden: Szenen, Zuordnungen, Ausgänge, DMX-Einstellungen. Automatisch speichern, Wiederherstellung nach Absturz | M |
 | 2.2 | Szenen bearbeiten | Szene aus dem aktuellen Bild speichern, benennen, umsortieren, 6 bis 24 Szenen in Bänken | M |
-| 2.3 | Überblendung | Szenenwechsel im Takt über 0 bis 8 Beats (Wert wird schon gelesen) | M |
+| 2.3 | Überblendung | Szenenwechsel im Takt über 0 bis 8 Beats | M | erledigt |
 | 2.4 | Sperrmodus | Show-Ansicht bedienen, nichts versehentlich ändern | S |
 
 ## Phase 3: Effekt-Editor
 
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
-| 3.1 | Effekt-Stapel | Pro Clip bis zu 8 Effekte, Reihenfolge per Ziehen, einzeln abschaltbar | L |
-| 3.2 | Erste Post-Effekte | Kaleidoskop, Spiegeln, RGB-Versatz, Feedback, Glitch, CRT, Leuchten | L |
+| 3.1 | Effekt-Stapel | Pro Ebene bis zu 6 Effekte, Reihenfolge, einzeln abschaltbar, Live-Vorschau im Clip-Raster | L | erledigt |
+| 3.2 | Erste Post-Effekte | Kaleidoskop, Spiegeln, RGB-Versatz, Feedback, Glitch, Röhre, Pixel, Leuchten, Beat-Zoom, Invertieren | L | erledigt |
 | 3.3 | Modulation | Regler per Ziehen an Beat-LFO, Audio-Bänder, MIDI, DMX, OSC hängen | M |
 | 3.4 | Restliche Generatoren | Die übrigen 27 Visuals der Liste, in Gruppen von je 4 bis 5 | L |
 
