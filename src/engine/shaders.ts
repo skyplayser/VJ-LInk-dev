@@ -170,7 +170,7 @@ void main(){
 
 // ---- Effekt-Stapel ------------------------------------------------------------------
 /** Reihenfolge = uEffect-Nummer. Muss zu POST_EFFECTS in src/core/effects.ts passen. */
-export const POST_IDS = ["kaleidoscope", "mirror", "rgb-shift", "glitch", "crt", "pixelate", "feedback", "glow", "strobe-zoom", "invert"] as const;
+export const POST_IDS = ["kaleidoscope", "mirror", "rgb-shift", "glitch", "crt", "pixelate", "feedback", "glow", "strobe-zoom", "invert", "tint"] as const;
 
 export const POST_FRAG = `#version 300 es
 precision highp float;
@@ -183,10 +183,17 @@ uniform float uAmount;
 uniform float uTime;
 uniform float uPulse;
 uniform int   uEffect;
+uniform int   uColorMode;  // Farbüberlagerung: 0 = Slot A, 1 = Slot, 2 = Verlauf, 3 = Regenbogen
+uniform vec3  uColA;
+uniform vec3  uColB;
 const float PI = 3.14159265;
 
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 vec4 tex(vec2 uv){ return texture(uTex, uv); }
+vec3 hsv(float h, float s, float v){
+  vec3 k = clamp(abs(fract(h + vec3(0.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
+  return v * mix(vec3(1.0), k, s);
+}
 vec2 mirrorRepeat(vec2 x){ return 1.0 - abs(1.0 - mod(x, 2.0)); }
 
 void main(){
@@ -256,9 +263,17 @@ void main(){
   } else if (uEffect == 8) {     // Beat-Zoom
     float z = 1.0 + a * 0.35 * uPulse;
     c = tex((uv - 0.5) / z + 0.5);
-  } else {                       // Invertieren (vormultipliziert)
+  } else if (uEffect == 9) {     // Invertieren (vormultipliziert)
     vec4 t = tex(uv);
     c = mix(t, vec4(t.a - t.rgb, t.a), a);
+  } else {                       // Farbüberlagerung
+    vec4 t = tex(uv);
+    vec3 col = uColorMode == 2 ? mix(uColA, uColB, uv.y)
+             : uColorMode == 3 ? hsv(fract(uv.x * 0.6 + uTime * 0.08), 0.85, 1.0)
+             : uColA;
+    float lum = dot(t.rgb, vec3(0.299, 0.587, 0.114));
+    // Farbe übernimmt die Helligkeit des Bildes, damit Details erhalten bleiben
+    c = vec4(mix(t.rgb, col * mix(t.a, lum * 1.4, 0.5), a), t.a);
   }
   outColor = c;
 }`;
@@ -281,7 +296,32 @@ uniform sampler2D uFrom;
 uniform sampler2D uTo;
 uniform float uMix;
 uniform float uGain;
+uniform int   uDip;   // 1 = über Schwarz
 void main(){
-  vec3 c = mix(texture(uFrom, vUv).rgb, texture(uTo, vUv).rgb, uMix);
+  vec3 a = texture(uFrom, vUv).rgb, b = texture(uTo, vUv).rgb;
+  vec3 c = uDip == 1
+    ? (uMix < 0.5 ? a * (1.0 - uMix * 2.0) : b * (uMix * 2.0 - 1.0))
+    : mix(a, b, uMix);
   outColor = vec4(c * uGain, 1.0);
+}`;
+
+/** Grafik (Logo, Bild) mit Lage, Größe und Drehung. Textur ist vormultipliziert. */
+export const IMAGE_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uImg;
+uniform vec2  uRes;
+uniform float uImgAspect;
+uniform vec2  uPos;
+uniform float uScale;
+uniform float uRot;
+void main(){
+  float aspect = uRes.x / uRes.y;
+  vec2 p = (vUv - 0.5) * vec2(aspect, 1.0) - uPos;
+  float cs = cos(-uRot), sn = sin(-uRot);
+  p = mat2(cs, sn, -sn, cs) * p;
+  vec2 q = p / (max(uScale, 0.001) * vec2(uImgAspect, 1.0)) + 0.5;
+  if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) { outColor = vec4(0.0); return; }
+  outColor = texture(uImg, vec2(q.x, 1.0 - q.y));
 }`;

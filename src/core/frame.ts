@@ -1,5 +1,6 @@
 // Was die Oberfläche an die Ausgänge schickt: Show-Zustand plus Takt-Ursprung.
 import type { ShowState } from "./show";
+import type { MediaPayload } from "./media";
 
 export interface Frame {
   show: ShowState;
@@ -39,6 +40,10 @@ export interface DisplayInfo {
 
 export interface NetConfig { sacnUniverse: number }
 
+export type MediaEvent = { type: "add"; item: MediaPayload } | { type: "remove"; id: string };
+
+export interface ProjectLoad { project: string | null; media: MediaPayload[] }
+
 /** Brücke, die das Preload-Skript im Fenster bereitstellt. */
 export interface VjBridge {
   onControl(cb: (e: ControlEvent) => void): void;
@@ -47,5 +52,12 @@ export interface VjBridge {
   listDisplays(): Promise<DisplayInfo[]>;
   toggleOutput(displayId: number): Promise<DisplayInfo[]>;
   configure(c: NetConfig): void;
+  /** Grafik in der Bibliothek ablegen (wird gespeichert und an alle Ausgänge verteilt). */
+  addMedia(p: MediaPayload): void;
+  removeMedia(id: string): void;
+  /** Für Ausgangsfenster: Grafiken kommen dazu oder fallen weg. */
+  onMedia(cb: (e: MediaEvent) => void): void;
+  saveProject(json: string): void;
+  loadProject(): Promise<ProjectLoad>;
   platform: string;
 }

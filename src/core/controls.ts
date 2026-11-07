@@ -2,8 +2,11 @@
 // Jedes Element hat eine feste ID; Werte laufen immer von 0 bis 1.
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
 import { STROBE_DIVISIONS, strobeHz } from "./audio";
-import { recallScene, type ControlContext } from "./control";
-import { DEFAULT_SCENES, LAYER_COUNT, clamp01 } from "./show";
+import { recallScene, stepScene, type ControlContext } from "./control";
+import { LAYER_COUNT, clamp01 } from "./show";
+
+/** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
+export const SCENE_SLOTS = 32;
 
 /**
  * fader:   stufenlos 0–1
@@ -74,10 +77,20 @@ export function buildControls(): ControlDef[] {
         set: (c, v) => { const slot = c.show.layers[i]!.effects[k]; if (slot) slot.amount = clamp01(v); } });
     }
   }
-  DEFAULT_SCENES.forEach((s, i) => {
-    list.push({ id: `scene.${i + 1}`, label: s.name, group: "Szenen", kind: "trigger", quick: true,
-      get: c => (c.show.scene === i + 1 ? 1 : 0), set: (c, v) => { if (on(v)) recallScene(c, i); } });
-  });
+  list.push(
+    { id: "scene.next", label: "Weiter", group: "Szenen", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (on(v)) stepScene(c, 1); } },
+    { id: "scene.prev", label: "Zurück", group: "Szenen", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (on(v)) stepScene(c, -1); } },
+    { id: "scene.auto", label: "Auto", group: "Szenen", kind: "toggle", quick: false,
+      get: c => (c.show.autoVj ? 1 : 0), set: (c, v) => { c.show.autoVj = on(v); } },
+  );
+  // Die Leiste baut ihre Szenen-Tasten selbst aus der aktuellen Szenenliste.
+  for (let i = 0; i < SCENE_SLOTS; i++) {
+    list.push({ id: `scene.${i + 1}`, label: `Szene ${i + 1}`, group: "Szenen", kind: "trigger", quick: false,
+      get: c => (c.show.scene === i + 1 ? 1 : 0), set: (c, v) => { if (on(v)) recallScene(c, i); },
+      format: c => c.scenes[i]?.name ?? "–" });
+  }
   return list;
 }
 

@@ -24,8 +24,8 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
-| 2.1 | Projekte | Speichern und Laden: Szenen, Zuordnungen, Ausgänge, DMX-Einstellungen. Automatisch speichern, Wiederherstellung nach Absturz | M |
-| 2.2 | Szenen bearbeiten | Szene aus dem aktuellen Bild speichern, benennen, umsortieren, 6 bis 24 Szenen in Bänken | M |
+| 2.1 | Projekte | Automatisch speichern und laden (Szenen, Ebenen, Grafiken). Offen: mehrere Projekte, Export/Import, Ausgänge | M | teilweise |
+| 2.2 | Szenen bearbeiten | Speichern, benennen, sortieren, löschen; Übergang je Szene (Beats/Sekunden, über Schwarz); Abfolge nach Takten, Sekunden, Phrase | M | erledigt |
 | 2.3 | Überblendung | Szenenwechsel im Takt über 0 bis 8 Beats | M | erledigt |
 | 2.4 | Sperrmodus | Show-Ansicht bedienen, nichts versehentlich ändern | S |
 
@@ -51,9 +51,9 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
-| 5.1 | Bilder und Videos | Ziehen und Ablegen, Vorschaubilder, Wiedergabe (Lizenzfrage H.264 klären) | L |
+| 5.1 | Bilder und Videos | Bilder/Logos: erledigt (laden, ziehen, animieren, Effekte). Videos offen (Lizenzfrage H.264 klären) | L | teilweise |
 | 5.2 | Text | DJ-Name, Logo, Laufschrift, Tracktitel aus LJ-Link | M |
-| 5.3 | Auto-VJ | Szenenwechsel bei Phrasen oder alle n Takte | S |
+| 5.3 | Auto-VJ | Szenenwechsel bei Phrasen oder alle n Takte | S | erledigt |
 
 ## Phase 6: Anbindung vertiefen
 

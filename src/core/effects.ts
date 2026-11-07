@@ -84,6 +84,7 @@ export const POST_EFFECTS: readonly PostEffectDef[] = [
   { id: "glow", name: "Leuchten", info: "Weicher Schein um helle Stellen." },
   { id: "strobe-zoom", name: "Beat-Zoom", info: "Zoomt auf jedem Beat kurz heran.", no: 26 },
   { id: "invert", name: "Invertieren", info: "Kehrt die Farben um." },
+  { id: "tint", name: "Farbüberlagerung", info: "Färbt die Ebene in ihrer Farbquelle (Slot, Verlauf, Regenbogen; Original = Slot A)." },
 ];
 
 export const POST_BY_ID: ReadonlyMap<string, PostEffectDef> = new Map(POST_EFFECTS.map(x => [x.id, x]));

@@ -2,11 +2,16 @@
 import { Engine } from "../engine/engine";
 import { frameBeat, type Frame } from "../core/frame";
 import { bridge } from "./bridge";
+import { decodeImage } from "./medialib";
 
 const canvas = document.getElementById("out") as HTMLCanvasElement;
 const engine = new Engine(canvas);
 let frame: Frame | null = null;
 bridge?.onFrame(f => { frame = f; });
+bridge?.onMedia(async e => {
+  if (e.type === "remove") { engine.removeMedia(e.id); return; }
+  try { const d = await decodeImage(e.item.dataUrl); engine.setMedia(e.item.id, d.src, d.w, d.h); } catch { /* Bild unlesbar */ }
+});
 
 function fit(): void {
   const dpr = window.devicePixelRatio || 1;

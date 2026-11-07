@@ -1,6 +1,5 @@
 // Live-Vorschau im Clip-Raster: ein WebGL-Canvas hinter den Zellen, jede Zelle ein eigener Ausschnitt.
 import { Engine, type ThumbCell } from "../engine/engine";
-import { READY_GENERATORS } from "../core/effects";
 import type { ControlContext } from "../core/control";
 
 export class ThumbView {
@@ -8,13 +7,15 @@ export class ThumbView {
   private engine: Engine | null = null;
   private frame = 0;
 
-  constructor(private grid: HTMLElement, private cells: HTMLButtonElement[][], private ctx: ControlContext) {
+  constructor(private grid: HTMLElement, private layout: () => { cells: HTMLButtonElement[][]; clips: string[] }, private ctx: ControlContext) {
     this.canvas.className = "thumbs";
     this.canvas.setAttribute("aria-hidden", "true");
     grid.prepend(this.canvas);
     try { this.engine = new Engine(this.canvas, { transparent: true }); }
     catch { this.canvas.remove(); } // ohne WebGL bleiben die Zellen einfach ohne Bild
   }
+
+  get gl(): Engine | null { return this.engine; }
 
   /** Jedes zweite Bild neu zeichnen (30 fps reichen für die Vorschau). */
   draw(nowMs: number): void {
@@ -26,12 +27,13 @@ export class ThumbView {
     this.engine.resize(Math.round(cssW * dpr), Math.round(cssH * dpr));
     const g = this.grid.getBoundingClientRect();
     const out: ThumbCell[] = [];
-    this.cells.forEach((row, layer) => row.forEach((cell, col) => {
-      const def = READY_GENERATORS[col];
-      if (!def) return;
+    const { cells, clips } = this.layout();
+    cells.forEach((row, layer) => row.forEach((cell, col) => {
+      const clip = clips[col];
+      if (!clip) return;
       const r = cell.getBoundingClientRect();
       out.push({
-        layer, col, clip: def.id,
+        layer, col, clip,
         x: Math.round((r.left - g.left + this.grid.scrollLeft) * dpr), y: Math.round((r.top - g.top + this.grid.scrollTop) * dpr),
         w: Math.round(r.width * dpr), h: Math.round(r.height * dpr),
       });

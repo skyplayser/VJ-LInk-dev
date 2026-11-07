@@ -1,12 +1,14 @@
 import { BrowserWindow, app, ipcMain, nativeImage, screen, type Display } from "electron";
 import path from "node:path";
 import { Network } from "./network";
+import { Storage } from "./storage";
 import type { ControlEvent, DisplayInfo, Frame, NetConfig } from "../core/frame";
 
 let control: BrowserWindow | null = null;
 const outputs = new Map<number, BrowserWindow>();
 let net: Network | null = null;
 let lastFrame: Frame | null = null;
+let storage: Storage | null = null;
 
 // Logo für Fenster (Windows, Linux) und Dock (macOS). Die Installer nutzen build/icon.icns und build/icon.ico.
 const ICON = path.join(__dirname, "..", "icon.png");
@@ -57,13 +59,20 @@ function toggleOutput(id: number): DisplayInfo[] {
   // Esc schließt den Ausgang, auch wenn er das Hauptfenster verdeckt.
   win.webContents.on("before-input-event", (e, input) => { if (input.type === "keyDown" && input.key === "Escape") { e.preventDefault(); win.close(); } });
   win.loadFile(rendererFile("output.html"));
-  win.once("ready-to-show", () => { win.show(); if (lastFrame) win.webContents.send("frame", lastFrame); });
+  win.once("ready-to-show", async () => {
+    win.show();
+    // Grafiken zuerst, damit das erste Bild vollständig ist.
+    for (const item of (await storage?.allMedia()) ?? []) if (!win.isDestroyed()) win.webContents.send("media", { type: "add", item });
+    if (lastFrame && !win.isDestroyed()) win.webContents.send("frame", lastFrame);
+  });
   win.on("closed", () => { outputs.delete(id); control?.webContents.send("displays", listDisplays()); });
   outputs.set(id, win);
   return listDisplays();
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  storage = new Storage(app.getPath("userData"));
+  await storage.init();
   if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(ICON));
   createControl();
   net = new Network((e: ControlEvent) => { control?.webContents.send("control", e); });
@@ -79,6 +88,21 @@ app.whenReady().then(() => {
   ipcMain.on("configure", (e, c: NetConfig) => {
     if (e.sender !== control?.webContents) return;
     if (Number.isFinite(c?.sacnUniverse)) net?.joinSacn(c.sacnUniverse);
+  });
+  const fromControl = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => e.sender === control?.webContents;
+  ipcMain.on("media:add", async (e, p: unknown) => {
+    if (!fromControl(e)) return;
+    const item = await storage!.addMedia(p);
+    if (item) for (const w of outputs.values()) if (!w.isDestroyed()) w.webContents.send("media", { type: "add", item });
+  });
+  ipcMain.on("media:remove", async (e, id: unknown) => {
+    if (!fromControl(e)) return;
+    if (await storage!.removeMedia(id)) for (const w of outputs.values()) if (!w.isDestroyed()) w.webContents.send("media", { type: "remove", id });
+  });
+  ipcMain.on("project:save", (e, json: unknown) => { if (fromControl(e)) void storage!.saveProject(json); });
+  ipcMain.handle("project:load", async e => {
+    if (!fromControl(e)) return { project: null, media: [] };
+    return { project: await storage!.loadProject(), media: await storage!.allMedia() };
   });
   app.on("activate", () => { if (!control) createControl(); });
 });

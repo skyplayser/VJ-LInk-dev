@@ -15,7 +15,9 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 |---|---|
 | Engine | WebGL2-Compositor mit 4 Ebenen, Mischmodi (Normal, Addieren, Bildschirm, Multiplizieren), Deckkraft, Farbquellen (Slot A–E, Verlauf, Regenbogen), Master, Strobe, Blackout |
 | Effekte | Effekt-Stapel pro Ebene (bis 6): Kaleidoskop, Spiegeln, RGB-Versatz, Glitch, Röhre, Pixel, Feedback, Leuchten, Beat-Zoom, Invertieren. Effekt 1–3 jeder Ebene per Pult, MIDI-Registry und OSC |
-| Szenen | Überblendung im Takt (Schnitt bis 8 Beats), beginnt auf dem nächsten Schlag |
+| Szenen | Eigene Szenen anlegen, umbenennen, überschreiben, sortieren, löschen. Übergang je Szene: Schnitt, Beats oder Sekunden, Überblenden oder über Schwarz. Abfolge: weiter nach Takten, Sekunden oder Phrasenwechsel (mit „Auto“). Auslöser: Tasten 1–9, Pfeile, Pult, OSC |
+| Grafiken | Logos und Bilder (PNG, JPG, WebP, GIF, SVG) laden oder hineinziehen, Größe, Lage, Drehung, Animation im Takt (Pulsieren, Drehen, Hüpfen, Schweben, Wackeln, Heranzoomen), Effekte und Farbüberlagerung |
+| Speichern | Projekt und Grafiken werden automatisch gespeichert und beim Start geladen |
 | Visuals | Live-Vorschau jedes Clips im Clip-Raster, mit Farbe und Effekten der Ebene. 8 Generatoren: Balken-Spektrum, Kreis-Equalizer, Oszilloskop, Pulsierende Ringe, Tunnel, Synthwave-Raster, Sternenfeld, Plasma |
 | Katalog | Alle 35 Visuals der Wunschliste mit Status (`bereit` / `geplant`) |
 | Takt | Quellen-Rangfolge LJ-Link → Ableton Link → OSC → MIDI → Audio → Tap, Tap-Tempo, Rückfall bei Ausfall ohne Phasensprung |
@@ -28,7 +30,7 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 
 ## Noch offen
 
-Modulation der Effekt-Regler, Mapping (Ausschnitt, Eckpunkte, Raster), Video-Clips, Speichern und Laden, Ableton Link, MIDI-Controller und MIDI-Lernen, Audio-Eingang, GDTF-/XML-Profile, Fernbedienung im Browser, die 27 weiteren Visuals. MIDI-Controller als Nächstes. Reihenfolge und Aufwand siehe `docs/ROADMAP.md`.
+Modulation der Effekt-Regler, Mapping (Ausschnitt, Eckpunkte, Raster), Video-Clips, mehrere Projekte, Ableton Link, MIDI-Controller und MIDI-Lernen, Audio-Eingang, GDTF-/XML-Profile, Fernbedienung im Browser, die 27 weiteren Visuals. MIDI-Controller als Nächstes. Reihenfolge und Aufwand siehe `docs/ROADMAP.md`.
 
 ## Starten
 

@@ -4,9 +4,10 @@
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
 import { bandsFrom, beatPulse, strobeGain, strobeGate } from "../core/audio";
 import {
-  LAYER_COUNT, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
+  LAYER_COUNT, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
-import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, POST_FRAG, POST_IDS, VERT } from "./shaders";
+import { mediaTransform } from "../core/media";
+import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
   original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3,
@@ -29,6 +30,8 @@ export class Engine {
   private post: Program;
   private comp: Program;
   private fin: Program;
+  private img: Program;
+  private media = new Map<string, { tex: WebGLTexture; w: number; h: number }>();
   private vao: WebGLVertexArrayObject;
   private work: [Target | null, Target | null] = [null, null];
   private compTo: Target | null = null;
@@ -53,6 +56,7 @@ export class Engine {
     this.post = this.program(POST_FRAG);
     this.comp = this.program(COMPOSITE_FRAG);
     this.fin = this.program(FINAL_FRAG);
+    this.img = this.program(IMAGE_FRAG);
     this.vao = gl.createVertexArray()!;
   }
 
@@ -107,6 +111,29 @@ export class Engine {
     if (this.canvas.height !== height) this.canvas.height = height;
   }
 
+  // ---- Grafiken ----------------------------------------------------------------------
+  /** Bild als Textur hinterlegen (vormultipliziertes Alpha, damit transparente Logos sauber sind). */
+  setMedia(id: string, source: TexImageSource, w: number, h: number): void {
+    const gl = this.gl;
+    const old = this.media.get(id);
+    const tex = old?.tex ?? gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.media.set(id, { tex, w, h });
+  }
+  removeMedia(id: string): void {
+    const m = this.media.get(id);
+    if (m) { this.gl.deleteTexture(m.tex); this.media.delete(id); }
+  }
+  hasMedia(id: string): boolean { return this.media.has(id); }
+
   // ---- Eine Ebene rendern -------------------------------------------------------------
   /**
    * Generator plus Effekt-Stapel in einer Textur der Größe w×h. Gibt die Textur mit dem Ergebnis zurück
@@ -114,17 +141,35 @@ export class Engine {
    */
   private renderLayer(l: LayerState, fbKey: string, time: number, w: number, h: number,
     show: ShowState, beat: number, pulse: number, bands: Float32Array, key: boolean): Target | null {
-    const gen = l.clip ? GEN_IDS.indexOf(l.clip as typeof GEN_IDS[number]) : -1;
-    if (gen < 0) return null;
+    const media = isMediaClip(l.clip) ? this.media.get(mediaIdOf(l.clip)) : undefined;
+    const gen = l.clip && !media ? GEN_IDS.indexOf(l.clip as typeof GEN_IDS[number]) : -1;
+    if (gen < 0 && !media) return null;
     const gl = this.gl;
     this.work[0] = this.target(this.work[0], w, h);
     this.work[1] = this.target(this.work[1], w, h);
     gl.disable(gl.BLEND);
+    const [ca, cb] = colors(l.colorSource, show.slots);
+
+    if (media) {
+      // 1a) Grafik mit Animation
+      const im = this.img;
+      const tf = mediaTransform(l.media, beat, time);
+      gl.useProgram(im.p);
+      gl.uniform1i(this.loc(im, "uImg"), 0);
+      gl.uniform2f(this.loc(im, "uRes"), w, h);
+      gl.uniform1f(this.loc(im, "uImgAspect"), media.w / Math.max(1, media.h));
+      gl.uniform2f(this.loc(im, "uPos"), tf.x, tf.y);
+      gl.uniform1f(this.loc(im, "uScale"), tf.scale);
+      gl.uniform1f(this.loc(im, "uRot"), tf.rotation);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, media.tex);
+      this.bindTarget(this.work[0]);
+      this.draw();
+      return this.applyEffects(l, fbKey, time, w, h, show, pulse, ca, cb);
+    }
 
     // 1) Generator
     const g = this.gen;
     gl.useProgram(g.p);
-    const [ca, cb] = colors(l.colorSource, show.slots);
     gl.uniform2f(this.loc(g, "uRes"), w, h);
     gl.uniform1f(this.loc(g, "uTime"), time);
     gl.uniform1f(this.loc(g, "uBeat"), beat);
@@ -137,9 +182,14 @@ export class Engine {
     gl.uniform1fv(this.loc(g, "uBands"), bands);
     this.bindTarget(this.work[0]);
     this.draw();
-    let src: Target = this.work[0];
+    return this.applyEffects(l, fbKey, time, w, h, show, pulse, ca, cb);
+  }
 
-    // 2) Effekt-Stapel
+  /** 2) Effekt-Stapel auf work[0] anwenden, Ergebnis zurückgeben. */
+  private applyEffects(l: LayerState, fbKey: string, time: number, w: number, h: number,
+    show: ShowState, pulse: number, ca: Rgb, cb: Rgb): Target {
+    const gl = this.gl;
+    let src: Target = this.work[0]!;
     const p = this.post;
     gl.useProgram(p.p);
     gl.uniform2f(this.loc(p, "uRes"), w, h);
@@ -147,6 +197,9 @@ export class Engine {
     gl.uniform1f(this.loc(p, "uPulse"), pulse);
     gl.uniform1i(this.loc(p, "uTex"), 0);
     gl.uniform1i(this.loc(p, "uPrev"), 1);
+    gl.uniform3f(this.loc(p, "uColA"), ca[0], ca[1], ca[2]);
+    gl.uniform3f(this.loc(p, "uColB"), cb[0], cb[1], cb[2]);
+    gl.uniform1i(this.loc(p, "uColorMode"), COLOR_MODE[l.colorSource]);
     for (const slot of l.effects) {
       const amount = slot.amount * show.fxMaster;
       const eff = POST_IDS.indexOf(slot.id as typeof POST_IDS[number]);
@@ -225,7 +278,7 @@ export class Engine {
     } else {
       const pulse = beatPulse(beat);
       const bands = new Float32Array(bandsFrom(show.audio, beat, sec));
-      const mix = transitionProgress(show.transition, beat);
+      const mix = transitionProgress(show.transition, beat, nowMs);
       this.compTo = this.target(this.compTo, w, h);
       this.composite(show.layers, this.compTo, "to", show, beat, pulse, bands);
       let from = this.compTo;
@@ -238,6 +291,7 @@ export class Engine {
       gl.uniform1i(this.loc(this.fin, "uFrom"), 0);
       gl.uniform1i(this.loc(this.fin, "uTo"), 1);
       gl.uniform1f(this.loc(this.fin, "uMix"), mix);
+      gl.uniform1i(this.loc(this.fin, "uDip"), show.transition?.style === "black" ? 1 : 0);
       gl.uniform1f(this.loc(this.fin, "uGain"), show.master * strobeGain(show.strobe, beat, sec, bpm));
       this.bindTex(0, from); this.bindTex(1, this.compTo);
       this.bindTarget(null, 0, 0, w, h);

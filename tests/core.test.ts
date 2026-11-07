@@ -4,13 +4,13 @@ import { parseArtDmx } from "../src/core/artnet";
 import { parseSacn } from "../src/core/sacn";
 import { buildOsc, parseOsc } from "../src/core/osc";
 import { CH, DmxDecoder, channelListCsv } from "../src/core/dmx";
-import { DEFAULT_SCENES, defaultShow } from "../src/core/show";
+import { DEFAULT_SCENES, defaultScenes, defaultShow } from "../src/core/show";
 import { EFFECTS, READY_GENERATORS } from "../src/core/effects";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage, type LjMessage } from "../src/core/ljlink";
 import { handleLj, handleOsc, type ControlContext } from "../src/core/control";
 
 function ctx(): ControlContext {
-  return { show: defaultShow(), tempo: new TempoClock(), scenes: DEFAULT_SCENES, lj: newLjState(),
+  return { show: defaultShow(), tempo: new TempoClock(), scenes: defaultScenes(), lj: newLjState(),
     rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1 };
 }
 
@@ -307,5 +307,129 @@ describe("Effekt-Stapel", () => {
     expect(CONTROL_BY_ID.get("transition.beats")!.format!(c)).toBe("8 Beats");
     setControl(c, "transition.beats", 0);
     expect(CONTROL_BY_ID.get("transition.beats")!.format!(c)).toBe("Schnitt");
+  });
+});
+
+import { addSceneFromCurrent, deleteScene, moveScene, overwriteScene, stepScene, tickAuto } from "../src/core/control";
+import { applyProject, parseProject, serializeProject } from "../src/core/project";
+import { isValidMediaId, mediaTransform } from "../src/core/media";
+import { defaultMedia } from "../src/core/show";
+
+describe("Szenen anlegen und Abfolge", () => {
+  it("anlegen, überschreiben, verschieben, löschen", () => {
+    const c = ctx();
+    const n = c.scenes.length;
+    c.show.layers[0]!.clip = "plasma";
+    const i = addSceneFromCurrent(c, "Meine");
+    expect(c.scenes.length).toBe(n + 1);
+    expect(c.scenes[i]!.layers[0]!.clip).toBe("plasma");
+    c.show.layers[0]!.clip = "tunnel";
+    expect(c.scenes[i]!.layers[0]!.clip).toBe("plasma"); // Kopie, kein Verweis
+    overwriteScene(c, i);
+    expect(c.scenes[i]!.layers[0]!.clip).toBe("tunnel");
+    c.show.scene = i + 1;
+    moveScene(c, i, -1);
+    expect(c.scenes[i - 1]!.name).toBe("Meine");
+    expect(c.show.scene).toBe(i);
+    deleteScene(c, i - 1);
+    expect(c.scenes.length).toBe(n);
+    expect(c.show.scene).toBe(0);
+  });
+  it("Übergang in Sekunden und über Schwarz", () => {
+    const c = ctx();
+    c.scenes[1]!.transition = { unit: "seconds", value: 2, style: "black" };
+    recallScene(c, 1, 10_000);
+    const t = c.show.transition!;
+    expect(t.style).toBe("black");
+    expect(transitionProgress(t, 999, 11_000)).toBeCloseTo(0.5);
+    tickTransition(c, 12_100);
+    expect(c.show.transition).toBeNull();
+  });
+  it("Schnitt pro Szene", () => {
+    const c = ctx();
+    c.scenes[2]!.transition = { unit: "beats", value: 0, style: "fade" };
+    recallScene(c, 2, 0);
+    expect(c.show.transition).toBeNull();
+  });
+  it("Automatik: nach Takten und Sekunden, nur wenn Auto an ist", () => {
+    const c = ctx();
+    c.tempo.update("manual", 120, 0, 0);
+    c.scenes[0]!.next = { after: "bars", value: 2 }; // 8 Beats = 4 s
+    recallScene(c, 0, 0);
+    expect(tickAuto(c, 5000)).toBe(false); // Auto aus
+    c.show.autoVj = true;
+    expect(tickAuto(c, 3000)).toBe(false);
+    expect(tickAuto(c, 4100)).toBe(true);
+    expect(c.show.scene).toBe(2);
+    c.scenes[1]!.next = { after: "seconds", value: 3 };
+    expect(tickAuto(c, 6000)).toBe(false);
+    expect(tickAuto(c, 7200)).toBe(true);
+    expect(c.show.scene).toBe(3);
+  });
+  it("Automatik bei Phrasenwechsel, ringförmig weiter", () => {
+    const c = ctx();
+    c.rules = []; c.show.autoVj = true;
+    c.scenes.forEach(s => { s.next = { after: "phrase", value: 1 }; });
+    recallScene(c, c.scenes.length - 1, 0);
+    handleLj(c, { t: "event", kind: "phrase", deck: 1, phrase: "up" }, 10);
+    expect(c.show.scene).toBe(1);
+    stepScene(c, -1, 20);
+    expect(c.show.scene).toBe(c.scenes.length);
+  });
+});
+
+describe("Grafiken", () => {
+  it("IDs werden geprüft (auch als Dateiname)", () => {
+    expect(isValidMediaId("a1b2c3d4e5f60708")).toBe(true);
+    expect(isValidMediaId("../etc/passwd")).toBe(false);
+    expect(isValidMediaId("ABC")).toBe(false);
+  });
+  it("Animationen bewegen sich im Takt", () => {
+    const m = { ...defaultMedia(), anim: "pulse" as const, animAmount: 1, animBeats: 1 };
+    expect(mediaTransform(m, 0, 0).scale).toBeGreaterThan(mediaTransform(m, 0.5, 0).scale);
+    const spin = { ...m, anim: "spin" as const };
+    expect(mediaTransform(spin, 1, 0).rotation).toBeCloseTo(Math.PI * 2);
+    const none = { ...m, anim: "none" as const, x: 1, rotation: 90 };
+    expect(mediaTransform(none, 3, 9)).toEqual({ x: 0.5, y: 0, scale: m.scale, rotation: Math.PI / 2 });
+  });
+});
+
+describe("Projektdatei", () => {
+  it("speichern und laden ergibt denselben Stand", () => {
+    const c = ctx();
+    c.show.layers[1]!.clip = "img:a1b2c3d4e5f60708";
+    c.show.layers[1]!.media.anim = "spin";
+    c.show.layers[1]!.effects.push({ id: "tint", on: true, amount: 0.7 });
+    addSceneFromCurrent(c, "Logo");
+    const json = serializeProject(c, [{ id: "a1b2c3d4e5f60708", name: "Logo", width: 800, height: 400 }]);
+    const p = parseProject(json)!;
+    const c2 = ctx();
+    const scenesRef = c2.scenes;
+    applyProject(c2, p);
+    expect(c2.scenes).toBe(scenesRef); // gleiche Liste (DMX-Decoder hält sie)
+    expect(c2.scenes.at(-1)!.name).toBe("Logo");
+    expect(c2.show.layers[1]!.clip).toBe("img:a1b2c3d4e5f60708");
+    expect(c2.show.layers[1]!.media.anim).toBe("spin");
+    expect(c2.show.layers[1]!.effects.at(-1)).toEqual({ id: "tint", on: true, amount: 0.7 });
+    expect(p.media[0]!.name).toBe("Logo");
+  });
+  it("kaputte oder fremde Daten werden verworfen bzw. ersetzt", () => {
+    expect(parseProject("kein json")).toBeNull();
+    expect(parseProject('{"version":99}')).toBeNull();
+    const p = parseProject(JSON.stringify({
+      version: 1,
+      layers: [{ clip: "img:../../x", opacity: 7, effects: [{ id: "gibts-nicht" }, { id: "glow", amount: 3 }], media: { scale: 1e9, anim: "boom" } }],
+      scenes: [{ name: 42, layers: "x", transition: { unit: "tage", value: -5 } }],
+      media: [{ id: "../x" }],
+    }))!;
+    expect(p.layers[0]!.clip).toBeNull();
+    expect(p.layers[0]!.opacity).toBe(1);
+    expect(p.layers[0]!.effects).toEqual([{ id: "glow", on: true, amount: 1 }]);
+    expect(p.layers[0]!.media.scale).toBe(4);
+    expect(p.layers[0]!.media.anim).toBe("pulse");
+    expect(p.scenes[0]!.name).toBe("Szene 1");
+    expect(p.scenes[0]!.transition).toEqual({ unit: "beats", value: 0, style: "fade" });
+    expect(p.media).toEqual([]);
+    expect(p.layers.length).toBe(4);
   });
 });

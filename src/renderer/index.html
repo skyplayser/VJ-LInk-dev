@@ -39,14 +39,17 @@
         <div class="lbl"><b>● AUSGANG</b><span id="mon-info">–</span></div>
         <canvas id="preview" width="960" height="360" aria-label="Vorschau des Ausgangs"></canvas>
       </div>
-      <h2>Clip-Raster <span class="muted">· Ebene anklicken für ihre Effekte</span></h2>
+      <h2>Clip-Raster <span class="muted">· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2>
+      <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple hidden>
+      <div id="toast" class="toast" role="status" hidden></div>
       <div id="grid" class="clip-grid"></div>
     </div>
     <aside class="right">
       <h2>Farbslots</h2>
       <div id="slots" class="slot-list"></div>
-      <h2>Szenen</h2>
-      <div id="scenes" class="scenes"></div>
+      <div class="h2row"><h2>Szenen</h2><span><button class="btn small-btn" id="scene-add">+ Szene speichern</button> <button class="btn small-btn toggle" id="scene-auto" aria-pressed="false" title="Szenen laufen nach ihrer Einstellung „Danach“ automatisch weiter">Auto</button></span></div>
+      <div id="scenes" class="scene-list"></div>
+      <section id="media-panel" class="media-panel" hidden></section>
       <h2 id="fx-title">Effekte</h2>
       <div id="fx-list" class="fx-list"></div>
       <select id="fx-add" class="fx-add" aria-label="Effekt hinzufügen"></select>

@@ -2,6 +2,7 @@
 // Aufgebaut aus dem Control-Register (src/core/controls.ts), also genau die Elemente,
 // die später auch per MIDI belegt werden.
 import { CONTROLS, setControl, type ControlDef } from "../core/controls";
+import { recallScene, stepScene } from "../core/control";
 import { strobeHz } from "../core/audio";
 import type { ControlContext } from "../core/control";
 
@@ -27,6 +28,7 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
     }
     if (faders.childElementCount) box.append(faders);
     if (pads.childElementCount) box.append(pads);
+    if (group === "Szenen") box.append(sceneButtons(ctx, updaters));
     if (group === "Strobe") {
       const info = el("div", "info"); box.append(info);
       updaters.push(() => {
@@ -74,4 +76,32 @@ function pad(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HTML
   b.addEventListener("keydown", e => { if (e.key === " " || e.key === "Enter") e.preventDefault(); });
   updaters.push(() => { b.classList.toggle("on", d.kind !== "trigger" ? d.get(ctx) >= 0.5 : d.id.startsWith("scene.") && d.get(ctx) >= 0.5); });
   return b;
+}
+
+/** Szenen-Tasten aus der aktuellen Szenenliste (bis 12), dazu Weiter und Auto. */
+function sceneButtons(ctx: ControlContext, updaters: (() => void)[]): HTMLElement {
+  const wrap = el("div", "pads scene-pads");
+  let sig = "";
+  const build = () => {
+    wrap.replaceChildren();
+    ctx.scenes.slice(0, 12).forEach((s, i) => {
+      const b = el("button", "pad", s.name); b.title = i < 9 ? `Taste ${i + 1}` : "";
+      b.addEventListener("pointerdown", () => { recallScene(ctx, i); });
+      wrap.append(b);
+    });
+    const next = el("button", "pad pad-alt", "Weiter ›"); next.title = "Nächste Szene (Pfeil rechts)";
+    next.addEventListener("pointerdown", () => { stepScene(ctx, 1); });
+    const auto = el("button", "pad pad-alt pad-auto", "Auto"); auto.title = "Szenen laufen automatisch weiter (je Szene einstellbar)";
+    auto.addEventListener("click", () => { ctx.show.autoVj = !ctx.show.autoVj; });
+    wrap.append(next, auto);
+  };
+  updaters.push(() => {
+    const s = ctx.scenes.slice(0, 12).map(x => x.name).join("\u0000");
+    if (s !== sig) { sig = s; build(); }
+    wrap.querySelectorAll<HTMLButtonElement>(".pad").forEach((b, i) => {
+      if (b.classList.contains("pad-auto")) b.classList.toggle("on", ctx.show.autoVj);
+      else if (!b.classList.contains("pad-alt")) b.classList.toggle("on", ctx.show.scene === i + 1);
+    });
+  });
+  return wrap;
 }
