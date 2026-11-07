@@ -4,10 +4,12 @@ import {
   BLEND_MODES, COLOR_SOURCES, LAYER_COUNT, applyScene, clamp01, type Scene, type ShowState,
 } from "./show";
 
-export const DMX_MODE_STANDARD_CHANNELS = 68;
+export const DMX_MODE_STANDARD_CHANNELS = 70;
 export const CH = {
   master: 1, strobe: 2, scene: 3, transition: 4, tempoFactor: 5, fxMaster: 6, autoVj: 7, blackout: 8,
   slotBase: 9, layerBase: 29, layerSize: 10,
+  /** Nach den vier Ebenen (29–68). */
+  strobeIntensity: 69, strobeSync: 70,
 } as const;
 /** Offsets innerhalb einer Ebene. */
 export const LAYER_CH = { opacity: 0, bank: 1, clip: 2, color: 3, speed: 4, fx1: 5, fx2: 6, fx3: 7, strobe: 8, blend: 9 } as const;
@@ -67,7 +69,10 @@ export class DmxDecoder {
     const f = v / 255;
     switch (rel) {
       case CH.master: s.master = f; return;
-      case CH.strobe: s.strobe = v < 8 ? 0 : 1 + Math.round((1 - f) * 7); return;
+      case CH.strobe: // 0–7 aus, 8–255 Geschwindigkeit langsam bis schnell
+        s.strobe.on = v >= 8; if (v >= 8) s.strobe.speed = (v - 8) / 247; return;
+      case CH.strobeIntensity: s.strobe.intensity = f; return;
+      case CH.strobeSync: s.strobe.sync = v < 128; return; // 0–127 im Takt, 128–255 freie Hz
       case CH.scene:
         if (v > 0) { const sc = this.scenes[v - 1]; if (sc) { applyScene(s, sc); s.scene = v; out.scene = v; } }
         return;
@@ -108,13 +113,14 @@ export class DmxDecoder {
 /** Kanalliste für Pult-Bediener (CSV). */
 export function channelListCsv(startAddress = 1): string {
   const rows: [number, string][] = [
-    [CH.master, "Master-Dimmer"], [CH.strobe, "Strobe"], [CH.scene, "Szene"], [CH.transition, "Übergang"],
+    [CH.master, "Master-Dimmer"], [CH.strobe, "Strobe Geschwindigkeit (0-7 aus)"], [CH.scene, "Szene"], [CH.transition, "Übergang"],
     [CH.tempoFactor, "Tempo-Faktor"], [CH.fxMaster, "Effekt-Intensität gesamt"], [CH.autoVj, "Auto-VJ"], [CH.blackout, "Blackout (250-255)"],
   ];
   ["A", "B", "C", "D", "E"].forEach((n, i) => {
     ["Dimmer", "Rot", "Grün", "Blau"].forEach((c, j) => rows.push([CH.slotBase + i * 4 + j, `Slot ${n} ${c}`]));
   });
   const names = ["Deckkraft", "Clip-Bank", "Clip", "Farbquelle", "Geschwindigkeit", "Effekt 1", "Effekt 2", "Effekt 3", "Strobe", "Mischmodus"];
+  rows.push([CH.strobeIntensity, "Strobe Intensität"], [CH.strobeSync, "Strobe Modus (0-127 Takt, 128-255 Hz)"]);
   for (let l = 0; l < LAYER_COUNT; l++) names.forEach((n, j) => rows.push([CH.layerBase + l * CH.layerSize + j, `Ebene ${l + 1} ${n}`]));
   return "Kanal;Funktion\n" + rows.map(([ch, n]) => `${startAddress + ch - 1};${n}`).join("\n") + "\n";
 }

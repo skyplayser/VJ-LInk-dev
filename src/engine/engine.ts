@@ -1,5 +1,5 @@
 // WebGL2-Compositor: rendert die Ebenen einer Show in beliebig große Ausgänge.
-import { bandsFrom, beatPulse, strobeGate } from "../core/audio";
+import { bandsFrom, beatPulse, strobeGain, strobeGate } from "../core/audio";
 import { LAYER_COUNT, type BlendMode, type ColorSource, type Rgb, type ShowState } from "../core/show";
 import { FRAG, GEN_IDS, VERT } from "./shaders";
 
@@ -55,7 +55,7 @@ export class Engine {
    * Ein Bild rechnen. `nowMs` ist Epoch-Zeit, `beat` die Beat-Position der gemeinsamen Takt-Uhr:
    * alle Ausgänge bekommen dieselben Werte und zeigen deshalb dasselbe Bild.
    */
-  render(show: ShowState, beat: number, nowMs: number, layerOverride?: number): void {
+  render(show: ShowState, beat: number, nowMs: number, bpm = 120, layerOverride?: number): void {
     const t0 = performance.now();
     const gl = this.gl;
     const sec = nowMs / 1000;
@@ -67,7 +67,7 @@ export class Engine {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     if (!show.blackout) {
-      const masterGate = strobeGate(beat, show.strobe);
+      const masterGate = strobeGain(show.strobe, beat, sec, bpm);
       const master = show.master * masterGate;
       const bands = bandsFrom(show.audio, beat, sec);
       gl.useProgram(this.prog);

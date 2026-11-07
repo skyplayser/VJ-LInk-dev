@@ -1,4 +1,4 @@
-import { BrowserWindow, app, ipcMain, screen, type Display } from "electron";
+import { BrowserWindow, app, ipcMain, nativeImage, screen, type Display } from "electron";
 import path from "node:path";
 import { Network } from "./network";
 import type { ControlEvent, DisplayInfo, Frame, NetConfig } from "../core/frame";
@@ -8,12 +8,17 @@ const outputs = new Map<number, BrowserWindow>();
 let net: Network | null = null;
 let lastFrame: Frame | null = null;
 
+// Logo für Fenster (Windows, Linux) und Dock (macOS). Die Installer nutzen build/icon.icns und build/icon.ico.
+const ICON = path.join(__dirname, "..", "icon.png");
+app.setName("VJ-Link");
+
 const rendererFile = (name: string) => path.join(__dirname, "..", "renderer", name);
 
 function secureWindow(opts: Electron.BrowserWindowConstructorOptions): BrowserWindow {
   const win = new BrowserWindow({
     ...opts,
     backgroundColor: "#0C0E13",
+    icon: ICON,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false,
@@ -59,6 +64,7 @@ function toggleOutput(id: number): DisplayInfo[] {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(ICON));
   createControl();
   net = new Network((e: ControlEvent) => { control?.webContents.send("control", e); });
   net.start();

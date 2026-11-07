@@ -9,6 +9,8 @@ import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "..
 import { BLEND_MODES, COLOR_SOURCES, DEFAULT_SCENES, LAYER_COUNT, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
 import { frameBeat, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
 import { bridge } from "./bridge";
+import { setControl } from "../core/controls";
+import { buildDeck } from "./deck";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] => {
@@ -27,7 +29,7 @@ function saveSettings(): void { try { localStorage.setItem("vjlink.settings", JS
 // ---- Zustand --------------------------------------------------------------------------
 const ctx: ControlContext = {
   show: defaultShow(), tempo: new TempoClock(), scenes: DEFAULT_SCENES, lj: newLjState(),
-  rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), strobeUntilBeat: 0, bank: 1,
+  rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1,
 };
 ctx.tempo.update("manual", 120, Date.now(), 0);
 const decoder = new DmxDecoder(settings.address, DEFAULT_SCENES);
@@ -127,11 +129,8 @@ function buildSidebar(): void {
   DEFAULT_SCENES.forEach((s, i) => {
     const b = el("button", "", s.name); b.addEventListener("click", () => { recallScene(ctx, i); }); sc.append(b);
   });
-  $<HTMLInputElement>("master").addEventListener("input", e => { ctx.show.master = Number((e.target as HTMLInputElement).value) / 100; });
-  $<HTMLSelectElement>("strobe").addEventListener("change", e => { ctx.show.strobe = Number((e.target as HTMLSelectElement).value); });
-  $<HTMLSelectElement>("tempo-factor").addEventListener("change", e => { ctx.tempo.factor = Number((e.target as HTMLSelectElement).value); });
-  $("tap").addEventListener("click", () => { ctx.tempo.tap(Date.now()); });
-  $("blackout").addEventListener("click", () => { ctx.show.blackout = !ctx.show.blackout; });
+  $("tap").addEventListener("click", () => { setControl(ctx, "tempo.tap", 1); });
+  $("blackout").addEventListener("click", () => { setControl(ctx, "blackout", ctx.show.blackout ? 0 : 1); });
 }
 
 // ---- Bauen: Katalog -------------------------------------------------------------------
@@ -255,7 +254,7 @@ function frame(): void {
   const now = Date.now();
   ctx.tempo.tick(now);
   const beat = ctx.tempo.beatAt(now);
-  engine?.render(ctx.show, beat, now);
+  engine?.render(ctx.show, beat, now, ctx.tempo.bpm);
 
   if (now - lastPublish > 33 && bridge) {
     lastPublish = now;
@@ -295,12 +294,13 @@ function updateUi(now: number, beat: number): void {
     if (document.activeElement !== blend) blend.value = layer.blend;
   });
   document.querySelectorAll("#scenes button").forEach((b, i) => b.classList.toggle("on", s.scene === i + 1));
-  const m = $<HTMLInputElement>("master"); if (document.activeElement !== m) m.value = String(Math.round(s.master * 100));
   (window as unknown as { refreshSlots: () => void }).refreshSlots();
+  updateDeck();
   if ($("tab-connect").classList.contains("on")) drawConnect(now);
 }
 
 buildGrid(); buildSidebar(); buildCatalog(); bindSettings();
+const updateDeck = buildDeck(ctx, $("deck"));
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.
 for (const g of READY_GENERATORS) if (!GEN_IDS.includes(g.id as typeof GEN_IDS[number]) || !EFFECT_BY_ID.has(g.id)) console.error("Generator fehlt in der Engine:", g.id);
 requestAnimationFrame(frame);

@@ -92,6 +92,27 @@ td.n{font-family:var(--mono);color:var(--dim)}
 .form{display:flex;gap:14px;flex-wrap:wrap;align-items:end}
 .form label{display:grid;gap:4px;font-size:11px;color:var(--dim)}
 .form input{background:var(--raise);border:1px solid var(--line);border-radius:3px;padding:6px 8px;width:130px;color:var(--text)}
-.dmx-live{display:grid;grid-template-columns:repeat(68,minmax(0,1fr));gap:2px;height:70px;align-items:end}
+.dmx-live{display:grid;grid-template-columns:repeat(70,minmax(0,1fr));gap:2px;height:70px;align-items:end}
 .dmx-live i{display:block;background:var(--text);min-height:1px;border-radius:1px 1px 0 0}
 .dmx-live i.slotc{background:var(--accent)}
+
+/* ---- Fader-Leiste ---- */
+.deck{display:flex;gap:6px;align-items:stretch;padding:8px 12px 10px;background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;flex:none}
+.dg{display:flex;flex-direction:column;gap:6px;padding:6px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;flex:none}
+.dg h3{margin:0;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.faders{display:flex;gap:10px;align-items:flex-end;flex:1}
+.fader{display:flex;flex-direction:column;align-items:center;gap:4px;width:38px;align-self:stretch}
+.fader .val{font:600 10px var(--mono);color:var(--dim);font-variant-numeric:tabular-nums}
+.fader .name{font-size:10.5px;color:var(--text);white-space:nowrap}
+input[type=range].v{writing-mode:vertical-lr;direction:rtl;width:26px;flex:1;min-height:96px;margin:0;accent-color:var(--text);cursor:pointer}
+.dg-strobe input[type=range].v{accent-color:var(--warn)}
+.pads{display:flex;gap:5px;flex-wrap:wrap}
+.pad{min-width:56px;padding:9px 8px;background:var(--raise);border:1px solid var(--line);border-radius:5px;font-weight:700;font-size:11px;letter-spacing:.04em;cursor:pointer;user-select:none;touch-action:none}
+.pad:hover{border-color:var(--dim)}
+.pad.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+.pad-strobe.on{background:var(--warn);border-color:var(--warn);color:#000}
+.pad-danger{color:#fff;background:#5a1818;border-color:#7a2323}
+.pad-danger.on{background:var(--live);border-color:var(--live);color:#fff}
+.dg-szenen .pads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.dg .info{font:10.5px var(--mono);color:var(--dim)}
+@media (max-width:900px){.dg-szenen{display:none}}

@@ -19,10 +19,27 @@ export interface LayerState {
   strobe: number;
 }
 
+export interface StrobeState {
+  /** Dauerhaft an (Schalter). */
+  on: boolean;
+  /** Taste „Flash“ gedrückt gehalten. */
+  flash: boolean;
+  /** Läuft bis zu diesem Beat (z. B. aus einer LJ-Link-Regel), 0 = nicht aktiv. */
+  untilBeat: number;
+  /** 0–1: im Takt der Musik = 6 Stufen von ½× bis 16× pro Beat, frei = 1 bis 20 Hz. */
+  speed: number;
+  /** 0–1: wie dunkel die Pausen sind (1 = ganz schwarz). */
+  intensity: number;
+  /** true = im Takt, false = freie Frequenz in Hz. */
+  sync: boolean;
+}
+
+export const defaultStrobe = (): StrobeState =>
+  ({ on: false, flash: false, untilBeat: 0, speed: 0.5, intensity: 1, sync: true });
+
 export interface ShowState {
   master: number;
-  /** 0 = aus, sonst Teiler: 1 = jeder Beat … */
-  strobe: number;
+  strobe: StrobeState;
   blackout: boolean;
   scene: number;
   /** Übergangsdauer in Beats (0 = Schnitt). */
@@ -43,7 +60,7 @@ export function defaultShow(): ShowState {
   const layers = Array.from({ length: LAYER_COUNT }, defaultLayer);
   layers[0] = { ...layers[0]!, clip: "tunnel", colorSource: "A" };
   return {
-    master: 1, strobe: 0, blackout: false, scene: 0, transitionBeats: 1, fxMaster: 1, autoVj: false,
+    master: 1, strobe: defaultStrobe(), blackout: false, scene: 0, transitionBeats: 1, fxMaster: 1, autoVj: false,
     layers,
     slots: [[1, 0.1, 0.35], [1, 0.7, 0.1], [0.2, 0.9, 0.5], [0.1, 0.8, 1], [0.7, 0.35, 1]],
     audio: { bass: 0, mid: 0, high: 0 },

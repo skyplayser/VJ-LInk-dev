@@ -4,6 +4,7 @@ import { matchRules, reduceLj, type LjMessage, type LjState, type Rule, type Rul
 import type { OscMessage } from "./osc";
 import { SLOT_NAMES, applyScene, clamp01, type Scene, type ShowState } from "./show";
 import { READY_GENERATORS } from "./effects";
+import { setControl } from "./controls";
 
 export interface ControlContext {
   show: ShowState;
@@ -11,8 +12,6 @@ export interface ControlContext {
   scenes: readonly Scene[];
   lj: LjState;
   rules: Rule[];
-  /** Strobe-Zeitfenster für Regeln, 0 = aus. */
-  strobeUntilBeat: number;
   bank: number;
 }
 
@@ -34,6 +33,8 @@ export function handleOsc(c: ControlContext, m: OscMessage, nowMs: number): bool
   const a = m.args[0];
   const s = c.show;
   if (p[1] === "scene" && p[2] === "go") return recallScene(c, num(a) - 1);
+  // Jedes Bedienelement ist per OSC erreichbar: /vjlink/ctl/<id> <Wert 0–1>
+  if (p[1] === "ctl" && p[2]) return setControl(c, p[2], num(a));
   if (p[1] === "master" && p[2] === "dimmer") { s.master = clamp01(num(a)); return true; }
   if (p[1] === "blackout") { s.blackout = num(a, 1) !== 0; return true; }
   if (p[1] === "tap") { c.tempo.tap(nowMs); return true; }
@@ -71,7 +72,7 @@ export function handleLj(c: ControlContext, m: LjMessage, nowMs: number): RuleAc
 export function runAction(c: ControlContext, a: RuleAction): void {
   switch (a.do) {
     case "scene": recallScene(c, a.name); break;
-    case "strobe": c.strobeUntilBeat = c.tempo.beatAt(Date.now()) + a.beats; break;
+    case "strobe": c.show.strobe.untilBeat = c.tempo.beatAt(Date.now()) + a.beats; break;
     case "fx": { const l = c.show.layers[a.layer]; if (l) l.fx[a.index] = a.value; break; }
     case "nextBank": c.bank += 1; break;
   }

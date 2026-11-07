@@ -48,7 +48,7 @@ function loop(): void {
   const now = Date.now();
   if (frame) {
     if (frame.testPattern !== wasTest) { wasTest = frame.testPattern; showTest(wasTest); }
-    if (!wasTest) engine.render(frame.show, frameBeat(frame, now), now);
+    if (!wasTest) engine.render(frame.show, frameBeat(frame, now), now, frame.bpm);
   } else {
     engine.gl.clearColor(0, 0, 0, 1); engine.gl.clear(engine.gl.COLOR_BUFFER_BIT);
   }

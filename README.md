@@ -17,15 +17,16 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Visuals | 8 Generatoren: Balken-Spektrum, Kreis-Equalizer, Oszilloskop, Pulsierende Ringe, Tunnel, Synthwave-Raster, Sternenfeld, Plasma |
 | Katalog | Alle 35 Visuals der Wunschliste mit Status (`bereit` / `geplant`) |
 | Takt | Quellen-Rangfolge LJ-Link → Ableton Link → OSC → MIDI → Audio → Tap, Tap-Tempo, Rückfall bei Ausfall ohne Phasensprung |
-| Pult | Art-Net und sACN als Eingang, DMX-Belegung „Standard“ (68 Kanäle), nur geänderte Kanäle wirken, Kanalliste als CSV |
+| Pult | Art-Net und sACN als Eingang, DMX-Belegung „Standard“ (70 Kanäle), nur geänderte Kanäle wirken, Kanalliste als CSV |
 | OSC | Eingang auf Port 8000, Adressen `/vjlink/…` |
 | LJ-Link | WebSocket-Eingang auf Port 9099, Deck-Zustand, Regeln „Wenn … dann …“, Privatsphäre-Modus |
 | Ausgänge | Ein Vollbild-Fenster pro Bildschirm, gemeinsame Takt-Uhr, Testbild |
-| Oberfläche | Show, Bauen (Katalog), Ausgabe, Verbinden |
+| Bedienung | Fader-Leiste (Master, Ebenen, Effekt, Strobe mit Speed und Intensität, Szenen, Tap, Blackout), jedes Element auch per OSC (`/vjlink/ctl/<id>`) |
+| Oberfläche | Show, Bauen (Katalog), Ausgabe, Verbinden; Logo als App-Icon |
 
 ## Noch offen
 
-Effekt-Editor, Mapping (Ausschnitt, Eckpunkte, Raster), Video-Clips, Szenen-Übergänge (der Wert wird gelesen, aber noch nicht überblendet), Ableton Link, MIDI, Audio-Eingang, GDTF-/XML-Profile, Fernbedienung im Browser, die 27 weiteren Visuals. Reihenfolge siehe `docs/ARCHITEKTUR.md`.
+Effekt-Editor, Mapping (Ausschnitt, Eckpunkte, Raster), Video-Clips, Szenen-Übergänge (der Wert wird gelesen, aber noch nicht überblendet), Ableton Link, MIDI-Controller und MIDI-Lernen, Audio-Eingang, GDTF-/XML-Profile, Fernbedienung im Browser, die 27 weiteren Visuals. MIDI-Controller als Nächstes. Reihenfolge und Aufwand siehe `docs/ROADMAP.md`.
 
 ## Starten
 

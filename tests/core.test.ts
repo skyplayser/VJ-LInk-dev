@@ -11,7 +11,7 @@ import { handleLj, handleOsc, type ControlContext } from "../src/core/control";
 
 function ctx(): ControlContext {
   return { show: defaultShow(), tempo: new TempoClock(), scenes: DEFAULT_SCENES, lj: newLjState(),
-    rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), strobeUntilBeat: 0, bank: 1 };
+    rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1 };
 }
 
 describe("Takt", () => {
@@ -120,8 +120,8 @@ describe("DMX", () => {
     d.decode(f, s);
     expect(s.layers[1]!.clip).toBe(READY_GENERATORS[2]!.id);
   });
-  it("Kanalliste hat 68 Zeilen", () => {
-    expect(channelListCsv().trim().split("\n").length).toBe(69);
+  it("Kanalliste hat 70 Zeilen", () => {
+    expect(channelListCsv().trim().split("\n").length).toBe(71);
   });
 });
 
@@ -159,5 +159,84 @@ describe("Effekt-Katalog", () => {
     expect(EFFECTS.length).toBe(35);
     expect(new Set(EFFECTS.map(e => e.id)).size).toBe(35);
     expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 35 }, (_, i) => i + 1));
+  });
+});
+
+import { CONTROLS, CONTROL_BY_ID, setControl } from "../src/core/controls";
+import { STROBE_DIVISIONS, strobeGain, strobeHz } from "../src/core/audio";
+
+describe("Strobe", () => {
+  it("ohne Aktivierung bleibt das Licht an", () => {
+    const s = defaultShow();
+    expect(strobeGain(s.strobe, 0.7, 0)).toBe(1);
+  });
+  it("im Takt: Pausen sind so dunkel wie die Intensität sagt", () => {
+    const s = defaultShow(); s.strobe.on = true; s.strobe.sync = true; s.strobe.speed = 0.2; // 1× pro Beat
+    expect(s.strobe.speed * STROBE_DIVISIONS.length).toBeLessThan(2);
+    s.strobe.intensity = 1;  expect(strobeGain(s.strobe, 0.1, 0)).toBe(1);
+    expect(strobeGain(s.strobe, 0.6, 0)).toBe(0);
+    s.strobe.intensity = 0.5; expect(strobeGain(s.strobe, 0.6, 0)).toBe(0.5);
+    s.strobe.intensity = 0;  expect(strobeGain(s.strobe, 0.6, 0)).toBe(1);
+  });
+  it("frei in Hz, unabhängig vom Takt", () => {
+    const s = defaultShow(); s.strobe.on = true; s.strobe.sync = false; s.strobe.speed = 0; // 1 Hz
+    expect(strobeHz(s.strobe, 128)).toBeCloseTo(1);
+    expect(strobeGain(s.strobe, 99, 0.1)).toBe(1);
+    expect(strobeGain(s.strobe, 99, 0.6)).toBe(0);
+  });
+  it("Flash wirkt nur beim Halten, untilBeat läuft ab", () => {
+    const s = defaultShow(); s.strobe.intensity = 1;
+    s.strobe.flash = true; expect(strobeGain(s.strobe, 0.6, 0)).toBe(0);
+    s.strobe.flash = false; expect(strobeGain(s.strobe, 0.6, 0)).toBe(1);
+    s.strobe.untilBeat = 4; expect(strobeGain(s.strobe, 0.6, 0)).toBe(0);
+    expect(strobeGain(s.strobe, 4.6, 0)).toBe(1);
+  });
+  it("DMX: Geschwindigkeit, Intensität und Modus", () => {
+    const s = defaultShow(); const d = new DmxDecoder();
+    const f = new Uint8Array(512); f[CH.strobe - 1] = 255; f[CH.strobeIntensity - 1] = 128; f[CH.strobeSync - 1] = 200;
+    d.decode(f, s);
+    expect(s.strobe.on).toBe(true); expect(s.strobe.speed).toBeCloseTo(1);
+    expect(s.strobe.intensity).toBeCloseTo(0.5, 1); expect(s.strobe.sync).toBe(false);
+    f[CH.strobe - 1] = 3; d.decode(f, s);
+    expect(s.strobe.on).toBe(false);
+  });
+  it("Regel „Hot Cue C“ lässt den Strobe laufen", () => {
+    const c = ctx();
+    c.tempo.update("manual", 120, Date.now(), 0);
+    handleLj(c, { t: "hello", version: 1, privacy: false }, Date.now());
+    handleLj(c, { t: "event", kind: "cue", deck: 1, cue: "C" }, Date.now());
+    expect(c.show.strobe.untilBeat).toBeGreaterThan(3);
+  });
+});
+
+describe("Control-Registry", () => {
+  it("IDs sind eindeutig und Werte bleiben in 0–1", () => {
+    expect(new Set(CONTROLS.map(x => x.id)).size).toBe(CONTROLS.length);
+    const c = ctx();
+    for (const def of CONTROLS) {
+      if (def.kind === "trigger") continue;
+      def.set(c, 7); expect(def.get(c)).toBeLessThanOrEqual(1);
+      def.set(c, -3); expect(def.get(c)).toBeGreaterThanOrEqual(0);
+    }
+  });
+  it("Fader, Schalter, Halten und Tasten", () => {
+    const c = ctx();
+    setControl(c, "master", 0.25); expect(c.show.master).toBe(0.25);
+    setControl(c, "strobe.on", 1); expect(c.show.strobe.on).toBe(true);
+    setControl(c, "strobe.on", 0); expect(c.show.strobe.on).toBe(false);
+    setControl(c, "strobe.flash", 1); expect(c.show.strobe.flash).toBe(true);
+    setControl(c, "strobe.flash", 0); expect(c.show.strobe.flash).toBe(false);
+    setControl(c, "scene.4", 1); expect(c.show.scene).toBe(4);
+    setControl(c, "scene.2", 0); expect(c.show.scene).toBe(4); // Loslassen löst nichts aus
+    setControl(c, "layer.2.opacity", 0.4); expect(c.show.layers[1]!.opacity).toBe(0.4);
+    setControl(c, "tempo.factor", 1); expect(c.tempo.factor).toBe(4);
+    expect(setControl(c, "gibt.es.nicht", 1)).toBe(false);
+    expect(CONTROL_BY_ID.get("tempo.factor")!.get(c)).toBe(1);
+  });
+  it("per OSC erreichbar", () => {
+    const c = ctx();
+    expect(handleOsc(c, { address: "/vjlink/ctl/strobe.speed", args: [0.8] }, 0)).toBe(true);
+    expect(c.show.strobe.speed).toBeCloseTo(0.8);
+    expect(handleOsc(c, { address: "/vjlink/ctl/unbekannt", args: [1] }, 0)).toBe(false);
   });
 });

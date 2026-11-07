@@ -47,14 +47,6 @@
       <div id="slots" class="slot-list"></div>
       <h2>Szenen</h2>
       <div id="scenes" class="scenes"></div>
-      <h2>Master</h2>
-      <label class="row">Helligkeit <input type="range" id="master" min="0" max="100" value="100"></label>
-      <label class="row">Strobe
-        <select id="strobe"><option value="0">aus</option><option value="1">1× pro Beat</option><option value="2">2×</option><option value="3">4×</option><option value="4">8×</option></select>
-      </label>
-      <label class="row">Tempo-Faktor
-        <select id="tempo-factor"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
-      </label>
     </aside>
   </div>
 </section>
@@ -84,12 +76,13 @@
     <label>Startadresse <input type="number" id="cfg-address" min="1" max="445" value="1"></label>
     <button class="btn" id="dl-channels">Kanalliste speichern (CSV)</button>
   </div>
-  <h2>Live-Werte (68 Kanäle)</h2>
+  <h2>Live-Werte (70 Kanäle)</h2>
   <div id="dmx-live" class="dmx-live"></div>
   <h2>LJ-Link</h2>
   <div id="lj-decks" class="cards"></div>
 </section>
 </main>
+<footer id="deck" class="deck" aria-label="Fader und Tasten"></footer>
 <script src="app.js"></script>
 </body>
 </html>

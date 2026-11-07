@@ -1,0 +1,80 @@
+# Roadmap: Schritt für Schritt zu VJ-Link 1.0
+
+Leitsatz: **Alles, was man während der Show braucht, ist mit einem Griff erreichbar** (Fader, Taste, MIDI-Controller, Pult, OSC) und nie hinter einem Menü versteckt.
+
+Dafür gibt es eine zentrale Liste aller Bedienelemente, die **Control-Registry** (`src/core/controls.ts`). Jedes Element hat eine feste ID (z. B. `strobe.speed`, `layer.2.opacity`, `scene.4`). Oberfläche, MIDI, OSC und Pult greifen alle auf diese Liste zu. Neue Funktionen sind damit automatisch auf Fadern, Tasten und Controllern verfügbar.
+
+Aufwand: S = ein Abend, M = zwei bis drei Abende, L = eine Woche oder mehr.
+
+## Phase 1: Bedienbarkeit (jetzt)
+
+| # | Schritt | Inhalt | Aufwand | Stand |
+|---|---|---|---|---|
+| 1.1 | Control-Registry | Eine Liste aller Regler und Tasten mit ID, Name, Typ (Fader, Schalter, Taste, Halten) | S | heute |
+| 1.2 | Strobe richtig | Geschwindigkeit, Intensität, Takt-Sync oder freie Hz, Ein/Aus, Flash zum Halten, auch per Pult und OSC | S | heute |
+| 1.3 | Fader-Leiste | Immer sichtbare Leiste: Master, Strobe, Ebenen, Effekt, Szenen, Blackout, Tap | S | heute |
+| 1.4 | App-Icon | Logo im Dock, in der Taskleiste und im Fenster | S | heute |
+| 1.5 | **MIDI-Controller** | Geräte erkennen, Hot-Plug, MIDI-Lernen (Regler anklicken, Taste am Controller drücken, fertig), Zuordnung speichern, Rückmeldung an LEDs | M | als Nächstes |
+| 1.6 | Controller-Vorlagen | Fertige Belegungen für gängige Geräte (z. B. APC40, Launchpad, nanoKONTROL), Fader, Tasten, Drehregler, Pads | M | nach 1.5 |
+| 1.7 | MIDI-Clock | Tempo und Start von MIDI-Clock als Takt-Quelle | S | nach 1.5 |
+
+Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung nach einem Neustart noch da ist.
+
+## Phase 2: Speichern und Szenen
+
+| # | Schritt | Inhalt | Aufwand |
+|---|---|---|---|
+| 2.1 | Projekte | Speichern und Laden: Szenen, Zuordnungen, Ausgänge, DMX-Einstellungen. Automatisch speichern, Wiederherstellung nach Absturz | M |
+| 2.2 | Szenen bearbeiten | Szene aus dem aktuellen Bild speichern, benennen, umsortieren, 6 bis 24 Szenen in Bänken | M |
+| 2.3 | Überblendung | Szenenwechsel im Takt über 0 bis 8 Beats (Wert wird schon gelesen) | M |
+| 2.4 | Sperrmodus | Show-Ansicht bedienen, nichts versehentlich ändern | S |
+
+## Phase 3: Effekt-Editor
+
+| # | Schritt | Inhalt | Aufwand |
+|---|---|---|---|
+| 3.1 | Effekt-Stapel | Pro Clip bis zu 8 Effekte, Reihenfolge per Ziehen, einzeln abschaltbar | L |
+| 3.2 | Erste Post-Effekte | Kaleidoskop, Spiegeln, RGB-Versatz, Feedback, Glitch, CRT, Leuchten | L |
+| 3.3 | Modulation | Regler per Ziehen an Beat-LFO, Audio-Bänder, MIDI, DMX, OSC hängen | M |
+| 3.4 | Restliche Generatoren | Die übrigen 27 Visuals der Liste, in Gruppen von je 4 bis 5 | L |
+
+## Phase 4: Ausgänge und Mapping
+
+| # | Schritt | Inhalt | Aufwand |
+|---|---|---|---|
+| 4.1 | Ausgänge | Freie Auflösung pro Ausgang, Ausschnitt aus der Leinwand | M |
+| 4.2 | Eckpunkte | Vier Ecken ziehen, Beamer-Trapez ausgleichen | M |
+| 4.3 | Raster und Masken | 3×3 und 5×5 Punkte, Masken, Bühnenfoto als Hilfe | L |
+| 4.4 | Syphon und Spout | Bild an andere Programme weitergeben | M |
+
+## Phase 5: Medien und Text
+
+| # | Schritt | Inhalt | Aufwand |
+|---|---|---|---|
+| 5.1 | Bilder und Videos | Ziehen und Ablegen, Vorschaubilder, Wiedergabe (Lizenzfrage H.264 klären) | L |
+| 5.2 | Text | DJ-Name, Logo, Laufschrift, Tracktitel aus LJ-Link | M |
+| 5.3 | Auto-VJ | Szenenwechsel bei Phrasen oder alle n Takte | S |
+
+## Phase 6: Anbindung vertiefen
+
+| # | Schritt | Inhalt | Aufwand |
+|---|---|---|---|
+| 6.1 | LJ-Link-Seite | Der Ausgang „VJ-Link“ in LJ-Link selbst, mit Finden im Netzwerk (mDNS) | M |
+| 6.2 | Regel-Editor | Wenn-dann-Regeln in der Oberfläche bearbeiten | M |
+| 6.3 | Pult-Profile | GDTF, grandMA2-XML, Daslight-Profil, Test an echten Pulten | L |
+| 6.4 | Fernbedienung | Tablet und Handy im Browser, mit PIN | M |
+| 6.5 | Ableton Link | Nach Klärung der Lizenz | M |
+| 6.6 | Audio-Eingang | Beat-Erkennung und Bänder von Mikrofon oder Line-In | M |
+
+## Phase 7: Release
+
+| # | Schritt | Inhalt | Aufwand |
+|---|---|---|---|
+| 7.1 | Installer | macOS (Apple Silicon und Intel) und Windows, Signierung, Update-Prüfung | L |
+| 7.2 | Leistungstest | 4 Ebenen, 3 Ausgänge, 60 fps auf Mittelklasse-Hardware | M |
+| 7.3 | Praxistest | Eine echte Veranstaltung mit grandMA und Daslight | M |
+| 7.4 | Lizenz und Rechtliches | Lizenz festlegen, Drittanbieter prüfen, README und Doku | S |
+
+## Heute
+
+1.1 bis 1.4 in dieser Reihenfolge. Danach steht die Grundlage für MIDI (1.5), das beim nächsten Mal beginnt.

@@ -18,3 +18,4 @@ await build({ ...common, entryPoints: { app: "src/renderer/app.ts", output: "src
 await cp("src/renderer/index.html", "dist/renderer/index.html");
 await cp("src/renderer/output.html", "dist/renderer/output.html");
 await cp("src/renderer/style.css", "dist/renderer/style.css");
+await cp("build/icon.png", "dist/icon.png");

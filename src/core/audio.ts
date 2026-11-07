@@ -1,5 +1,5 @@
 // Audio-Bänder und Strobe-Takt. Reine Funktionen, damit jeder Ausgang dasselbe Bild rechnet.
-import type { ShowState } from "./show";
+import type { ShowState, StrobeState } from "./show";
 
 export const BAND_COUNT = 8;
 
@@ -35,4 +35,30 @@ export function strobeGate(beat: number, division: number): number {
 export function beatPulse(beat: number): number {
   const f = beat - Math.floor(beat);
   return Math.pow(1 - f, 2.5);
+}
+
+/** Strobe-Teiler im Takt: Blitze pro Beat. */
+export const STROBE_DIVISIONS = [0.5, 1, 2, 4, 8, 16] as const;
+export const STROBE_MIN_HZ = 1, STROBE_MAX_HZ = 20;
+/** Anteil jeder Periode, in dem das Licht an ist. */
+const STROBE_DUTY = 0.3;
+
+export function strobeActive(s: StrobeState, beat: number): boolean {
+  return s.on || s.flash || beat < s.untilBeat;
+}
+
+/** Blitze pro Sekunde bei 'bpm' (nur zur Anzeige). */
+export function strobeHz(s: StrobeState, bpm: number): number {
+  if (!s.sync) return STROBE_MIN_HZ + s.speed * (STROBE_MAX_HZ - STROBE_MIN_HZ);
+  return STROBE_DIVISIONS[Math.min(STROBE_DIVISIONS.length - 1, Math.floor(s.speed * STROBE_DIVISIONS.length))]! * bpm / 60;
+}
+
+/** Helligkeitsfaktor 0–1 für das Master-Strobe. `tSec` nur für die freie Frequenz. */
+export function strobeGain(s: StrobeState, beat: number, tSec: number, bpm = 120): number {
+  if (!strobeActive(s, beat)) return 1;
+  const phase = s.sync
+    ? beat * STROBE_DIVISIONS[Math.min(STROBE_DIVISIONS.length - 1, Math.floor(s.speed * STROBE_DIVISIONS.length))]!
+    : tSec * strobeHz(s, bpm);
+  const on = phase - Math.floor(phase) < STROBE_DUTY;
+  return on ? 1 : 1 - s.intensity;
 }
