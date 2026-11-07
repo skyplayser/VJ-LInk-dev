@@ -16,19 +16,34 @@
     <button role="tab" data-tab="output">AUSGABE</button>
     <button role="tab" data-tab="connect">VERBINDEN</button>
   </nav>
+  <div class="map-wrap">
+    <button class="btn" id="map-btn" aria-haspopup="menu" aria-expanded="false">MAPPING ▾</button>
+    <div class="map-menu" id="map-menu" role="menu" hidden>
+      <button role="menuitem" data-map="key">Tastatur <kbd>⇧⌘K</kbd></button>
+      <button role="menuitem" data-map="midi">MIDI <kbd>⇧⌘M</kbd></button>
+      <button role="menuitem" data-map="dmx">DMX / Art-Net <kbd>⇧⌘D</kbd></button>
+      <button role="menuitem" data-map="osc">OSC <kbd>⇧⌘O</kbd></button>
+    </div>
+  </div>
   <div class="tempo">
-    <span class="bpm" id="bpm">120.00</span>
+    <button class="bpm" id="bpm" data-ctl="tempo.bpm" title="Anklicken, Zahl eingeben, Enter">120.00</button>
+    <input class="bpm bpm-input" id="bpm-input" type="number" min="20" max="300" step="0.01" hidden aria-label="BPM eingeben">
     <span class="beats" id="beats"><i></i><i></i><i></i><i></i></span>
-    <span class="pill" id="tempo-source">MANUELL</span>
-    <button class="btn" id="tap">TAP</button>
+    <select class="pill tempo-lock" id="tempo-lock" aria-label="Tempo-Quelle">
+      <option value="auto">AUTO</option><option value="ljlink">LJ-LINK</option><option value="link">ABLETON LINK</option>
+      <option value="osc">OSC</option><option value="manual">MANUELL / TAP</option>
+    </select>
+    <button class="btn" id="tap" data-ctl="tempo.tap">TAP</button>
   </div>
   <div class="status">
     <span class="pill" id="st-dmx"><span class="dot"></span>DMX</span>
     <span class="pill" id="st-osc"><span class="dot"></span>OSC</span>
     <span class="pill" id="st-lj"><span class="dot"></span>LJ-LINK</span>
+    <span class="pill" id="st-link"><span class="dot"></span>LINK</span>
+    <span class="pill" id="st-midi"><span class="dot"></span>MIDI</span>
     <span class="pill" id="st-fps">– FPS</span>
   </div>
-  <button class="btn blackout" id="blackout">BLACKOUT</button>
+  <button class="btn blackout" id="blackout" data-ctl="blackout">BLACKOUT</button>
 </header>
 
 <main>
@@ -45,7 +60,7 @@
           <div id="outs-strip"></div>
         </aside>
       </div>
-      <h2>Clip-Raster <span class="muted">· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2>
+      <div class="h2row grid-head"><h2>Clip-Raster <span class="muted">· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2><button class="btn small-btn" id="layer-add">+ Ebene</button></div>
       <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple hidden>
       <div id="toast" class="toast" role="status" hidden></div>
       <div id="grid" class="clip-grid"></div>

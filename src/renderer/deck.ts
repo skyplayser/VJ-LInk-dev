@@ -14,7 +14,11 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 
 export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
   const updaters: (() => void)[] = [];
-  const defs = CONTROLS.filter(c => c.quick);
+  const defs = CONTROLS.filter(c => {
+    if (!c.quick) return false;
+    const m = /^layer\.(\d+)\./.exec(c.id);
+    return !m || Number(m[1]) <= ctx.show.layers.length;
+  });
 
   for (const group of GROUPS) {
     const items = defs.filter(d => d.group === group);
@@ -54,13 +58,13 @@ function fader(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HT
   const show = () => { val.textContent = d.format ? d.format(ctx) : String(Math.round(d.get(ctx) * 100)); };
   updaters.push(() => { if (!dragging) input.value = String(Math.round(d.get(ctx) * 1000)); show(); });
   wrap.append(val, input, el("span", "name", d.label));
-  wrap.title = d.id;
+  wrap.dataset.ctl = d.id;
   return wrap;
 }
 
 function pad(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HTMLElement {
   const b = el("button", `pad pad-${d.kind}`, d.label);
-  b.dataset.id = d.id; b.title = d.id;
+  b.dataset.ctl = d.id;
   if (d.id === "blackout") b.classList.add("pad-danger");
   if (d.id.startsWith("strobe")) b.classList.add("pad-strobe");
   if (d.kind === "hold") {
@@ -85,13 +89,13 @@ function sceneButtons(ctx: ControlContext, updaters: (() => void)[]): HTMLElemen
   const build = () => {
     wrap.replaceChildren();
     ctx.scenes.slice(0, 12).forEach((s, i) => {
-      const b = el("button", "pad", s.name); b.title = i < 9 ? `Taste ${i + 1}` : "";
+      const b = el("button", "pad", s.name); b.dataset.ctl = `scene.${i + 1}`;
       b.addEventListener("pointerdown", () => { recallScene(ctx, i); });
       wrap.append(b);
     });
-    const next = el("button", "pad pad-alt", "Weiter ›"); next.title = "Nächste Szene (Pfeil rechts)";
+    const next = el("button", "pad pad-alt", "Weiter ›"); next.dataset.ctl = "scene.next";
     next.addEventListener("pointerdown", () => { stepScene(ctx, 1); });
-    const auto = el("button", "pad pad-alt pad-auto", "Auto"); auto.title = "Szenen laufen automatisch weiter (je Szene einstellbar)";
+    const auto = el("button", "pad pad-alt pad-auto", "Auto"); auto.dataset.ctl = "scene.auto";
     auto.addEventListener("click", () => { ctx.show.autoVj = !ctx.show.autoVj; });
     wrap.append(next, auto);
   };

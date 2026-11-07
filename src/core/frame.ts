@@ -19,7 +19,8 @@ export type ControlEvent =
   | { type: "osc"; address: string; args: (number | string | boolean | null)[] }
   | { type: "lj"; raw: string }
   | { type: "lj-connection"; clients: number }
-  | { type: "status"; status: NetStatus };
+  | { type: "status"; status: NetStatus }
+  | { type: "link"; connected: boolean; peers: number; bpm: number; beat: number };
 
 export interface NetStatus {
   artnet: { listening: boolean; packets: number; lastFrom?: string; error?: string };

@@ -6,7 +6,11 @@ import { DmxDecoder, DMX_MODE_STANDARD_CHANNELS, CH, channelListCsv } from "../c
 import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, type ControlContext } from "../core/control";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
 import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
-import { BLEND_MODES, COLOR_SOURCES, defaultScenes, LAYER_COUNT, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
+import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, addLayer, defaultScenes, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
+import { MappingTable, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
+import { MapMode } from "./mapmode";
+import { MidiIn } from "./midi";
+import type { TempoSource } from "../core/tempo";
 import { frameBeat, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
 import { bridge } from "./bridge";
 import { setControl } from "../core/controls";
@@ -48,11 +52,43 @@ let lastDmx: Uint8Array | null = null;
 let lastDmxAt = 0;
 let displays: DisplayInfo[] = [];
 
+// ---- Zuweisungen (Mapping) -------------------------------------------------------------
+const mappings = new MappingTable(defaultKeyMappings());
+let linkState = { connected: false, peers: 0 };
+const dmxPrev = new Map<number, Uint8Array>();
+const midi = new MidiIn((data) => {
+  const m = parseMidi(data);
+  if (!m) return;
+  if (mapMode.input(m.input)) return;
+  mappings.dispatch(ctx, m.input, m.value);
+}, () => mapMode.render());
+const mapMode = new MapMode(ctx, mappings, {
+  midiDevices: () => midi.devices,
+  midiError: () => midi.error,
+  dmx: () => `Art-Net Universe ${settings.universe} · sACN Universe ${settings.sacn}. Kanal am Pult deutlich bewegen. Zusätzlich zum festen Pult-Profil (Adresse ${settings.address}–${settings.address + DMX_MODE_STANDARD_CHANNELS - 1}).`,
+  osc: () => "Port 8000. Werte 0–1, 0–127 oder 0–255. Für BPM die Zahl direkt senden (z. B. 128). Adressen /vjlink/… sind fest belegt.",
+}, () => { /* gespeichert wird automatisch */ });
+void midi.start();
+
+/** DMX-Zuweisungen: nur geänderte Kanäle wirken (wie beim Pult-Profil). */
+function dispatchDmx(universe: number, data: Uint8Array): void {
+  const prev = dmxPrev.get(universe);
+  for (const m of mappings.ofProtocol("dmx")) {
+    if (m.input.p !== "dmx" || m.input.universe !== universe) continue;
+    const i = m.input.channel - 1;
+    if (i >= data.length || (prev && prev[i] === data[i])) continue;
+    mappings.dispatch(ctx, m.input, data[i]! / 255);
+  }
+  dmxPrev.set(universe, data.slice());
+}
+
 // ---- Eingänge -------------------------------------------------------------------------
 function onControl(e: ControlEvent): void {
   const now = Date.now();
   switch (e.type) {
     case "dmx": {
+      if (mapMode.active) { mapMode.input({ p: "dmx-frame", universe: e.universe, data: e.data }); if (mapMode.protocol === "dmx") return; }
+      dispatchDmx(e.universe, e.data);
       const wanted = e.source === "artnet" ? settings.universe : settings.sacn;
       if (e.universe !== wanted) return;
       lastDmx = e.data; lastDmxAt = now;
@@ -61,7 +97,18 @@ function onControl(e: ControlEvent): void {
       if (fx.scene !== undefined) recallScene(ctx, fx.scene - 1, now);
       break;
     }
-    case "osc": handleOsc(ctx, { address: e.address, args: e.args }, now); break;
+    case "osc": {
+      if (e.address.startsWith("/vjlink/")) { handleOsc(ctx, { address: e.address, args: e.args }, now); break; }
+      const input = { p: "osc" as const, address: e.address.slice(0, 120) };
+      if (mapMode.input(input)) break;
+      const a = e.args[0];
+      mappings.dispatch(ctx, input, oscValue(a), typeof a === "number" ? a : undefined);
+      break;
+    }
+    case "link":
+      linkState = { connected: e.connected, peers: e.peers };
+      if (e.connected && e.bpm > 0) ctx.tempo.update("link", e.bpm, now, e.beat);
+      break;
     case "lj": { const m = parseLjMessage(e.raw); if (m) handleLj(ctx, m, now); break; }
     case "lj-connection": if (e.clients === 0) ctx.lj.connected = false; break;
     case "status": netStatus = e.status; break;
@@ -98,7 +145,8 @@ function rebuildGrid(): void {
   clipIds = clips.map(c => c.id);
   clipCells = [];
   grid.style.setProperty("--cols", String(clips.length + 1));
-  for (let l = LAYER_COUNT - 1; l >= 0; l--) {
+  const n = ctx.show.layers.length;
+  for (let l = n - 1; l >= 0; l--) {
     const row = el("div", "lrow");
     const name = el("div", "lname");
     name.title = "Anklicken: Effekte und Grafik dieser Ebene bearbeiten";
@@ -106,8 +154,22 @@ function rebuildGrid(): void {
       if ((e.target as HTMLElement).closest("input,select")) return;
       fxPanel.select(l);
     });
-    name.append(el("b", "", `E${l + 1} · ${l === 0 ? "Basis" : "Overlay"}`));
+    const title = el("b", "", `E${l + 1} · ${l === 0 ? "Basis" : "Overlay"}`);
+    if (n > 1) {
+      const del = el("button", "layer-del", "×");
+      del.title = "Ebene entfernen"; del.setAttribute("aria-label", `Ebene ${l + 1} entfernen`);
+      del.addEventListener("click", ev => {
+        ev.stopPropagation();
+        if (del.dataset.armed !== "1") { del.dataset.armed = "1"; del.textContent = "entfernen?"; setTimeout(() => { del.dataset.armed = ""; del.textContent = "×"; }, 2500); return; }
+        removeLayer(ctx.show, l);
+        if (fxPanel.layer >= ctx.show.layers.length) fxPanel.select(ctx.show.layers.length - 1);
+        rebuildGrid(); rebuildDeck();
+      });
+      title.append(del);
+    }
+    name.append(title);
     const op = el("input"); op.type = "range"; op.min = "0"; op.max = "100"; op.ariaLabel = `Deckkraft Ebene ${l + 1}`;
+    op.dataset.ctl = `layer.${l + 1}.opacity`;
     op.addEventListener("input", () => { ctx.show.layers[l]!.opacity = Number(op.value) / 100; });
     opSliders[l] = op;
     const color = el("select"); color.ariaLabel = `Farbe Ebene ${l + 1}`;
@@ -121,6 +183,7 @@ function rebuildGrid(): void {
     clipCells[l] = [];
     clips.forEach((clip, c) => {
       const b = el("button", clip.id.startsWith("img:") ? "cell media" : "cell", clip.name);
+      b.dataset.ctl = `clip.${l + 1}.${clip.id}`;
       b.title = clip.name;
       b.addEventListener("click", () => {
         const layer = ctx.show.layers[l]!;
@@ -172,18 +235,66 @@ window.addEventListener("drop", e => {
   void importFiles(e.dataTransfer.files, fxPanel.layer);
 });
 
-// Tastatur: 1–9 Szenen, Pfeile weiter/zurück, B Blackout, F Flash (halten), T Tap
+// Tastatur: Belegung kommt aus den Zuweisungen (Standard: 1–9, Pfeile, B, F, S, T)
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest("input,select,textarea");
+const MAP_KEYS: Record<string, MapProtocol> = { KeyK: "key", KeyM: "midi", KeyD: "dmx", KeyO: "osc" };
 window.addEventListener("keydown", e => {
-  if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
-  if (/^[1-9]$/.test(e.key)) { recallScene(ctx, Number(e.key) - 1); e.preventDefault(); }
-  else if (e.key === "ArrowRight") { stepScene(ctx, 1); e.preventDefault(); }
-  else if (e.key === "ArrowLeft") { stepScene(ctx, -1); e.preventDefault(); }
-  else if (e.key === "b" || e.key === "B") setControl(ctx, "blackout", ctx.show.blackout ? 0 : 1);
-  else if ((e.key === "f" || e.key === "F") && !e.repeat) setControl(ctx, "strobe.flash", 1);
-  else if ((e.key === "t" || e.key === "T") && !e.repeat) setControl(ctx, "tempo.tap", 1);
+  // ⇧⌘K/M/D/O (Windows: ⇧Strg) öffnet den Mapping-Modus
+  if (e.shiftKey && (e.metaKey || e.ctrlKey) && MAP_KEYS[e.code]) { e.preventDefault(); mapMode.open(MAP_KEYS[e.code]!); return; }
+  if (e.key === "Escape" && mapMode.active) { mapMode.close(); return; }
+  if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+  const input = { p: "key" as const, code: e.code, label: e.key.length === 1 ? e.key.toUpperCase() : e.key.replace("Arrow", "Pfeil ") };
+  if (mapMode.active) { if (mapMode.protocol === "key") { mapMode.input(input); e.preventDefault(); } return; }
+  if (mappings.dispatch(ctx, input, 1)) e.preventDefault();
 });
-window.addEventListener("keyup", e => { if (e.key === "f" || e.key === "F") setControl(ctx, "strobe.flash", 0); });
+window.addEventListener("keyup", e => {
+  if (mapMode.active || typing(e.target)) return;
+  mappings.dispatch(ctx, { p: "key", code: e.code, label: "" }, 0);
+});
+
+// Mapping-Menü oben
+const mapBtn = $<HTMLButtonElement>("map-btn"), mapMenu = $("map-menu");
+mapBtn.addEventListener("click", () => {
+  if (mapMode.active) { mapMode.close(); return; }
+  mapMenu.hidden = !mapMenu.hidden; mapBtn.setAttribute("aria-expanded", String(!mapMenu.hidden));
+});
+mapMenu.querySelectorAll<HTMLButtonElement>("[data-map]").forEach(b => b.addEventListener("click", () => {
+  mapMenu.hidden = true; mapBtn.setAttribute("aria-expanded", "false");
+  mapMode.open(b.dataset.map as MapProtocol);
+}));
+document.addEventListener("pointerdown", e => {
+  if (!mapMenu.hidden && !(e.target as HTMLElement).closest(".map-wrap")) { mapMenu.hidden = true; mapBtn.setAttribute("aria-expanded", "false"); }
+});
+
+// BPM anklicken, Zahl eingeben, Enter
+const bpmBtn = $<HTMLButtonElement>("bpm"), bpmIn = $<HTMLInputElement>("bpm-input");
+bpmBtn.addEventListener("click", () => {
+  if (mapMode.active) return;
+  bpmIn.value = ctx.tempo.bpm.toFixed(2); bpmBtn.hidden = true; bpmIn.hidden = false; bpmIn.focus(); bpmIn.select();
+});
+const closeBpm = () => { bpmIn.hidden = true; bpmBtn.hidden = false; };
+bpmIn.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeBpm(); return; }
+  if (e.key !== "Enter") return;
+  const v = Number(bpmIn.value.replace(",", "."));
+  if (Number.isFinite(v) && v >= 20 && v <= 300) {
+    const src = ctx.tempo.source;
+    // Eine Quelle mit höherem Rang würde die Eingabe sofort überschreiben: dann auf Manuell festlegen.
+    if (src !== "manual" && src !== "tap") { ctx.tempo.lock = "manual"; toast(`Tempo-Quelle auf Manuell gestellt (vorher ${SOURCE_LABEL[src] ?? src}).`); }
+    ctx.tempo.setManual(v / ctx.tempo.factor, Date.now());
+    closeBpm();
+  } else toast("BPM zwischen 20 und 300 eingeben.");
+});
+bpmIn.addEventListener("blur", closeBpm);
+const lockSel = $<HTMLSelectElement>("tempo-lock");
+lockSel.addEventListener("change", () => { ctx.tempo.lock = lockSel.value === "auto" ? null : lockSel.value as TempoSource; });
+
+// Ebenen hinzufügen
+$("layer-add").addEventListener("click", () => {
+  const i = addLayer(ctx.show);
+  if (i < 0) { toast(`Höchstens ${MAX_LAYERS} Ebenen.`); return; }
+  rebuildGrid(); rebuildDeck(); fxPanel.select(i);
+});
 
 function buildSidebar(): void {
   const slots = $("slots");
@@ -405,11 +516,16 @@ function frame(): void {
 
 function updateUi(now: number, beat: number): void {
   const s = ctx.show;
-  $("bpm").textContent = ctx.tempo.bpm.toFixed(2);
   const bi = Math.floor(beat) % 4;
   $("beats").querySelectorAll("i").forEach((b, i) => b.classList.toggle("on", i === ((bi % 4) + 4) % 4));
   const src = ctx.tempo.source;
-  setPill("tempo-source", src === "manual" ? "off" : "ok"); $("tempo-source").textContent = SOURCE_LABEL[src] ?? src;
+  lockSel.classList.toggle("ok", src !== "manual");
+  lockSel.options[0]!.text = `AUTO · ${SOURCE_LABEL[src] ?? src}`;
+  if (document.activeElement !== lockSel) lockSel.value = ctx.tempo.lock ?? "auto";
+  setPill("st-link", linkState.connected ? "ok" : "off", linkState.connected ? `LINK · ${linkState.peers}` : "LINK");
+  $("st-link").title = linkState.connected ? "Ableton Link über Carabiner verbunden" : "Ableton Link: Carabiner starten (Port 17000)";
+  setPill("st-midi", midi.devices.length ? "ok" : "off", midi.devices.length ? `MIDI · ${midi.devices.length}` : "MIDI");
+  $("st-midi").title = midi.devices.join(", ") || midi.error || "Kein MIDI-Gerät";
   const dmxLive = now - lastDmxAt < 1500;
   setPill("st-dmx", dmxLive ? "ok" : "off"); setPill("st-osc", (netStatus?.osc.packets ?? 0) > 0 ? "ok" : "off");
   setPill("st-lj", ctx.lj.connected ? "ok" : "off");
@@ -422,14 +538,16 @@ function updateUi(now: number, beat: number): void {
   }
   $("blackout").classList.toggle("on", s.blackout);
 
-  for (let l = 0; l < LAYER_COUNT; l++) {
+  if (!document.activeElement || document.activeElement !== bpmIn) bpmBtn.textContent = ctx.tempo.bpm.toFixed(2);
+  for (let l = 0; l < s.layers.length; l++) {
     const layer = s.layers[l]!;
     clipCells[l]?.forEach((b, c) => b.classList.toggle("on", clipIds[c] === layer.clip));
     if (document.activeElement !== opSliders[l]) opSliders[l]!.value = String(Math.round(layer.opacity * 100));
   }
   const rows = document.querySelectorAll<HTMLElement>("#grid .lrow");
   rows.forEach((row, ri) => {
-    const l = LAYER_COUNT - 1 - ri; const layer = s.layers[l]!;
+    const l = s.layers.length - 1 - ri; const layer = s.layers[l];
+    if (!layer) return;
     row.classList.toggle("sel", l === fxPanel.layer);
     const sels = row.querySelectorAll<HTMLSelectElement>("select");
     const color = sels[0]!, blend = sels[1]!;
@@ -459,7 +577,7 @@ let lastSaved = "", lastSaveCheck = 0, loaded = false;
 function autosave(now: number): void {
   if (!loaded || now - lastSaveCheck < 2000) return;
   lastSaveCheck = now;
-  const json = serializeProject(ctx, library.items);
+  const json = serializeProject(ctx, library.items, mappings.list);
   if (json === lastSaved) return;
   lastSaved = json;
   if (bridge) bridge.saveProject(json);
@@ -478,6 +596,7 @@ async function loadProject(): Promise<void> {
     const p = json ? parseProject(json) : null;
     if (p) {
       applyProject(ctx, p);
+      if (p.mappings) mappings.replace(p.mappings);
       // Grafiken, deren Datei fehlt, nicht als Clip stehen lassen
       const known = new Set(library.items.map(i => mediaClip(i.id)));
       for (const l of ctx.show.layers) if (l.clip?.startsWith("img:") && !known.has(l.clip)) l.clip = null;
@@ -486,13 +605,15 @@ async function loadProject(): Promise<void> {
   } finally {
     loaded = true;
     rebuildGrid();
-    fxPanel.select(fxPanel.layer);
+    fxPanel.select(Math.min(fxPanel.layer, ctx.show.layers.length - 1));
+    rebuildDeck();
     scenePanel.update(true);
   }
 }
 void loadProject();
 void (async () => { if (bridge) displays = await bridge.listDisplays(); renderOutputStrip(); fitPreview(); })();
-const updateDeck = buildDeck(ctx, $("deck"));
+let updateDeck = buildDeck(ctx, $("deck"));
+function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck")); }
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.
 for (const g of READY_GENERATORS) if (!GEN_IDS.includes(g.id as typeof GEN_IDS[number]) || !EFFECT_BY_ID.has(g.id)) console.error("Generator fehlt in der Engine:", g.id);
 requestAnimationFrame(frame);

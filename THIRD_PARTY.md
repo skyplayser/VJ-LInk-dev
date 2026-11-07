@@ -12,7 +12,7 @@ Stand: Grundgerüst 0.1.0. Vor jeder Veröffentlichung mit `npm ls --all` und de
 
 ## Bewusst nicht enthalten
 
-- **Ableton Link SDK:** GPL-2.0-oder-später, oder kommerzielle Lizenz von Ableton. Wird erst eingebaut, wenn die Lizenz von VJ-Link feststeht. Bis dahin kommt der Takt aus LJ-Link, OSC, MIDI, Audio oder Tap. (LJ-Link steht unter EPL-2.0, die sich mit der GPL nicht ohne Weiteres mischen lässt.)
+- **Ableton Link SDK:** GPL-2.0-oder-später, oder kommerzielle Lizenz von Ableton. VJ-Link enthält keinen Link-Code. Es verbindet sich per TCP (Port 17000) mit **Carabiner** (Deep Symmetry, GPL), das als eigenes Programm läuft. Soll Carabiner mitgeliefert werden: als getrenntes Programm mit Lizenztext und Quelltext-Hinweis, oder eine kommerzielle Link-Lizenz bei Ableton anfragen.
 - **NDI SDK:** eigene Lizenzbedingungen von Vizrt. Nicht eingebaut.
 - **Syphon (macOS) und Spout (Windows):** jeweils eigene, freizügige Lizenzen; noch nicht eingebaut.
 - **Videoformate:** Electron liefert Chromium mit FFmpeg. H.264 und H.265 sind patentbelastet. Bei Videowiedergabe vor einer Veröffentlichung klären, oder auf HAP und freie Formate setzen.

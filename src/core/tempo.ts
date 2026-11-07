@@ -24,6 +24,11 @@ export class TempoClock {
 
   /** Faktor aus dem Pult (¼×, ½×, 1×, 2×, 4×). */
   factor = 1;
+  /**
+   * Feste Tempo-Quelle (wie „SEND BPM“ in LJ-Link). null = automatisch nach Rangfolge.
+   * Bei „manual“ bleiben Tap und Eingabe erlaubt.
+   */
+  lock: TempoSource | null = null;
 
   get snapshot(): TempoState { return { ...this.state }; }
   get bpm(): number { return this.state.bpm * this.factor; }
@@ -47,6 +52,7 @@ export class TempoClock {
   update(source: TempoSource, bpm: number, nowMs: number, beat?: number): boolean {
     if (!Number.isFinite(bpm) || bpm < 20 || bpm > 300) return false;
     this.lastSeen.set(source, nowMs);
+    if (this.lock && source !== this.lock && !(this.lock === "manual" && source === "tap")) return false;
     const cur = this.state.source;
     const curAlive = nowMs - (this.lastSeen.get(cur) ?? -Infinity) <= SOURCE_TIMEOUT_MS;
     if (source !== cur && curAlive && SOURCE_RANK[source] > SOURCE_RANK[cur]) return false;
@@ -71,10 +77,18 @@ export class TempoClock {
     return bpm;
   }
 
+  /** BPM von Hand setzen (Eingabe). Gilt sofort, Phase läuft ohne Sprung weiter. */
+  setManual(bpm: number, nowMs: number): boolean {
+    if (!Number.isFinite(bpm) || bpm < 20 || bpm > 300) return false;
+    this.state = { bpm: bpm / (this.factor || 1), originMs: nowMs, beatAtOrigin: this.beatAt(nowMs), source: "manual" };
+    this.lastSeen.set("manual", nowMs);
+    return true;
+  }
+
   /** Fällt die aktive Quelle weg, läuft die Uhr mit letztem Tempo weiter und meldet „manual“. */
   tick(nowMs: number): void {
     const cur = this.state.source;
-    if (cur === "manual") return;
+    if (cur === "manual" || this.lock === cur) return;
     const seen = this.lastSeen.get(cur) ?? -Infinity;
     if (nowMs - seen > SOURCE_TIMEOUT_MS) {
       this.state = { ...this.state, bpm: this.state.bpm, originMs: nowMs, beatAtOrigin: this.beatAt(nowMs), source: "manual" };

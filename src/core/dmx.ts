@@ -1,7 +1,7 @@
 // DMX-Belegung „Standard“ (68 Kanäle) laut Konzept. Das Pult sendet, VJ-Link liest.
 import { READY_GENERATORS } from "./effects";
 import {
-  BLEND_MODES, COLOR_SOURCES, LAYER_COUNT, clamp01, type Scene, type ShowState,
+  BLEND_MODES, COLOR_SOURCES, DMX_LAYERS, clamp01, type Scene, type ShowState,
 } from "./show";
 
 export const DMX_MODE_STANDARD_CHANNELS = 70;
@@ -93,7 +93,7 @@ export class DmxDecoder {
     if (rel >= CH.layerBase) {
       const li = Math.floor((rel - CH.layerBase) / CH.layerSize);
       const off = (rel - CH.layerBase) % CH.layerSize;
-      const l = s.layers[li]; if (!l || li >= LAYER_COUNT) return;
+      const l = s.layers[li]; if (!l || li >= DMX_LAYERS) return;
       switch (off) {
         case LAYER_CH.opacity: l.opacity = f; break;
         case LAYER_CH.bank: this.bank.set(li, Math.max(1, v)); break;
@@ -121,6 +121,6 @@ export function channelListCsv(startAddress = 1): string {
   });
   const names = ["Deckkraft", "Clip-Bank", "Clip", "Farbquelle", "Geschwindigkeit", "Effekt 1", "Effekt 2", "Effekt 3", "Strobe", "Mischmodus"];
   rows.push([CH.strobeIntensity, "Strobe Intensität"], [CH.strobeSync, "Strobe Modus (0-127 Takt, 128-255 Hz)"]);
-  for (let l = 0; l < LAYER_COUNT; l++) names.forEach((n, j) => rows.push([CH.layerBase + l * CH.layerSize + j, `Ebene ${l + 1} ${n}`]));
+  for (let l = 0; l < DMX_LAYERS; l++) names.forEach((n, j) => rows.push([CH.layerBase + l * CH.layerSize + j, `Ebene ${l + 1} ${n}`]));
   return "Kanal;Funktion\n" + rows.map(([ch, n]) => `${startAddress + ch - 1};${n}`).join("\n") + "\n";
 }

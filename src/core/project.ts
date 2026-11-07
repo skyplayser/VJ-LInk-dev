@@ -2,8 +2,9 @@
 import type { ControlContext } from "./control";
 import { POST_BY_ID } from "./effects";
 import { isValidMediaId, type MediaItem } from "./media";
+import { parseMappings, type Mapping } from "./mapping";
 import {
-  BLEND_MODES, COLOR_SOURCES, LAYER_COUNT, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
+  BLEND_MODES, COLOR_SOURCES, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
 } from "./show";
 
@@ -18,15 +19,18 @@ export interface ProjectFile {
   fxMaster: number;
   strobe: { speed: number; intensity: number; sync: boolean };
   media: MediaItem[];
+  /** Fehlt in alten Dateien: dann gilt die Standard-Tastenbelegung. */
+  mappings?: Mapping[];
 }
 
-export function serializeProject(c: ControlContext, media: readonly MediaItem[]): string {
+export function serializeProject(c: ControlContext, media: readonly MediaItem[], mappings: readonly Mapping[] = []): string {
   const s = c.show;
   const p: ProjectFile = {
     version: PROJECT_VERSION,
     layers: s.layers, scenes: c.scenes, slots: s.slots, transitionBeats: s.transitionBeats, fxMaster: s.fxMaster,
     strobe: { speed: s.strobe.speed, intensity: s.strobe.intensity, sync: s.strobe.sync },
     media: [...media],
+    mappings: [...mappings],
   };
   return JSON.stringify(p);
 }
@@ -99,10 +103,11 @@ export function parseProject(json: string): ProjectFile | null {
   let raw: unknown;
   try { raw = JSON.parse(json); } catch { return null; }
   if (!isObj(raw) || raw.version !== PROJECT_VERSION) return null;
-  const layers = Array.from({ length: LAYER_COUNT }, (_, i) => fullLayer(Array.isArray(raw.layers) ? raw.layers[i] : null));
+  const nLayers = Array.isArray(raw.layers) ? Math.min(MAX_LAYERS, Math.max(1, raw.layers.length)) : LAYER_COUNT;
+  const layers = Array.from({ length: nLayers }, (_, i) => fullLayer(Array.isArray(raw.layers) ? raw.layers[i] : null));
   const scenes: Scene[] = (Array.isArray(raw.scenes) ? raw.scenes : []).filter(isObj).slice(0, 128).map((sc, i) => ({
     name: str(sc.name, `Szene ${i + 1}`, 40) || `Szene ${i + 1}`,
-    layers: Array.from({ length: LAYER_COUNT }, (_, k) => partialLayer(Array.isArray(sc.layers) ? sc.layers[k] : null)),
+    layers: Array.from({ length: Math.min(MAX_LAYERS, Array.isArray(sc.layers) ? sc.layers.length : 0) }, (_, k) => partialLayer((sc.layers as unknown[])[k])),
     transition: transition(sc.transition),
     next: next(sc.next),
   }));
@@ -117,6 +122,7 @@ export function parseProject(json: string): ProjectFile | null {
     transitionBeats: num(raw.transitionBeats, 1, 0, 8), fxMaster: clamp01(num(raw.fxMaster, 1)),
     strobe: { speed: clamp01(num(st.speed, 0.5)), intensity: clamp01(num(st.intensity, 1)), sync: st.sync !== false },
     media: mediaList,
+    mappings: parseMappings(raw.mappings) ?? undefined,
   };
 }
 

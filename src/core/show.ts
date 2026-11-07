@@ -5,7 +5,11 @@ export type ColorSource = "original" | "A" | "B" | "C" | "D" | "E" | "gradient" 
 export const COLOR_SOURCES: readonly ColorSource[] = ["original", "A", "B", "C", "D", "E", "gradient", "rainbow"];
 export type Rgb = readonly [number, number, number]; // 0–1
 
+/** Ebenen beim Start. Weitere lassen sich bis MAX_LAYERS hinzufügen. */
 export const LAYER_COUNT = 4;
+export const MAX_LAYERS = 8;
+/** Das Pult-Profil „Standard“ hat Kanäle für so viele Ebenen. */
+export const DMX_LAYERS = 4;
 export const SLOT_NAMES = ["A", "B", "C", "D", "E"] as const;
 
 export interface LayerState {
@@ -192,3 +196,20 @@ export function applyScene(state: ShowState, scene: Scene): void {
 }
 
 export const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/** Ebene oben anfügen. Gibt den neuen Index zurück oder -1, wenn schon MAX_LAYERS da sind. */
+export function addLayer(state: ShowState): number {
+  if (state.layers.length >= MAX_LAYERS) return -1;
+  const l = defaultLayer();
+  l.blend = "add";
+  state.layers.push(l);
+  return state.layers.length - 1;
+}
+
+/** Ebene entfernen (mindestens eine bleibt). */
+export function removeLayer(state: ShowState, i: number): boolean {
+  if (state.layers.length <= 1 || !state.layers[i]) return false;
+  state.layers.splice(i, 1);
+  state.transition = null;
+  return true;
+}

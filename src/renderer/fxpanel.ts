@@ -55,6 +55,7 @@ export class FxPanel {
       range.setAttribute("aria-label", `Stärke ${def?.name ?? e.id}`);
       range.addEventListener("input", () => { e.amount = Number(range.value) / 100; });
       this.ranges[i] = range;
+      if (i < 3) range.dataset.ctl = `layer.${this.layer + 1}.fx.${i + 1}`;
       const up = el("button", "icon", "↑"); up.title = "Nach oben"; up.disabled = i === 0;
       up.addEventListener("click", () => { [fx[i - 1], fx[i]] = [fx[i]!, fx[i - 1]!]; this.update(true); });
       const down = el("button", "icon", "↓"); down.title = "Nach unten"; down.disabled = i === fx.length - 1;

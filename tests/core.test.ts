@@ -430,6 +430,132 @@ describe("Projektdatei", () => {
     expect(p.scenes[0]!.name).toBe("Szene 1");
     expect(p.scenes[0]!.transition).toEqual({ unit: "beats", value: 0, style: "fade" });
     expect(p.media).toEqual([]);
-    expect(p.layers.length).toBe(4);
+    expect(p.layers.length).toBe(1); // Anzahl kommt aus der Datei
+  });
+});
+
+import { MappingTable, defaultKeyMappings, describeInput, oscValue, parseMappings, parseMidi, DmxLearner } from "../src/core/mapping";
+import { resolveControl } from "../src/core/controls";
+import { addLayer, removeLayer, MAX_LAYERS } from "../src/core/show";
+
+describe("Ebenen hinzufügen und entfernen", () => {
+  it("bis MAX_LAYERS, mindestens eine bleibt", () => {
+    const s = defaultShow();
+    while (addLayer(s) >= 0) { /* auffüllen */ }
+    expect(s.layers.length).toBe(MAX_LAYERS);
+    for (let i = 0; i < MAX_LAYERS; i++) removeLayer(s, 0);
+    expect(s.layers.length).toBe(1);
+  });
+  it("Regler für Ebene 6 wirken, sobald es sie gibt", () => {
+    const c = ctx();
+    expect(setControl(c, "layer.6.opacity", 0.3)).toBe(true); // nichts passiert, kein Fehler
+    addLayer(c.show); addLayer(c.show);
+    setControl(c, "layer.6.opacity", 0.3);
+    expect(c.show.layers[5]!.opacity).toBe(0.3);
+  });
+  it("Projekt mit 6 Ebenen bleibt bei 6", () => {
+    const c = ctx(); addLayer(c.show); addLayer(c.show);
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.layers.length).toBe(6);
+  });
+});
+
+describe("Zuweisungen", () => {
+  it("MIDI lesen: CC, Note an/aus", () => {
+    expect(parseMidi([0xb0, 21, 127])).toEqual({ input: { p: "midi", type: "cc", ch: 1, num: 21 }, value: 1 });
+    expect(parseMidi([0x93, 60, 100])!.input).toEqual({ p: "midi", type: "note", ch: 4, num: 60 });
+    expect(parseMidi([0x93, 60, 0])!.value).toBe(0);
+    expect(parseMidi([0x83, 60, 64])!.value).toBe(0);
+    expect(parseMidi([0xf8])).toBeNull();
+  });
+  it("Fader per CC, Szene per Note nur einmal pro Druck", () => {
+    const c = ctx(); const t = new MappingTable();
+    t.add("strobe.speed", { p: "midi", type: "cc", ch: 1, num: 1 });
+    t.add("scene.3", { p: "midi", type: "note", ch: 1, num: 36 });
+    t.dispatch(c, { p: "midi", type: "cc", ch: 1, num: 1 }, 0.25);
+    expect(c.show.strobe.speed).toBe(0.25);
+    t.dispatch(c, { p: "midi", type: "note", ch: 1, num: 36 }, 1);
+    expect(c.show.scene).toBe(3);
+    c.show.scene = 0;
+    t.dispatch(c, { p: "midi", type: "note", ch: 1, num: 36 }, 1); // ohne Loslassen kein zweiter Auslöser
+    expect(c.show.scene).toBe(0);
+  });
+  it("Schalter: Taste wechselt, Regler setzt", () => {
+    const c = ctx(); const t = new MappingTable(defaultKeyMappings());
+    const s = { p: "key" as const, code: "KeyS", label: "S" };
+    t.dispatch(c, s, 1); t.dispatch(c, s, 0); expect(c.show.strobe.on).toBe(true);
+    t.dispatch(c, s, 1); t.dispatch(c, s, 0); expect(c.show.strobe.on).toBe(false);
+    t.add("blackout", { p: "midi", type: "cc", ch: 1, num: 9 });
+    t.dispatch(c, { p: "midi", type: "cc", ch: 1, num: 9 }, 0.9); expect(c.show.blackout).toBe(true);
+    t.dispatch(c, { p: "midi", type: "cc", ch: 1, num: 9 }, 0.1); expect(c.show.blackout).toBe(false);
+  });
+  it("Halten: Flash solange gedrückt", () => {
+    const c = ctx(); const t = new MappingTable(defaultKeyMappings());
+    t.dispatch(c, { p: "key", code: "KeyF", label: "F" }, 1); expect(c.show.strobe.flash).toBe(true);
+    t.dispatch(c, { p: "key", code: "KeyF", label: "F" }, 0); expect(c.show.strobe.flash).toBe(false);
+  });
+  it("ein Eingang hat genau ein Ziel", () => {
+    const t = new MappingTable();
+    t.add("master", { p: "osc", address: "/fader1" });
+    t.add("fx.master", { p: "osc", address: "/fader1" });
+    expect(t.list.length).toBe(1);
+    expect(t.list[0]!.target).toBe("fx.master");
+  });
+  it("OSC: Werte normalisieren, BPM direkt als Zahl", () => {
+    expect(oscValue(0.5)).toBe(0.5); expect(oscValue(127)).toBe(1); expect(oscValue(255)).toBe(1); expect(oscValue(true)).toBe(1);
+    const c = ctx(); const t = new MappingTable();
+    t.add("tempo.bpm", { p: "osc", address: "/bpm" });
+    t.dispatch(c, { p: "osc", address: "/bpm" }, oscValue(128), 128);
+    expect(c.tempo.bpm).toBeCloseTo(128);
+  });
+  it("Clip-Tasten und Beschreibung", () => {
+    const c = ctx();
+    expect(resolveControl("clip.2.plasma")!.kind).toBe("trigger");
+    setControl(c, "clip.2.plasma", 1);
+    expect(c.show.layers[1]!.clip).toBe("plasma");
+    setControl(c, "clip.2.plasma", 1);
+    expect(c.show.layers[1]!.clip).toBeNull();
+    expect(resolveControl("clip.99.plasma")).toBeUndefined();
+    expect(describeInput({ p: "midi", type: "note", ch: 1, num: 60 })).toBe("Kanal 1 · Note C4 (60)");
+  });
+  it("DMX lernen: der bewegte Kanal gewinnt", () => {
+    const l = new DmxLearner(); const f = new Uint8Array(512);
+    expect(l.feed(0, f)).toBeNull();
+    const g = f.slice(); g[100] = 10; g[200] = 180;
+    expect(l.feed(0, g)).toEqual({ universe: 0, channel: 201 });
+  });
+  it("gespeicherte Zuweisungen werden geprüft", () => {
+    const ok = parseMappings([
+      { id: "a", target: "master", input: { p: "midi", type: "cc", ch: 1, num: 7 } },
+      { id: "b", target: "gibts.nicht", input: { p: "key", code: "KeyQ" } },
+      { id: "c", target: "master", input: { p: "midi", type: "cc", ch: 17, num: 7 } },
+      { id: "d", target: "scene.2", input: { p: "osc", address: "keine/adresse" } },
+      { id: "e", target: "clip.1.tunnel", input: { p: "dmx", universe: 0, channel: 600 } },
+    ])!;
+    expect(ok.map(m => m.id)).toEqual(["a"]);
+  });
+});
+
+describe("Tempo-Quelle festlegen und von Hand setzen", () => {
+  it("Sperre auf Manuell: LJ-Link wird ignoriert, Tap geht", () => {
+    const t = new TempoClock();
+    t.lock = "manual";
+    expect(t.update("ljlink", 128, 0, 0)).toBe(false);
+    t.tap(0); t.tap(500);
+    expect(t.bpm).toBeCloseTo(120);
+  });
+  it("Eingabe setzt BPM ohne Phasensprung", () => {
+    const t = new TempoClock();
+    t.update("manual", 120, 0, 0);
+    const b = t.beatAt(1000);
+    t.setManual(140, 1000);
+    expect(t.bpm).toBe(140);
+    expect(t.beatAt(1000)).toBeCloseTo(b);
+  });
+  it("Sperre auf Link: fällt Link aus, bleibt das Tempo stehen", () => {
+    const t = new TempoClock(); t.lock = "link";
+    t.update("link", 125, 0, 0);
+    t.tick(10_000);
+    expect(t.source).toBe("link");
   });
 });

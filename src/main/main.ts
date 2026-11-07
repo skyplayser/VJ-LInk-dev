@@ -1,7 +1,8 @@
-import { BrowserWindow, app, ipcMain, nativeImage, screen, type Display } from "electron";
+import { BrowserWindow, app, ipcMain, nativeImage, screen, session, type Display } from "electron";
 import path from "node:path";
 import { Network } from "./network";
 import { Storage } from "./storage";
+import { LinkClient } from "./link";
 import type { ControlEvent, DisplayInfo, Frame, NetConfig } from "../core/frame";
 
 let control: BrowserWindow | null = null;
@@ -93,12 +94,17 @@ function toggleOutput(id: number): DisplayInfo[] {
 }
 
 app.whenReady().then(async () => {
+  // MIDI-Controller: nur das Hauptfenster darf MIDI lesen, SysEx bleibt gesperrt.
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(perm === "midi" && wc === control?.webContents));
+  session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === "midi" && wc === control?.webContents);
   storage = new Storage(app.getPath("userData"));
   await storage.init();
   if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(ICON));
   createControl();
   net = new Network((e: ControlEvent) => { control?.webContents.send("control", e); });
   net.start();
+  const link = new LinkClient(s => control?.webContents.send("control", { type: "link", ...s }));
+  link.start();
 
   ipcMain.handle("displays:list", () => listDisplays());
   ipcMain.on("ui:scale", (e, v: unknown) => {

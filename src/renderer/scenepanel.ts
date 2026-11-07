@@ -16,6 +16,7 @@ export class ScenePanel {
   constructor(private ctx: ControlContext, private root: HTMLElement, private autoBtn: HTMLButtonElement, addBtn: HTMLButtonElement) {
     addBtn.addEventListener("click", () => { this.edit = addSceneFromCurrent(ctx); this.update(true); });
     autoBtn.addEventListener("click", () => { ctx.show.autoVj = !ctx.show.autoVj; });
+    autoBtn.dataset.ctl = "scene.auto";
   }
 
   update(force = false): void {
@@ -36,6 +37,7 @@ export class ScenePanel {
       const b = el("button", c.show.scene === i + 1 ? "scene-btn on" : "scene-btn");
       b.append(el("span", "scene-key", i < 9 ? String(i + 1) : ""), el("span", "", sc.name));
       b.title = describe(c, sc);
+      b.dataset.ctl = `scene.${i + 1}`;
       b.addEventListener("click", () => { recallScene(c, i); });
       const e = el("button", this.edit === i ? "icon on" : "icon", "✎");
       e.title = "Szene bearbeiten"; e.setAttribute("aria-label", `Szene ${sc.name} bearbeiten`);

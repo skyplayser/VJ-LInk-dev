@@ -204,3 +204,51 @@ input[type=range].v{writing-mode:vertical-lr;direction:rtl;width:26px;flex:1;min
 @media (max-width:1100px){ .outs-strip{display:none} }
 @media (max-width:900px){ .left{display:block} .mon-box{height:220px} .clip-grid{height:420px} }
 .dg-szenen{flex:1}
+
+/* ---- Tempo-Kopf ---- */
+.bpm{background:none;border:1px solid transparent;border-radius:4px;color:var(--text);cursor:text;padding:0 4px}
+.bpm:hover{border-color:var(--line)}
+.bpm-input{width:110px;background:var(--raise);border:1px solid var(--accent);border-radius:4px;color:var(--text);padding:0 6px}
+.tempo-lock{border:0;cursor:pointer;appearance:none;-webkit-appearance:none;padding-right:8px}
+.tempo-lock.ok{color:var(--ok)}
+
+/* ---- Mapping-Menü ---- */
+.map-wrap{position:relative}
+.map-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:var(--raise);border:1px solid var(--line);border-radius:6px;padding:4px;display:grid;min-width:210px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.map-menu button{display:flex;justify-content:space-between;gap:16px;background:none;border:0;padding:8px 10px;border-radius:4px;text-align:left;cursor:pointer;font-weight:600}
+.map-menu button:hover,.map-menu button:focus-visible{background:var(--accent);color:#fff}
+kbd{font:11px var(--mono);color:var(--dim)}
+.map-menu button:hover kbd{color:#fff}
+body.mapping #map-btn{background:#7b3fe4;border-color:#7b3fe4;color:#fff}
+
+/* ---- Mapping-Modus: alle zuweisbaren Elemente lila ---- */
+:root{--map:#8b5cf6;--map-on:#c4b5fd}
+body.mapping [data-ctl]{outline:2px solid var(--map)!important;outline-offset:1px;box-shadow:inset 0 0 0 999px rgba(139,92,246,.28)!important;cursor:crosshair!important}
+body.mapping [data-ctl][data-mapped]{box-shadow:inset 0 0 0 999px rgba(139,92,246,.55)!important}
+body.mapping [data-ctl][data-map-sel]{outline:3px solid #fff!important;box-shadow:inset 0 0 0 999px rgba(196,181,253,.6)!important;animation:mapsel 0.8s ease-in-out infinite alternate}
+@keyframes mapsel{to{outline-color:var(--map-on)}}
+@media (prefers-reduced-motion:reduce){body.mapping [data-ctl][data-map-sel]{animation:none}}
+body.mapping main,body.mapping .deck{cursor:not-allowed}
+.map-panel{position:fixed;top:64px;right:12px;bottom:12px;width:340px;z-index:40;background:#1a1626;border:1px solid #4c3a7a;border-radius:8px;box-shadow:0 16px 48px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:8px;padding:10px;overflow:hidden}
+.map-head{display:flex;justify-content:space-between;align-items:center}
+.map-head b{font-size:14px}
+.map-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;background:var(--bg);padding:3px;border-radius:5px}
+.map-tabs button{background:none;border:0;border-radius:3px;padding:6px 4px;font-size:11px;font-weight:600;color:var(--dim);cursor:pointer}
+.map-tabs button.on{background:var(--map);color:#fff}
+.map-status{margin:0;font-size:11.5px;color:var(--dim)}
+.map-hint{background:var(--bg);border:1px dashed #4c3a7a;border-radius:5px;padding:9px;font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.map-hint.waiting{border-style:solid;border-color:var(--map-on)}
+.map-hint .icon{margin-left:auto;width:22px}
+.map-list{flex:1;overflow:auto;display:grid;align-content:start;gap:2px}
+.map-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) 22px;gap:6px;align-items:center;padding:4px 4px;border-radius:3px;font-size:11.5px}
+.map-row.hdr{font:600 9.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.map-row:not(.hdr):hover,.map-row.sel{background:rgba(139,92,246,.2)}
+.map-target{background:none;border:0;text-align:left;cursor:pointer;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0}
+.map-in{font:10.5px var(--mono);color:var(--map-on);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map-foot{display:flex;justify-content:flex-end}
+
+/* ---- Ebenen ---- */
+.grid-head{margin:8px 0 6px}
+.layer-del{background:none;border:0;color:var(--dim);font-size:11px;cursor:pointer;margin-left:6px;padding:0 3px;border-radius:3px}
+.layer-del:hover{color:#ff8a8a}
+.layer-del[data-armed="1"]{color:#fff;background:#7a2323}

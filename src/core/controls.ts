@@ -3,7 +3,8 @@
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
 import { STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, stepScene, type ControlContext } from "./control";
-import { LAYER_COUNT, clamp01 } from "./show";
+import { MAX_LAYERS, clamp01 } from "./show";
+import { EFFECT_BY_ID } from "./effects";
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
 export const SCENE_SLOTS = 32;
@@ -19,7 +20,7 @@ export type ControlKind = "fader" | "toggle" | "hold" | "trigger";
 export interface ControlDef {
   id: string;
   label: string;
-  group: "Master" | "Strobe" | "Ebenen" | "Effekt" | "Tempo" | "Szenen";
+  group: "Master" | "Strobe" | "Ebenen" | "Effekt" | "Tempo" | "Szenen" | "Clips";
   kind: ControlKind;
   /** Erscheint in der Leiste unten. Alles andere ist über MIDI und OSC erreichbar. */
   quick: boolean;
@@ -68,13 +69,18 @@ export function buildControls(): ControlDef[] {
       format: c => beatsLabel(c.show.transitionBeats) },
   ];
 
-  for (let i = 0; i < LAYER_COUNT; i++) {
+  list.push({ id: "tempo.bpm", label: "BPM", group: "Tempo", kind: "fader", quick: false,
+    get: c => clamp01((c.tempo.bpm - BPM_MIN) / (BPM_MAX - BPM_MIN)),
+    set: (c, v) => { c.tempo.update("osc", BPM_MIN + clamp01(v) * (BPM_MAX - BPM_MIN), Date.now()); },
+    format: c => c.tempo.bpm.toFixed(1) });
+  // Ebenen bis MAX_LAYERS: fehlt eine Ebene, passiert nichts (Zuordnungen bleiben trotzdem gültig).
+  for (let i = 0; i < MAX_LAYERS; i++) {
     list.push({ id: `layer.${i + 1}.opacity`, label: `E${i + 1}`, group: "Ebenen", kind: "fader", quick: true,
-      get: c => c.show.layers[i]!.opacity, set: (c, v) => { c.show.layers[i]!.opacity = clamp01(v); } });
+      get: c => c.show.layers[i]?.opacity ?? 0, set: (c, v) => { const l = c.show.layers[i]; if (l) l.opacity = clamp01(v); } });
     for (let k = 0; k < 3; k++) {
       list.push({ id: `layer.${i + 1}.fx.${k + 1}`, label: `E${i + 1} Fx${k + 1}`, group: "Ebenen", kind: "fader", quick: false,
-        get: c => c.show.layers[i]!.effects[k]?.amount ?? 0,
-        set: (c, v) => { const slot = c.show.layers[i]!.effects[k]; if (slot) slot.amount = clamp01(v); } });
+        get: c => c.show.layers[i]?.effects[k]?.amount ?? 0,
+        set: (c, v) => { const slot = c.show.layers[i]?.effects[k]; if (slot) slot.amount = clamp01(v); } });
     }
   }
   list.push(
@@ -97,9 +103,33 @@ export function buildControls(): ControlDef[] {
 export const CONTROLS: readonly ControlDef[] = buildControls();
 export const CONTROL_BY_ID: ReadonlyMap<string, ControlDef> = new Map(CONTROLS.map(c => [c.id, c]));
 
+/** BPM-Bereich für den Regler „tempo.bpm“ (MIDI/DMX 0–1). OSC kann auch die BPM-Zahl direkt senden. */
+export const BPM_MIN = 60, BPM_MAX = 200;
+
+/**
+ * Bedienelement zu einer ID. Neben den festen Elementen gibt es Clip-Tasten
+ * „clip.<Ebene>.<Clip>“ (z. B. clip.2.tunnel oder clip.1.img:ab12…): startet bzw. stoppt den Clip.
+ */
+export function resolveControl(id: string): ControlDef | undefined {
+  const fixed = CONTROL_BY_ID.get(id);
+  if (fixed) return fixed;
+  const m = /^clip\.(\d+)\.(.+)$/.exec(id);
+  if (m) {
+    const li = Number(m[1]) - 1, clip = m[2]!;
+    if (li < 0 || li >= MAX_LAYERS) return undefined;
+    return {
+      id, label: `E${li + 1} ${EFFECT_BY_ID.get(clip)?.name ?? (clip.startsWith("img:") ? "Grafik" : clip)}`, group: "Clips",
+      kind: "trigger", quick: false,
+      get: c => (c.show.layers[li]?.clip === clip ? 1 : 0),
+      set: (c, v) => { const l = c.show.layers[li]; if (l && on(v)) l.clip = l.clip === clip ? null : clip; },
+    };
+  }
+  return undefined;
+}
+
 /** Wert setzen. Gibt false zurück, wenn die ID unbekannt ist. */
 export function setControl(c: ControlContext, id: string, value: number): boolean {
-  const def = CONTROL_BY_ID.get(id);
+  const def = resolveControl(id);
   if (!def || !Number.isFinite(value)) return false;
   def.set(c, value);
   return true;

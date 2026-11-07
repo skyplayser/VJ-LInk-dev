@@ -4,7 +4,7 @@
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
 import { bandsFrom, beatPulse, strobeGain, strobeGate } from "../core/audio";
 import {
-  LAYER_COUNT, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
+  MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
 import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT } from "./shaders";
@@ -38,8 +38,8 @@ export class Engine {
   private compFrom: Target | null = null;
   /** Feedback braucht das letzte Bild: pro Ebene (bzw. Vorschauzelle) zwei Texturen im Wechsel. */
   private feedback = new Map<string, { t: [Target, Target]; cur: 0 | 1; used: number }>();
-  private layerTime = new Array<number>(LAYER_COUNT).fill(0);
-  private thumbTime = new Array<number>(LAYER_COUNT).fill(0);
+  private layerTime = new Array<number>(MAX_LAYERS).fill(0);
+  private thumbTime = new Array<number>(MAX_LAYERS).fill(0);
   private lastSec = 0;
   private lastThumbSec = 0;
   private frameNo = 0;
@@ -239,7 +239,7 @@ export class Engine {
     const gl = this.gl;
     this.bindTarget(out);
     gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-    for (let i = 0; i < layers.length && i < LAYER_COUNT; i++) {
+    for (let i = 0; i < layers.length && i < MAX_LAYERS; i++) {
       const l = layers[i]!;
       const op = l.opacity * strobeGate(beat, l.strobe);
       if (op <= 0.001 || !l.clip) continue;
@@ -269,7 +269,7 @@ export class Engine {
     const dt = this.lastSec ? Math.min(0.1, Math.max(0, sec - this.lastSec)) : 0;
     this.lastSec = sec;
     this.frameNo++;
-    for (let i = 0; i < LAYER_COUNT; i++) this.layerTime[i]! += dt * (show.layers[i]?.speed ?? 1);
+    for (let i = 0; i < MAX_LAYERS; i++) this.layerTime[i]! += dt * (show.layers[i]?.speed ?? 1);
     gl.bindVertexArray(this.vao);
 
     const w = this.canvas.width, h = this.canvas.height;
@@ -312,7 +312,7 @@ export class Engine {
     const dt = this.lastThumbSec ? Math.min(0.1, Math.max(0, sec - this.lastThumbSec)) : 0;
     this.lastThumbSec = sec;
     this.frameNo++;
-    for (let i = 0; i < LAYER_COUNT; i++) this.thumbTime[i]! += dt * (show.layers[i]?.speed ?? 1);
+    for (let i = 0; i < MAX_LAYERS; i++) this.thumbTime[i]! += dt * (show.layers[i]?.speed ?? 1);
     gl.bindVertexArray(this.vao);
     this.bindTarget(null);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);

@@ -14,7 +14,7 @@ Aufwand: S = ein Abend, M = zwei bis drei Abende, L = eine Woche oder mehr.
 | 1.2 | Strobe richtig | Geschwindigkeit, Intensität, Takt-Sync oder freie Hz, Ein/Aus, Flash zum Halten, auch per Pult und OSC | S | heute |
 | 1.3 | Fader-Leiste | Immer sichtbare Leiste: Master, Strobe, Ebenen, Effekt, Szenen, Blackout, Tap | S | heute |
 | 1.4 | App-Icon | Logo im Dock, in der Taskleiste und im Fenster | S | heute |
-| 1.5 | **MIDI-Controller** | Geräte erkennen, Hot-Plug, MIDI-Lernen (Regler anklicken, Taste am Controller drücken, fertig), Zuordnung speichern, Rückmeldung an LEDs | M | als Nächstes |
+| 1.5 | **MIDI-Controller** | Geräte erkennen, Hot-Plug, Mapping-Modus wie Daslight für Tastatur, MIDI, DMX und OSC, Zuordnung speichern. Offen: Rückmeldung an LEDs | M | erledigt bis auf LEDs |
 | 1.6 | Controller-Vorlagen | Fertige Belegungen für gängige Geräte (z. B. APC40, Launchpad, nanoKONTROL), Fader, Tasten, Drehregler, Pads | M | nach 1.5 |
 | 1.7 | MIDI-Clock | Tempo und Start von MIDI-Clock als Takt-Quelle | S | nach 1.5 |
 
@@ -63,7 +63,7 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 | 6.2 | Regel-Editor | Wenn-dann-Regeln in der Oberfläche bearbeiten | M |
 | 6.3 | Pult-Profile | GDTF, grandMA2-XML, Daslight-Profil, Test an echten Pulten | L |
 | 6.4 | Fernbedienung | Tablet und Handy im Browser, mit PIN | M |
-| 6.5 | Ableton Link | Nach Klärung der Lizenz | M |
+| 6.5 | Ableton Link | Über Carabiner (separates Programm). Offen: Carabiner mitliefern (GPL, Quelltext beilegen) oder Lizenz von Ableton | M | teilweise |
 | 6.6 | Audio-Eingang | Beat-Erkennung und Bänder von Mikrofon oder Line-In | M |
 
 ## Phase 7: Release
