@@ -1,0 +1,26 @@
+{
+  "name": "vj-link",
+  "version": "0.1.0",
+  "description": "Einfache VJ-Software für LJs: Lichtpult, OSC und LJ-Link steuern die Visuals.",
+  "private": true,
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "npm run build && electron .",
+    "web": "npm run build && node scripts/serve.mjs",
+    "check": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "electron": "^45.2.3",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.0",
+    "vitest": "^5.1.0"
+  }
+}

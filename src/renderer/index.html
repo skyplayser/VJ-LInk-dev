@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VJ-Link</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="show" class="on">SHOW</button>
+    <button role="tab" data-tab="build">BAUEN</button>
+    <button role="tab" data-tab="output">AUSGABE</button>
+    <button role="tab" data-tab="connect">VERBINDEN</button>
+  </nav>
+  <div class="tempo">
+    <span class="bpm" id="bpm">120.00</span>
+    <span class="beats" id="beats"><i></i><i></i><i></i><i></i></span>
+    <span class="pill" id="tempo-source">MANUELL</span>
+    <button class="btn" id="tap">TAP</button>
+  </div>
+  <div class="status">
+    <span class="pill" id="st-dmx"><span class="dot"></span>DMX</span>
+    <span class="pill" id="st-osc"><span class="dot"></span>OSC</span>
+    <span class="pill" id="st-lj"><span class="dot"></span>LJ-LINK</span>
+    <span class="pill" id="st-fps">– FPS</span>
+  </div>
+  <button class="btn blackout" id="blackout">BLACKOUT</button>
+</header>
+
+<main>
+<section id="tab-show" class="tab on">
+  <div class="show-grid">
+    <div class="left">
+      <div class="mon">
+        <div class="lbl"><b>● AUSGANG</b><span id="mon-info">–</span></div>
+        <canvas id="preview" width="960" height="360" aria-label="Vorschau des Ausgangs"></canvas>
+      </div>
+      <h2>Clip-Raster</h2>
+      <div id="grid" class="clip-grid"></div>
+    </div>
+    <aside class="right">
+      <h2>Farbslots</h2>
+      <div id="slots" class="slot-list"></div>
+      <h2>Szenen</h2>
+      <div id="scenes" class="scenes"></div>
+      <h2>Master</h2>
+      <label class="row">Helligkeit <input type="range" id="master" min="0" max="100" value="100"></label>
+      <label class="row">Strobe
+        <select id="strobe"><option value="0">aus</option><option value="1">1× pro Beat</option><option value="2">2×</option><option value="3">4×</option><option value="4">8×</option></select>
+      </label>
+      <label class="row">Tempo-Faktor
+        <select id="tempo-factor"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+      </label>
+    </aside>
+  </div>
+</section>
+
+<section id="tab-build" class="tab">
+  <h2>Effekt-Katalog</h2>
+  <p class="muted">Die 35 Visuals der Wunschliste. „Bereit“ heißt: spielbar im Clip-Raster. „Geplant“ folgt mit dem Effekt-Editor.</p>
+  <div class="filters" id="cat-filters"></div>
+  <div class="table-wrap"><table id="catalog"><thead><tr><th>Nr.</th><th>Name</th><th>Kategorie</th><th>Art</th><th>Reagiert auf</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="tab-output" class="tab">
+  <h2>Ausgänge</h2>
+  <p class="muted">Jeder angeschlossene Bildschirm kann als Ausgang dienen. Er zeigt das Bild in seiner eigenen Auflösung im Vollbild.</p>
+  <div id="displays" class="display-list"></div>
+  <label class="row inline"><input type="checkbox" id="testpattern"> Testbild auf allen Ausgängen</label>
+  <p class="muted" id="output-note"></p>
+</section>
+
+<section id="tab-connect" class="tab">
+  <h2>Eingänge</h2>
+  <div class="cards" id="cards"></div>
+  <h2>DMX-Einstellungen</h2>
+  <div class="form">
+    <label>Art-Net Universe <input type="number" id="cfg-universe" min="0" max="32767" value="0"></label>
+    <label>sACN Universe <input type="number" id="cfg-sacn" min="1" max="63999" value="1"></label>
+    <label>Startadresse <input type="number" id="cfg-address" min="1" max="445" value="1"></label>
+    <button class="btn" id="dl-channels">Kanalliste speichern (CSV)</button>
+  </div>
+  <h2>Live-Werte (68 Kanäle)</h2>
+  <div id="dmx-live" class="dmx-live"></div>
+  <h2>LJ-Link</h2>
+  <div id="lj-decks" class="cards"></div>
+</section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
