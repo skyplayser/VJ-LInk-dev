@@ -12,6 +12,8 @@ const bridge: VjBridge = {
   removeMedia: id => { ipcRenderer.send("media:remove", id); },
   onMedia: cb => { ipcRenderer.on("media", (_e, ev: MediaEvent) => cb(ev)); },
   saveProject: json => { ipcRenderer.send("project:save", json); },
+  onDisplays: cb => { ipcRenderer.on("displays", (_e, d) => cb(d)); },
+  setUiScale: v => { ipcRenderer.send("ui:scale", v); },
   loadProject: () => ipcRenderer.invoke("project:load"),
   platform: process.platform,
 };

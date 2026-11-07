@@ -22,7 +22,11 @@ export class ThumbView {
     if (!this.engine || ++this.frame % 2) return;
     if (!this.grid.offsetParent) return; // Tab nicht sichtbar
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    const cssW = this.grid.scrollWidth, cssH = this.grid.scrollHeight;
+    // Größe aus den Zeilen, nicht aus scrollHeight: sonst vergrößert sich die Fläche bei krummem Zoom selbst
+    let cssW = 0, cssH = 0;
+    this.grid.querySelectorAll<HTMLElement>(".lrow").forEach(r => {
+      cssW = Math.max(cssW, r.offsetLeft + r.offsetWidth); cssH = Math.max(cssH, r.offsetTop + r.offsetHeight);
+    });
     this.canvas.style.width = `${cssW}px`; this.canvas.style.height = `${cssH}px`;
     this.engine.resize(Math.round(cssW * dpr), Math.round(cssH * dpr));
     const g = this.grid.getBoundingClientRect();

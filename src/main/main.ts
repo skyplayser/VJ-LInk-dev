@@ -32,9 +32,30 @@ function secureWindow(opts: Electron.BrowserWindowConstructorOptions): BrowserWi
   return win;
 }
 
+/** Entwurfsgröße der Oberfläche. Größere Fenster vergrößern alles, kleinere verkleinern es (Zoom). */
+const DESIGN_W = 1440, DESIGN_H = 900;
+let uiScale: "auto" | number = "auto";
+
+function applyScale(): void {
+  if (!control || control.isDestroyed()) return;
+  const [w, h] = control.getContentSize();
+  const auto = Math.min(w! / DESIGN_W, h! / DESIGN_H);
+  const f = uiScale === "auto" ? Math.min(2.2, Math.max(0.7, auto)) : uiScale;
+  const r = Math.round(f * 100) / 100;
+  if (Math.abs(control.webContents.getZoomFactor() - r) > 0.005) control.webContents.setZoomFactor(r);
+}
+
 function createControl(): void {
-  control = secureWindow({ width: 1360, height: 860, minWidth: 1000, minHeight: 640, title: "VJ-Link" });
+  // Startet auf dem Hauptbildschirm und nutzt dessen Fläche; Ausgänge kommen auf die anderen Bildschirme.
+  const wa = screen.getPrimaryDisplay().workArea;
+  const width = Math.round(wa.width * 0.92), height = Math.round(wa.height * 0.92);
+  control = secureWindow({
+    x: wa.x + Math.round((wa.width - width) / 2), y: wa.y + Math.round((wa.height - height) / 2),
+    width, height, minWidth: 900, minHeight: 600, title: "VJ-Link",
+  });
   control.loadFile(rendererFile("index.html"));
+  control.webContents.on("did-finish-load", applyScale);
+  control.on("resize", applyScale);
   control.on("closed", () => { control = null; for (const w of outputs.values()) w.close(); });
 }
 
@@ -66,6 +87,7 @@ function toggleOutput(id: number): DisplayInfo[] {
     if (lastFrame && !win.isDestroyed()) win.webContents.send("frame", lastFrame);
   });
   win.on("closed", () => { outputs.delete(id); control?.webContents.send("displays", listDisplays()); });
+  win.webContents.on("did-finish-load", () => win.webContents.setZoomFactor(1));
   outputs.set(id, win);
   return listDisplays();
 }
@@ -79,6 +101,14 @@ app.whenReady().then(async () => {
   net.start();
 
   ipcMain.handle("displays:list", () => listDisplays());
+  ipcMain.on("ui:scale", (e, v: unknown) => {
+    if (e.sender !== control?.webContents) return;
+    uiScale = v === "auto" ? "auto" : typeof v === "number" && v >= 0.5 && v <= 3 ? v : "auto";
+    applyScale();
+  });
+  // Bildschirme kommen und gehen (LED-Wand, Beamer): Oberfläche informieren
+  for (const ev of ["display-added", "display-removed", "display-metrics-changed"] as const)
+    screen.on(ev as "display-added", () => control?.webContents.send("displays", listDisplays()));
   ipcMain.handle("displays:toggle", (_e, id: unknown) => typeof id === "number" ? toggleOutput(id) : listDisplays());
   ipcMain.on("frame", (e, f: Frame) => {
     if (e.sender !== control?.webContents) return; // nur die Hauptoberfläche darf Bilder liefern

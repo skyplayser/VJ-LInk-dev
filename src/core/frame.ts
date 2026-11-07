@@ -58,6 +58,10 @@ export interface VjBridge {
   /** Für Ausgangsfenster: Grafiken kommen dazu oder fallen weg. */
   onMedia(cb: (e: MediaEvent) => void): void;
   saveProject(json: string): void;
+  /** Bildschirme oder Ausgänge haben sich geändert. */
+  onDisplays(cb: (d: DisplayInfo[]) => void): void;
+  /** Größe der Oberfläche: „auto“ passt sie dem Fenster an, sonst fester Faktor (1 = 100 %). */
+  setUiScale(v: "auto" | number): void;
   loadProject(): Promise<ProjectLoad>;
   platform: string;
 }

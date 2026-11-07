@@ -35,9 +35,15 @@
 <section id="tab-show" class="tab on">
   <div class="show-grid">
     <div class="left">
-      <div class="mon">
-        <div class="lbl"><b>● AUSGANG</b><span id="mon-info">–</span></div>
-        <canvas id="preview" width="960" height="360" aria-label="Vorschau des Ausgangs"></canvas>
+      <div class="monrow">
+        <div class="mon">
+          <div class="lbl"><b>● AUSGANG</b><span id="mon-info">–</span></div>
+          <div class="mon-box" id="mon-box"><canvas id="preview" width="640" height="360" aria-label="Vorschau des Ausgangs"></canvas></div>
+        </div>
+        <aside class="outs-strip" aria-label="Geöffnete Ausgänge">
+          <h2>Ausgänge</h2>
+          <div id="outs-strip"></div>
+        </aside>
       </div>
       <h2>Clip-Raster <span class="muted">· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2>
       <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple hidden>
@@ -69,6 +75,14 @@
   <p class="muted">Jeder angeschlossene Bildschirm kann als Ausgang dienen. Er zeigt das Bild in seiner eigenen Auflösung im Vollbild.</p>
   <div id="displays" class="display-list"></div>
   <label class="row inline"><input type="checkbox" id="testpattern"> Testbild auf allen Ausgängen</label>
+  <h2>Oberfläche</h2>
+  <label class="row inline">Größe
+    <select id="ui-scale">
+      <option value="auto">Automatisch (passt sich dem Fenster an)</option>
+      <option value="0.8">80 %</option><option value="0.9">90 %</option><option value="1">100 %</option>
+      <option value="1.1">110 %</option><option value="1.25">125 %</option><option value="1.5">150 %</option><option value="1.75">175 %</option><option value="2">200 %</option>
+    </select>
+  </label>
   <p class="muted" id="output-note"></p>
 </section>
 

@@ -27,9 +27,9 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 };
 
 // ---- Einstellungen (nur Komfort, Oberfläche funktioniert auch ohne) -------------------
-interface Settings { universe: number; sacn: number; address: number }
+interface Settings { universe: number; sacn: number; address: number; uiScale: "auto" | number }
 function loadSettings(): Settings {
-  const d: Settings = { universe: 0, sacn: 1, address: 1 };
+  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto" };
   try { return { ...d, ...JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") }; } catch { return d; }
 }
 const settings = loadSettings();
@@ -251,6 +251,34 @@ async function refreshDisplays(): Promise<void> {
   displays = await bridge.listDisplays();
   renderDisplays();
 }
+bridge?.onDisplays(d => { displays = d; renderDisplays(); renderOutputStrip(); fitPreview(); });
+
+/** Neben der Vorschau: welche Ausgänge offen sind, mit Auflösung. */
+function renderOutputStrip(): void {
+  const box = $("outs-strip");
+  box.replaceChildren();
+  const open = displays.filter(d => d.open);
+  if (!bridge) { const c = el("div", "ochip none"); c.append(el("b", "", "Browser-Vorschau"), el("em", "", "Ausgänge nur in der App")); box.append(c); return; }
+  for (const d of open) {
+    const c = el("div", "ochip");
+    c.append(el("b", "", d.label), el("em", "", `${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)}`));
+    box.append(c);
+  }
+  const free = displays.filter(d => !d.open && !d.primary);
+  if (!open.length) {
+    const c = el("div", "ochip none");
+    c.append(el("b", "", "Kein Ausgang offen"), el("em", "", free.length ? `${free.length} weitere${free.length === 1 ? "r" : ""} Bildschirm${free.length === 1 ? "" : "e"} frei` : "Nur dieser Bildschirm"));
+    box.append(c);
+  }
+  for (const d of free) {
+    const c = el("div", "ochip none");
+    const b = el("button", "btn small-btn", "Als Ausgang öffnen");
+    b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); renderOutputStrip(); fitPreview(); });
+    c.append(el("b", "", d.label), el("em", "", `${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)}`), b);
+    box.append(c);
+  }
+}
+
 function renderDisplays(): void {
   const list = $("displays");
   list.replaceChildren();
@@ -259,7 +287,7 @@ function renderDisplays(): void {
     const info = el("div"); info.append(el("b", "", `${d.label}${d.primary ? " (Hauptbildschirm)" : ""}`));
     info.append(el("small", "", `${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)} Pixel`));
     const b = el("button", "btn", d.open ? "SCHLIESSEN" : "ALS AUSGANG ÖFFNEN");
-    b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); });
+    b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); renderOutputStrip(); fitPreview(); });
     row.append(info, b); list.append(row);
   }
   $("output-note").textContent = displays.length > 1 ? "" : "Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darüber verdeckt diese Oberfläche; Taste Esc oder Schließen im Hauptfenster beendet ihn.";
@@ -313,10 +341,38 @@ function bindSettings(): void {
     const link = el("a"); link.href = url; link.download = "vj-link-kanalliste.csv"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   bridge?.configure({ sacnUniverse: settings.sacn });
+  const sc = $<HTMLSelectElement>("ui-scale");
+  sc.value = String(settings.uiScale);
+  if (sc.value === "") sc.value = "auto";
+  sc.addEventListener("change", () => {
+    settings.uiScale = sc.value === "auto" ? "auto" : Number(sc.value);
+    saveSettings(); bridge?.setUiScale(settings.uiScale);
+  });
+  bridge?.setUiScale(settings.uiScale);
 }
 
 // ---- Hauptschleife --------------------------------------------------------------------
 const preview = $<HTMLCanvasElement>("preview");
+
+/** Seitenverhältnis wie der erste offene Ausgang (z. B. LED-Wand 6:1), sonst 16:9. */
+function previewAspect(): number {
+  const d = displays.find(x => x.open);
+  return d && d.height > 0 ? d.width / d.height : 16 / 9;
+}
+/** Vorschau so groß wie möglich in ihren Bereich einpassen, ohne zu verzerren. */
+function fitPreview(): void {
+  const box = $("mon-box");
+  const a = previewAspect();
+  const bw = box.clientWidth, bh = box.clientHeight;
+  if (bw < 10 || bh < 10) return;
+  const w = Math.min(bw, bh * a), h = w / a;
+  preview.style.width = `${Math.floor(w)}px`; preview.style.height = `${Math.floor(h)}px`;
+  // Rechenauflösung: scharf genug, aber sparsam (max. 1280 Pixel breit)
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const iw = Math.min(1280, Math.round(w * dpr)), ih = Math.round(iw / a);
+  engine?.resize(iw, ih);
+}
+new ResizeObserver(() => fitPreview()).observe($("mon-box"));
 let engine: Engine | null = null;
 try { engine = new Engine(preview); } catch (e) {
   $("mon-info").textContent = (e as Error).message;
@@ -435,6 +491,7 @@ async function loadProject(): Promise<void> {
   }
 }
 void loadProject();
+void (async () => { if (bridge) displays = await bridge.listDisplays(); renderOutputStrip(); fitPreview(); })();
 const updateDeck = buildDeck(ctx, $("deck"));
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.
 for (const g of READY_GENERATORS) if (!GEN_IDS.includes(g.id as typeof GEN_IDS[number]) || !EFFECT_BY_ID.has(g.id)) console.error("Generator fehlt in der Engine:", g.id);
