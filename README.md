@@ -1,4 +1,9 @@
-# VJ-Link
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-for-dark.png">
+    <img src="assets/logo-for-light.png" alt="VJ-Link" width="360">
+  </picture>
+</h1>
 
 Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt aus LJ-Link, Ableton Link, OSC oder MIDI. Schwesterprojekt von [LJ-Link](https://github.com/skyplayser/LJ-Link).
 
