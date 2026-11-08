@@ -919,3 +919,19 @@ describe("Testbilder", () => {
     expect(stepTestPattern(TEST_IDS[TEST_IDS.length - 1]!, 1)).toBe("bars");
   });
 });
+
+describe("Gemeinsame Ebenen-Uhr", () => {
+  it("Ausgänge rechnen dieselbe Animationszeit wie das Hauptfenster", async () => {
+    const { LayerClock, layerTimesAt } = await import("../src/core/show");
+    const layers = [{ speed: 1 }, { speed: 2 }];
+    const c = new LayerClock();
+    c.tick(1000, layers); c.tick(1500, layers);
+    const snap = c.snap(1500);
+    // Ausgang, der später geöffnet wurde, bekommt trotzdem dieselbe Zeit
+    c.tick(1750, layers);
+    const out = layerTimesAt(snap, 1750, layers);
+    expect(out[0]).toBeCloseTo(c.t[0]!, 6);
+    expect(out[1]).toBeCloseTo(c.t[1]!, 6);
+    expect(out[1]).toBeCloseTo(1.5, 6);
+  });
+});

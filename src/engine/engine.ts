@@ -308,14 +308,15 @@ export class Engine {
    * `view`: Dieses Fenster zeigt nur einen Ausschnitt einer größeren Leinwand (Bildschirme nebeneinander).
    * Dann wird die ganze Leinwand gerechnet und der eigene Teil ausgegeben, damit alles nahtlos passt.
    */
-  render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null): void {
+  render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null, layerTimes: readonly number[] | null = null): void {
     const t0 = performance.now();
     const gl = this.gl;
     const sec = nowMs / 1000;
     const dt = this.lastSec ? Math.min(0.1, Math.max(0, sec - this.lastSec)) : 0;
     this.lastSec = sec;
     this.frameNo++;
-    for (let i = 0; i < MAX_LAYERS; i++) this.layerTime[i]! += dt * (show.layers[i]?.speed ?? 1);
+    // Gemeinsame Ebenen-Zeit (alle Fenster gleich), sonst selbst zählen
+    for (let i = 0; i < MAX_LAYERS; i++) this.layerTime[i] = layerTimes ? (layerTimes[i] ?? 0) : this.layerTime[i]! + dt * (show.layers[i]?.speed ?? 1);
     gl.bindVertexArray(this.vao);
 
     this.nowMs = nowMs; this.bpm = bpm;

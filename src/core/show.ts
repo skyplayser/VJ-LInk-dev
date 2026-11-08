@@ -307,3 +307,31 @@ export function stepTestPattern(p: TestPattern, dir: 1 | -1 = 1): TestPattern {
   const i = Math.max(0, TEST_IDS.indexOf(p));
   return TEST_IDS[(i + dir + TEST_IDS.length) % TEST_IDS.length]!;
 }
+
+// ---- Gemeinsame Ebenen-Uhr ---------------------------------------------------------------
+
+/** Ebenen-Zeiten (Sekunden, mit Geschwindigkeit) zu einem Zeitpunkt; geht mit jedem Bild an die Ausgänge. */
+export interface LayerClockSnap { at: number; t: number[] }
+
+/**
+ * Die Animationszeit jeder Ebene. Läuft nur im Hauptfenster; die Ausgänge rechnen mit derselben Zeit weiter,
+ * damit alle Bildschirme dieselbe Stelle der Animation zeigen (sonst zählt jedes Fenster ab seinem Öffnen).
+ */
+export class LayerClock {
+  readonly t = new Array<number>(MAX_LAYERS).fill(0);
+  private last = 0;
+  tick(nowMs: number, layers: readonly { speed: number }[]): readonly number[] {
+    // Nach einer Pause (Fenster im Hintergrund, Ruhezustand) höchstens 1 s weiter
+    const dt = this.last ? Math.min(1, Math.max(0, (nowMs - this.last) / 1000)) : 0;
+    this.last = nowMs;
+    for (let i = 0; i < MAX_LAYERS; i++) this.t[i]! += dt * (layers[i]?.speed ?? 1);
+    return this.t;
+  }
+  snap(nowMs: number): LayerClockSnap { return { at: nowMs, t: [...this.t] }; }
+}
+
+/** Ebenen-Zeiten jetzt, aus dem letzten Stand des Hauptfensters weitergerechnet. */
+export function layerTimesAt(s: LayerClockSnap, nowMs: number, layers: readonly { speed: number }[]): number[] {
+  const dt = Math.min(1, Math.max(0, (nowMs - s.at) / 1000));
+  return s.t.map((t, i) => t + dt * (layers[i]?.speed ?? 1));
+}

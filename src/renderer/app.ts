@@ -35,7 +35,7 @@ import { mediaClip } from "../core/media";
 import { applyProject, parseProject, serializeProject } from "../core/project";
 import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
-import { TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
+import { LayerClock, TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] => {
@@ -781,6 +781,8 @@ try {
 }
 const SOURCE_LABEL: Record<string, string> = { ljlink: "LJ-LINK", link: "ABLETON LINK", osc: "OSC", midi: "MIDI-CLOCK", audio: "AUDIO", tap: "TAP", manual: "MANUELL" };
 let lastUi = 0, lastPublish = 0;
+/** Animationszeit der Ebenen: hier gezählt, an alle Ausgänge geschickt. */
+const layerClock = new LayerClock();
 function setPill(id: string, state: "ok" | "off" | "warn", text?: string): void {
   const p = $(id); p.classList.toggle("ok", state === "ok"); p.classList.toggle("warn", state === "warn");
   if (text !== undefined) { const d = p.querySelector(".dot"); p.replaceChildren(...(d ? [d] : []), document.createTextNode(text)); }
@@ -801,7 +803,8 @@ function frame(): void {
   const mic = audioIn.sample();
   if (mic) ctx.show.audio.mic = mic; else delete ctx.show.audio.mic;
   const beat = ctx.tempo.beatAt(now);
-  engine?.render(ctx.show, beat, now, ctx.tempo.bpm);
+  const lt = layerClock.tick(now, ctx.show.layers);
+  engine?.render(ctx.show, beat, now, ctx.tempo.bpm, null, lt);
   thumbs.draw(now);
 
   if (now - lastPublish > 33 && bridge) {
@@ -811,6 +814,7 @@ function frame(): void {
       show: ctx.show, bpm: ctx.tempo.bpm, originMs: t.originMs, beatAtOrigin: t.beatAtOrigin, testPattern: ctx.show.testCard,
       videoDurations: Object.fromEntries(videoLib.items.map(v => [v.id, v.duration])),
       layout: outLayout, openOutputs: displays.filter(d => d.open).map(d => d.id),
+      layerClock: layerClock.snap(now),
     };
     bridge.publishFrame(JSON.parse(JSON.stringify(f)) as Frame);
   }

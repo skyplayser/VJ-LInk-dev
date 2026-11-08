@@ -1,5 +1,5 @@
 // Was die Oberfläche an die Ausgänge schickt: Show-Zustand plus Takt-Ursprung.
-import type { ShowState } from "./show";
+import type { LayerClockSnap, ShowState } from "./show";
 import type { MediaPayload } from "./media";
 import type { Tc, TcFps } from "./timecode";
 import type { OutputLayout } from "./layout";
@@ -15,6 +15,8 @@ export interface Frame {
   /** Anordnung der Ausgänge (Gleiches Bild oder Leinwand) und welche Bildschirme offen sind. */
   layout?: OutputLayout;
   openOutputs?: number[];
+  /** Gemeinsame Animationszeit der Ebenen (vom Hauptfenster). */
+  layerClock?: LayerClockSnap;
 }
 
 export const frameBeat = (f: Frame, nowMs: number): number =>

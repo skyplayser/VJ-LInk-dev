@@ -98,6 +98,10 @@ function toggleOutput(id: number): DisplayInfo[] {
 
 // Für Tests: eigener Datenordner, damit das echte Projekt unberührt bleibt
 if (process.env.VJLINK_DATA) app.setPath("userData", process.env.VJLINK_DATA);
+// Pixelgenaue Farben auf allen Ausgängen: keine Umrechnung durch das Farbprofil des jeweiligen Bildschirms.
+// Sonst sieht dasselbe Rot auf zwei Bildschirmen mit verschiedenen Profilen verschieden aus (und LED-Prozessoren
+// bekommen nicht die Werte, die die Visuals rechnen).
+app.commandLine.appendSwitch("force-color-profile", "srgb");
 
 app.whenReady().then(async () => {
   // Nur das Hauptfenster: MIDI (ohne SysEx) und Audio-Eingang (Mikrofon/Line-In, keine Kamera).
