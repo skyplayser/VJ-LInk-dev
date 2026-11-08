@@ -25,6 +25,9 @@ uniform float uPulse;     // 1 auf dem Beat, fällt ab
 uniform float uKey;       // 1 = Helligkeit bestimmt die Deckkraft (Overlay-Ebenen)
 uniform int   uGen;
 uniform int   uTest;      // Testbild-Muster
+uniform vec3  uPal[5];    // mehrere Slots: Palette
+uniform int   uPalN;      // Anzahl Farben in der Palette (0 = keine)
+uniform vec4  uLz;        // Laser: x, y (-1 … 1), Größe, Stärke
 uniform int   uColorMode; // 0 original, 1 Slot, 2 Verlauf A→B, 3 Regenbogen
 uniform vec3  uColA;
 uniform vec3  uColB;
@@ -521,6 +524,13 @@ vec3 testcard(vec2 uv){
   return c;
 }
 
+/** Verlauf durch alle Farben der Palette (rundum), t 0–1. */
+vec3 palAt(float t){
+  float n = float(max(uPalN, 1)), f = fract(t) * n;
+  int i = int(floor(f)), j = int(mod(floor(f) + 1.0, n));
+  return mix(uPal[i], uPal[j], smoothstep(0.0, 1.0, fract(f)));
+}
+
 // ---- Laser: Beamer als Showlaser ---------------------------------------------------------
 // Im Nebel wird jeder helle Bildpunkt ein Strahl. Darum: harte, dünne Punkte und Linien (Breite in Bildschirm-
 // Pixeln, unabhängig von der Auflösung), satte Laserfarben, alles andere exakt Schwarz (kein Schein, kein Nebel im Bild).
@@ -530,7 +540,16 @@ vec3 laserColor(float k){
        : i < 3.5 ? vec3(0.0, 1.0, 1.0) : i < 4.5 ? vec3(1.0, 0.8, 0.0) : i < 5.5 ? vec3(1.0, 0.0, 1.0) : vec3(1.0);
 }
 // Stärke in Pixeln bezogen auf 1080 Zeilen: auf 4K-Beamern wachsen Linien mit, sonst würden die Strahlen dunkler.
-float lzK(){ return max(1.0, uRes.y / 1080.0); }
+float lzK(){ return max(1.0, uRes.y / 1080.0) * clamp(uLz.w, 0.25, 6.0); }
+/** Laser-Koordinaten: Lage und Größe der Ebene (Regler Höhe, Seite, Größe). */
+vec2 lzP(vec2 uv){ return (cp(uv) - vec2(uLz.x * 0.5 * uRes.x / uRes.y, uLz.y * 0.5)) / max(uLz.z, 0.05); }
+/** Pixel pro Laser-Einheit (für Abstände in Pixeln). */
+float lzPx(){ return uRes.y * max(uLz.z, 0.05); }
+/** Farbe eines Elements: mehrere Slots → jedes Element eine andere, alle 8 Beats weiter; sonst Laserfarben. */
+vec3 lzCol(float k, float i){
+  if (uColorMode == 4 && uPalN > 0) return uPal[int(mod(k + i, float(uPalN)))];
+  return laserColor(k);
+}
 /** Linie (wird im Nebel eine Lichtfläche): etwa 4 px. d = Abstand in Pixeln. */
 float lzLine(float d){ float k = lzK(); return smoothstep(2.6 * k, 1.2 * k, d); }
 /** Punkt (wird im Nebel ein Einzelstrahl): etwa 10 px, damit er genug Licht trägt. */
@@ -540,58 +559,61 @@ float curveDist(float dy, float s){ return abs(dy) / sqrt(1.0 + s * s); }
 
 // 36 Strahlen-Fächer: Reihe aus Punkten
 vec3 laserBeams(vec2 uv){
-  vec2 p = cp(uv); float P = uRes.y;
+  vec2 p = lzP(uv); float P = lzPx();
   float spread = 0.6 + 0.45 * sin(uTime * 0.45);
-  // obere Bildhälfte: Strahlen gehen über das Publikum
-  vec2 c0 = vec2(sin(uTime * 0.6) * 0.22, 0.17 + sin(uTime * 0.37) * 0.08);
+  vec2 c0 = vec2(sin(uTime * 0.6) * 0.22, sin(uTime * 0.37) * 0.08);
   float mode = mod(floor(uBeat / 8.0), 3.0), step2 = floor(uBeat * 2.0);
-  float acc = 0.0;
+  vec3 acc = vec3(0.0);
+  float k = floor(uBeat / 8.0);
   for (int i = 0; i < 12; i++) {
     float fi = float(i);
     vec2 q = c0 + vec2((fi / 11.0 - 0.5) * spread, 0.0);
     float on = mode < 0.5 ? 1.0
       : mode < 1.5 ? max(step(abs(fi - mod(step2, 12.0)), 0.5), step(abs(fi - mod(step2 + 6.0, 12.0)), 0.5))
       : step(0.5, mod(fi + floor(uBeat), 2.0));
-    acc += on * lzDot(length(p - q) * P);
+    acc += lzCol(k, fi) * on * lzDot(length(p - q) * P);
   }
-  return laserColor(floor(uBeat / 8.0)) * min(acc, 1.0);
+  return min(acc, vec3(1.0));
 }
 
 // 37 Lichtdecke (Liquid Sky): wellige Linie
 vec3 laserSky(vec2 uv){
-  vec2 p = cp(uv); float P = uRes.y, x = p.x;
+  vec2 p = lzP(uv); float P = lzPx(), x = p.x;
   float b = 0.6 + 0.8 * uBands[0];
-  float y = 0.14 + b * (0.04 * sin(x * 3.0 + uTime * 0.9) + 0.025 * sin(x * 7.0 - uTime * 1.3) + 0.012 * sin(x * 13.0 + uTime * 2.1));
+  float y = b * (0.04 * sin(x * 3.0 + uTime * 0.9) + 0.025 * sin(x * 7.0 - uTime * 1.3) + 0.012 * sin(x * 13.0 + uTime * 2.1));
   float s = b * (0.12 * cos(x * 3.0 + uTime * 0.9) + 0.175 * cos(x * 7.0 - uTime * 1.3) + 0.156 * cos(x * 13.0 + uTime * 2.1));
-  return laserColor(floor(uBeat / 16.0) * 3.0) * lzLine(curveDist(p.y - y, s) * P);
+  // mehrere Slots: Abschnitte der Decke in verschiedenen Farben
+  return lzCol(floor(uBeat / 16.0) * 3.0, floor(x * 2.5 + uTime * 0.2)) * lzLine(curveDist(p.y - y, s) * P);
 }
 
 // 38 Kegel / Tunnel: Kreis, atmet im Takt, mit drehenden Lücken
 vec3 laserCone(vec2 uv){
-  vec2 c0 = vec2(sin(uTime * 0.31) * 0.18, 0.06 + sin(uTime * 0.23) * 0.06);
-  vec2 d = cp(uv) - c0; float P = uRes.y;
+  vec2 c0 = vec2(sin(uTime * 0.31) * 0.18, sin(uTime * 0.23) * 0.06);
+  vec2 d = lzP(uv) - c0; float P = lzPx();
   float r = length(d), a = atan(d.y, d.x);
   float R = 0.17 + 0.05 * uPulse + 0.04 * sin(uTime * 0.5);
   float gaps = mod(floor(uBeat / 8.0), 2.0) < 0.5 ? 1.0 : step(0.35, fract(a / 6.2832 * 8.0 + uTime * 0.4));
   float inner = step(0.5, fract(uBeat / 16.0)) * lzLine(abs(r - R * 0.45) * P);
-  return laserColor(floor(uBeat / 8.0)) * lzLine(abs(r - R) * P) * gaps + laserColor(floor(uBeat / 8.0) + 3.0) * inner;
+  float k = floor(uBeat / 8.0);
+  // mehrere Slots: Bogenstücke wechseln die Farbe
+  return lzCol(k, floor(fract(a / 6.2832 + uTime * 0.05) * 4.0)) * lzLine(abs(r - R) * P) * gaps + lzCol(k + 3.0, 1.0) * inner;
 }
 
 // 39 Laser-Welle: Sinus, Höhe folgt dem Bass
 vec3 laserWave(vec2 uv){
-  vec2 p = cp(uv); float P = uRes.y;
+  vec2 p = lzP(uv); float P = lzPx();
   float k = 7.0 + 4.0 * sin(uTime * 0.2);
   float A = 0.05 + 0.12 * uBands[0] + 0.04 * uPulse;
   float ph = uTime * 2.5;
-  float d = curveDist(p.y - 0.08 - A * sin(p.x * k + ph), A * k * cos(p.x * k + ph));
-  return laserColor(floor(uBeat / 8.0) + 1.0) * lzLine(d * P);
+  float d = curveDist(p.y - A * sin(p.x * k + ph), A * k * cos(p.x * k + ph));
+  // mehrere Slots: jede Wellenhälfte eine Farbe
+  return lzCol(floor(uBeat / 8.0) + 1.0, floor((p.x * k + ph) / 3.14159)) * lzLine(d * P);
 }
 
 // 40 Strahlen-Matrix: Raster aus Punkten, Muster wechseln alle 8 Beats
 vec3 laserMatrix(vec2 uv){
-  vec2 p = cp(uv); float P = uRes.y;
+  vec2 p = lzP(uv); float P = lzPx();
   vec2 n = vec2(8.0, 4.0), sp = vec2(0.13, 0.12);
-  p.y -= 0.06;
   vec2 id = floor(p / sp + n * 0.5);
   if (id.x < 0.0 || id.y < 0.0 || id.x > n.x - 1.0 || id.y > n.y - 1.0) return vec3(0.0);
   vec2 q = (id - n * 0.5 + 0.5) * sp;
@@ -599,31 +621,32 @@ vec3 laserMatrix(vec2 uv){
   float on = mode < 0.5 ? step(0.5, hash(id + b * 1.37))
            : mode < 1.5 ? step(abs(id.x - mod(b, n.x)), 0.5)
            : step(0.5, fract((id.x + id.y) * 0.25 - uBeat * 0.5));
-  return laserColor(floor(uBeat / 8.0) + 2.0) * on * lzDot(length(p - q) * P);
+  return lzCol(floor(uBeat / 8.0) + 2.0, id.x + id.y) * on * lzDot(length(p - q) * P);
 }
 
 // 41 Propeller: 2–4 Linien durch die Mitte, drehen sich
 vec3 laserPropeller(vec2 uv){
-  vec2 p = cp(uv) - vec2(0.0, sin(uTime * 0.3) * 0.06); float P = uRes.y;
+  vec2 p = lzP(uv) - vec2(0.0, sin(uTime * 0.3) * 0.06); float P = lzPx();
   float K = mod(floor(uBeat / 8.0), 3.0) + 2.0;
   float rot = uTime * 0.8 + uPulse * 0.12;
-  float acc = 0.0;
+  vec3 acc = vec3(0.0);
+  float kc = floor(uBeat / 8.0) + 4.0;
   for (int i = 0; i < 4; i++) {
     if (float(i) >= K) break;
     float an = rot + float(i) * 3.14159 / K;
     vec2 dir = vec2(cos(an), sin(an));
     float along = abs(dot(p, dir)), perp = abs(dot(p, vec2(-dir.y, dir.x)));
     float L = 0.36;
-    acc += lzLine((along < L ? perp : length(vec2(along - L, perp))) * P);
+    acc += lzCol(kc, float(i)) * lzLine((along < L ? perp : length(vec2(along - L, perp))) * P);
   }
-  return laserColor(floor(uBeat / 8.0) + 4.0) * min(acc, 1.0);
+  return min(acc, vec3(1.0));
 }
 
 // 42 Laser-Figuren: Lissajous wie ein Scanner
 vec2 lissa(float t, vec2 ab, float ph){ return vec2(sin(ab.x * t + ph), sin(ab.y * t)) * vec2(0.4, 0.28); }
 vec3 laserScan(vec2 uv){
   float s = 1.0 + 0.08 * uPulse;
-  vec2 p = cp(uv) / s; float P = uRes.y * s;
+  vec2 p = lzP(uv) / s; float P = lzPx() * s;
   if (abs(p.x) > 0.42 || abs(p.y) > 0.3) return vec3(0.0);
   float m = mod(floor(uBeat / 8.0), 4.0);
   vec2 ab = m < 0.5 ? vec2(1.0, 2.0) : m < 1.5 ? vec2(3.0, 2.0) : m < 2.5 ? vec2(3.0, 4.0) : vec2(5.0, 4.0);
@@ -636,7 +659,7 @@ vec3 laserScan(vec2 uv){
     best = min(best, length(pa - ba * h));
     prev = cur;
   }
-  return laserColor(floor(uBeat / 8.0) + 5.0) * lzLine(best * P);
+  return lzCol(floor(uBeat / 8.0) + 5.0, 0.0) * lzLine(best * P);
 }
 
 void main(){
@@ -679,8 +702,11 @@ void main(){
   else if (uGen == 34) c = laserScan(uv);
   else c = vec3(0.0);
 
-  float lum = clamp(dot(c, vec3(0.299, 0.587, 0.114)) * 1.15, 0.0, 1.0);
-  if (uColorMode == 1) c = uColA * lum * 1.25;
+  // Laser: Helligkeit = stärkster Kanal (ein blauer Strahl ist voll hell, nicht dunkel)
+  bool laser = uGen >= 28 || uGen == 22 || uGen == 23;
+  float lum = laser ? clamp(max(c.r, max(c.g, c.b)), 0.0, 1.0) : clamp(dot(c, vec3(0.299, 0.587, 0.114)) * 1.15, 0.0, 1.0);
+  if (uColorMode == 1) c = uColA * lum * (laser ? 1.0 : 1.25);
+  else if (uColorMode == 4 && uPalN > 0 && !laser) c = palAt(fract(vUv.x * 0.5 + lum * 0.45 + uTime * 0.05)) * (0.1 + lum * 1.15);
   else if (uColorMode == 2) c = mix(uColA, uColB, clamp(vUv.y * 0.6 + lum * 0.5, 0.0, 1.0)) * (0.15 + lum * 1.1);
   else if (uColorMode == 3) c = hsv(fract(vUv.x * 0.5 + lum * 0.4 + uTime * 0.08), 0.85, lum * 1.2);
 

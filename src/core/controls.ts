@@ -3,8 +3,11 @@
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
 import { STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
-import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, SLOT_NAMES, clamp01, stepTestPattern, type Rgb } from "./show";
+import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAX_LAYERS, SLOT_NAMES, clamp01, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
+
+export const DRIVE_LABEL = { auto: "Auto", bpm: "Takt", audio: "Audio", static: "Statisch" } as const;
+const LASER_LABEL = { y: "Höhe", x: "Seite", size: "Größe", thick: "Stärke" } as const;
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
 export const SCENE_SLOTS = 32;
@@ -90,6 +93,18 @@ export function buildControls(): ControlDef[] {
         get: c => Math.max(0, BLEND_MODES.indexOf(c.show.layers[i]?.blend ?? "normal")) / (BLEND_MODES.length - 1),
         set: (c, v) => { const l = c.show.layers[i]; if (l) l.blend = BLEND_MODES[stepIndex(v, BLEND_MODES.length)]!; },
         format: c => c.show.layers[i]?.blend ?? "–" },
+      { id: `layer.${i + 1}.drive`, label: `E${i + 1} Antrieb`, group: "Ebenen", kind: "fader", quick: false,
+        get: c => Math.max(0, DRIVES.indexOf(c.show.layers[i]?.drive ?? "auto")) / (DRIVES.length - 1),
+        set: (c, v) => { const l = c.show.layers[i]; if (l) l.drive = DRIVES[stepIndex(v, DRIVES.length)]!; },
+        format: c => DRIVE_LABEL[c.show.layers[i]?.drive ?? "auto"] },
+      ...(["y", "x", "size", "thick"] as const).map(k => ({
+        id: `layer.${i + 1}.laser.${k}`, label: `E${i + 1} Laser ${LASER_LABEL[k]}`, group: "Ebenen" as const, kind: "fader" as const, quick: false,
+        get: (c: ControlContext) => { const z = c.show.layers[i]?.laser ?? defaultLaser(); const [lo, hi] = LASER_LIMITS[k]; return clamp01((z[k] - lo) / (hi - lo)); },
+        set: (c: ControlContext, v: number) => {
+          const l = c.show.layers[i]; if (!l) return;
+          const [lo, hi] = LASER_LIMITS[k]; l.laser = { ...(l.laser ?? defaultLaser()), [k]: lo + clamp01(v) * (hi - lo) } as LaserSettings;
+        },
+      })),
       { id: `layer.${i + 1}.clear`, label: `E${i + 1} Clip aus`, group: "Ebenen", kind: "trigger", quick: false,
         get: c => (c.show.layers[i]?.clip ? 0 : 1), set: (c, v) => { const l = c.show.layers[i]; if (l && on(v)) l.clip = null; } },
     );

@@ -936,3 +936,39 @@ describe("Gemeinsame Ebenen-Uhr", () => {
     expect(out[1]).toBeCloseTo(1.5, 6);
   });
 });
+
+describe("Antrieb je Ebene", () => {
+  it("Takt pulsiert im Takt, Statisch nie, Audio nur mit Audio", async () => {
+    const { layerDrive } = await import("../src/core/audio");
+    const quiet = { bass: 0, mid: 0, high: 0 };
+    expect(layerDrive("bpm", quiet, "tunnel", 4.0, 1, 1).pulse).toBeCloseTo(1, 5);
+    expect(layerDrive("static", quiet, "tunnel", 4.0, 1, 1).pulse).toBe(0);
+    expect(layerDrive("audio", quiet, "tunnel", 4.0, 1, 1).pulse).toBe(0);
+    const loud = { bass: 0.9, mid: 0.2, high: 0.1 };
+    expect(layerDrive("audio", loud, "tunnel", 4.5, 1, 1).pulse).toBeGreaterThan(0.5);
+    // Takt ignoriert Audio: gleiche Bänder mit und ohne Audio
+    expect(layerDrive("bpm", loud, "tunnel", 4.5, 1, 1).bands).toEqual(layerDrive("bpm", quiet, "tunnel", 4.5, 1, 1).bands);
+  });
+});
+
+describe("Mehrere Farb-Slots", () => {
+  it("Slots antippen: einer = Slot, mehrere = Palette in Reihenfolge, keiner = Original", async () => {
+    const { toggleColorSlot, layerPalette, defaultShow } = await import("../src/core/show");
+    const l = { colorSource: "original" as import("../src/core/show").ColorSource, colorSlots: [] as number[] };
+    toggleColorSlot(l, 2); expect(l.colorSource).toBe("C");
+    toggleColorSlot(l, 0); expect(l.colorSource).toBe("multi"); expect(l.colorSlots).toEqual([2, 0]);
+    const slots = defaultShow().slots;
+    expect(layerPalette(l, slots)).toEqual([slots[2], slots[0]]);
+    toggleColorSlot(l, 2); expect(l.colorSource).toBe("A");
+    toggleColorSlot(l, 0); expect(l.colorSource).toBe("original");
+  });
+  it("Antrieb, Slots und Laser werden gespeichert", async () => {
+    const c = ctx();
+    const l = c.show.layers[0]!;
+    l.drive = "static"; l.colorSource = "multi"; l.colorSlots = [3, 1, 4]; l.laser = { x: -0.2, y: 0.5, size: 1.5, thick: 2.5 };
+    const back = parseProject(JSON.parse(JSON.stringify(serializeProject(c, []))));
+    const b = back!.layers[0]!;
+    expect(b.drive).toBe("static"); expect(b.colorSource).toBe("multi"); expect(b.colorSlots).toEqual([3, 1, 4]);
+    expect(b.laser).toEqual({ x: -0.2, y: 0.5, size: 1.5, thick: 2.5 });
+  });
+});

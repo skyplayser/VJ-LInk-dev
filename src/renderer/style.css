@@ -438,3 +438,18 @@ body.mapping .cell-x{display:none}
 .test-pat.sel{border-color:var(--warn)}
 .test-pat.live{background:var(--warn);color:#000}
 .test-step{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px}
+/* Ebene: Antrieb, Farben, Laser */
+.layer-panel{border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:6px}
+.lp-row{display:grid;grid-template-columns:62px 1fr;align-items:center;gap:6px}
+.lp-lab{font-size:11px;color:var(--dim)}
+.lp-seg{display:grid;grid-template-columns:repeat(4,1fr)}
+.lp-hint{margin:0}
+.lp-colors{display:flex;flex-wrap:wrap;gap:3px}
+.lp-chip{background:var(--raise);border:1px solid var(--line);border-radius:4px;color:var(--text);padding:4px 7px;font:600 11px system-ui,sans-serif;cursor:pointer;position:relative}
+.lp-chip.on{border-color:var(--text);background:#2c3242}
+.lp-slot{min-width:28px;border-bottom:3px solid var(--sw)}
+.lp-slot.on{background:var(--sw);color:#000;border-color:var(--text)}
+.lp-slot small{position:absolute;top:-6px;right:-5px;background:var(--text);color:#000;border-radius:7px;font-size:9px;padding:0 4px;line-height:13px}
+.lp-sub{margin:6px 0 0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.layer-panel .mrow{grid-template-columns:62px minmax(0,1fr) 52px}
+.layer-panel .mval{white-space:nowrap}

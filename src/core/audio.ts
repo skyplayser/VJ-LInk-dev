@@ -1,5 +1,5 @@
 // Audio-Bänder und Strobe-Takt. Reine Funktionen, damit jeder Ausgang dasselbe Bild rechnet.
-import type { AudioState, StrobeState } from "./show";
+import type { AudioState, Drive, StrobeState } from "./show";
 import { EFFECTS } from "./effects";
 
 /** Visuals, die ein Audio-Eingang antreibt, wenn er auf „Audio-Visuals“ steht: die Kategorie Audio (EQ, Oszilloskop …). */
@@ -129,4 +129,35 @@ export function sampleWave(time: ArrayLike<number>, gain: number): number[] {
     out.push(v < -1 ? -1 : v > 1 ? 1 : Math.round(v * 1000) / 1000);
   }
   return out;
+}
+
+/** Was eine Ebene antreibt: Beat (für Muster), Puls (0–1), Bänder und Wellenform. */
+export interface DriveOut { beat: number; pulse: number; bands: number[]; wave: number[] | null }
+
+const SILENT = { bass: 0, mid: 0, high: 0 };
+
+/**
+ * Antrieb einer Ebene auswerten.
+ * - auto: wie bisher (Audio-Eingang, wenn er auf den Clip wirkt, sonst LJ-Link oder Takt)
+ * - bpm: nur der Takt (Puls auf jedem Beat, Bänder im Takt), Audio wird ignoriert
+ * - audio: nur Audio (Eingang oder LJ-Link); Puls folgt dem Bass. Ohne Audio bleibt es ruhig.
+ * - static: kein Pulsieren, gleichmäßige Bewegung unabhängig von Takt und Audio
+ */
+export function layerDrive(drive: Drive | undefined, audio: AudioState, clip: string | null, beat: number, tSec: number, layerSec: number): DriveOut {
+  switch (drive) {
+    case "static":
+      return { beat: layerSec * 0.5, pulse: 0, bands: new Array<number>(BAND_COUNT).fill(0.4), wave: null };
+    case "bpm":
+      return { beat, pulse: beatPulse(beat), bands: bandsFrom(SILENT, beat, tSec), wave: null };
+    case "audio": {
+      const live = audio.bass + audio.mid + audio.high > 0.001;
+      const bands = audio.mic ? audio.mic.bands : live ? bandsFrom(audio, beat, tSec) : new Array<number>(BAND_COUNT).fill(0);
+      const bass = Math.max(bands[0] ?? 0, bands[1] ?? 0);
+      return { beat, pulse: Math.min(1, Math.pow(bass, 1.5) * 1.3), bands, wave: audio.mic?.wave ?? null };
+    }
+    default: {
+      const mic = micDrives(audio, clip);
+      return { beat, pulse: beatPulse(beat), bands: mic ? audio.mic!.bands : bandsFrom(audio, beat, tSec), wave: mic ? audio.mic!.wave : null };
+    }
+  }
 }

@@ -2,8 +2,8 @@
 // Ablauf pro Bild: jede Ebene → Generator in eine Textur → Effekt-Stapel (Ping-Pong)
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
-import { WAVE_POINTS, bandsFrom, beatPulse, micDrives, strobeGain, strobeGate, strobeWhite } from "../core/audio";
-import { TEST_IDS,
+import { WAVE_POINTS, bandsFrom, beatPulse, layerDrive, strobeGain, strobeGate, strobeWhite } from "../core/audio";
+import { TEST_IDS, defaultLaser, layerPalette,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
@@ -12,7 +12,7 @@ import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type 
 import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
-  original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3,
+  original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3, multi: 4,
 };
 const SLOT_INDEX: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
 
@@ -177,17 +177,21 @@ export class Engine {
     const gen = l.clip && !media ? GEN_IDS.indexOf(l.clip as typeof GEN_IDS[number]) : -1;
     if (gen < 0 && !media) return null;
     const gl = this.gl;
+    // Antrieb der Ebene: Takt, Audio oder ruhig (ersetzt Beat, Puls und Bänder für diese Ebene)
+    const drv = layerDrive(l.drive, show.audio, l.clip, beat, this.nowMs / 1000, time);
+    void pulse; void bands;
+    const pal = layerPalette(l, show.slots);
     this.work[0] = this.target(this.work[0], w, h);
     this.work[1] = this.target(this.work[1], w, h);
     gl.disable(gl.BLEND);
-    const [ca, cb] = colors(l.colorSource, show.slots);
+    const [ca, cb] = colors(l.colorSource, show.slots, l);
 
     if (media) {
       // 1a) Grafik mit Animation
       const im = this.img;
       const tf = isVideo
         ? { x: 0, y: 0, rotation: 0, scale: fitScale(l.video.fit, w / h, media.w / Math.max(1, media.h), media.h, h) }
-        : mediaTransform(l.media, beat, time);
+        : mediaTransform(l.media, drv.beat, time);
       gl.useProgram(im.p);
       gl.uniform1f(this.loc(im, "uOpacity"), 1);
       gl.uniform1i(this.loc(im, "uImg"), 0);
@@ -201,7 +205,7 @@ export class Engine {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, media.tex);
       this.bindTarget(this.work[0]);
       this.draw();
-      return this.applyEffects(l, fbKey, time, w, h, show, pulse, ca, cb);
+      return this.applyEffects(l, fbKey, time, w, h, show, drv.pulse, ca, cb);
     }
 
     // 1) Generator
@@ -209,21 +213,28 @@ export class Engine {
     gl.useProgram(g.p);
     gl.uniform2f(this.loc(g, "uRes"), w, h);
     gl.uniform1f(this.loc(g, "uTime"), time);
-    gl.uniform1f(this.loc(g, "uBeat"), beat);
-    gl.uniform1f(this.loc(g, "uPulse"), pulse);
+    gl.uniform1f(this.loc(g, "uBeat"), drv.beat);
+    gl.uniform1f(this.loc(g, "uPulse"), drv.pulse);
     gl.uniform1f(this.loc(g, "uKey"), key ? 1 : 0);
     gl.uniform1i(this.loc(g, "uGen"), gen);
     gl.uniform1i(this.loc(g, "uColorMode"), COLOR_MODE[l.colorSource]);
     gl.uniform3f(this.loc(g, "uColA"), ca[0], ca[1], ca[2]);
     gl.uniform3f(this.loc(g, "uColB"), cb[0], cb[1], cb[2]);
-    // Audio-Eingang nur dort, wo er wirken soll (sonst LJ-Link oder Demo im Takt)
-    const mic = micDrives(show.audio, l.clip) ? show.audio.mic! : null;
-    gl.uniform1fv(this.loc(g, "uBands"), mic ? new Float32Array(mic.bands) : bands);
-    gl.uniform1i(this.loc(g, "uHasWave"), mic && mic.wave.length === WAVE_POINTS ? 1 : 0);
-    if (mic && mic.wave.length === WAVE_POINTS) gl.uniform1fv(this.loc(g, "uWave"), new Float32Array(mic.wave));
+    // Mehrere Slots: Palette (bis 5 Farben)
+    const palData = new Float32Array(15);
+    pal.slice(0, 5).forEach((c, i) => palData.set(c, i * 3));
+    gl.uniform3fv(this.loc(g, "uPal"), palData);
+    gl.uniform1i(this.loc(g, "uPalN"), Math.min(5, pal.length));
+    const lz = l.laser ?? defaultLaser();
+    gl.uniform4f(this.loc(g, "uLz"), lz.x, lz.y, lz.size, lz.thick);
+    // Bänder und Wellenform aus dem Antrieb der Ebene
+    gl.uniform1fv(this.loc(g, "uBands"), new Float32Array(drv.bands));
+    const wave = drv.wave && drv.wave.length === WAVE_POINTS ? drv.wave : null;
+    gl.uniform1i(this.loc(g, "uHasWave"), wave ? 1 : 0);
+    if (wave) gl.uniform1fv(this.loc(g, "uWave"), new Float32Array(wave));
     this.bindTarget(this.work[0]);
     this.draw();
-    return this.applyEffects(l, fbKey, time, w, h, show, pulse, ca, cb);
+    return this.applyEffects(l, fbKey, time, w, h, show, drv.pulse, ca, cb);
   }
 
   /** 2) Effekt-Stapel auf work[0] anwenden, Ergebnis zurückgeben. */
@@ -240,7 +251,8 @@ export class Engine {
     gl.uniform1i(this.loc(p, "uPrev"), 1);
     gl.uniform3f(this.loc(p, "uColA"), ca[0], ca[1], ca[2]);
     gl.uniform3f(this.loc(p, "uColB"), cb[0], cb[1], cb[2]);
-    gl.uniform1i(this.loc(p, "uColorMode"), COLOR_MODE[l.colorSource]);
+    // Farbüberlagerung kennt keine Palette: „mehrere Slots“ wirkt dort als Verlauf der ersten zwei
+    gl.uniform1i(this.loc(p, "uColorMode"), l.colorSource === "multi" ? 2 : COLOR_MODE[l.colorSource]);
     for (const slot of l.effects) {
       const amount = slot.amount * show.fxMaster;
       const eff = POST_IDS.indexOf(slot.id as typeof POST_IDS[number]);
@@ -496,7 +508,8 @@ export class Engine {
   }
 }
 
-function colors(src: ColorSource, slots: Rgb[]): [Rgb, Rgb] {
+function colors(src: ColorSource, slots: Rgb[], l?: LayerState): [Rgb, Rgb] {
+  if (src === "multi" && l) { const p = layerPalette(l, slots); return [p[0]!, p[1] ?? p[0]!]; }
   const idx = SLOT_INDEX[src];
   if (idx !== undefined) return [slots[idx]!, slots[idx]!];
   return [slots[0]!, slots[1]!];

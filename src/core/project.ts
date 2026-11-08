@@ -6,7 +6,7 @@ import { parseMappings, type Mapping } from "./mapping";
 import { FITS, newCue, type Cue, type VideoItem, type VideoSettings } from "./video";
 import { defaultLayout, type OutputLayout } from "./layout";
 import {
-  BLEND_MODES, COLOR_SOURCES, KEY_MODES, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
+  BLEND_MODES, COLOR_SOURCES_ALL, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
 } from "./show";
 
@@ -126,7 +126,16 @@ function partialLayer(v: unknown): Partial<LayerState> | null {
   if (Array.isArray(v.clips)) out.clips = [...new Set(v.clips.map(clip).filter((c): c is string => !!c))].slice(0, 128);
   if ("opacity" in v) out.opacity = clamp01(num(v.opacity, 1));
   if ("blend" in v) out.blend = oneOf(v.blend, BLEND_MODES, "normal");
-  if ("colorSource" in v) out.colorSource = oneOf(v.colorSource, COLOR_SOURCES, "original");
+  if ("colorSource" in v) out.colorSource = oneOf(v.colorSource, COLOR_SOURCES_ALL, "original");
+  if (Array.isArray(v.colorSlots)) {
+    const ids = [...new Set(v.colorSlots.filter((x): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 4))].slice(0, 5);
+    if (ids.length) out.colorSlots = ids;
+  }
+  if ("drive" in v) out.drive = oneOf(v.drive, DRIVES, "auto");
+  if (isObj(v.laser)) {
+    const L = LASER_LIMITS, z = v.laser;
+    out.laser = { x: num(z.x, 0, L.x[0], L.x[1]), y: num(z.y, 0.3, L.y[0], L.y[1]), size: num(z.size, 1, L.size[0], L.size[1]), thick: num(z.thick, 1, L.thick[0], L.thick[1]) };
+  }
   if ("speed" in v) out.speed = num(v.speed, 1, -4, 4);
   if ("strobe" in v) out.strobe = num(v.strobe, 0, 0, 8);
   const fx = effects(v.effects); if (fx) out.effects = fx;

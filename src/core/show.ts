@@ -3,8 +3,30 @@ import { STARTER_CLIP_IDS } from "./effects";
 import { defaultVideo, type CueRender, type PlayStart, type VideoSettings } from "./video";
 export type BlendMode = "normal" | "add" | "screen" | "multiply";
 export const BLEND_MODES: readonly BlendMode[] = ["normal", "add", "screen", "multiply"];
-export type ColorSource = "original" | "A" | "B" | "C" | "D" | "E" | "gradient" | "rainbow";
+export type ColorSource = "original" | "A" | "B" | "C" | "D" | "E" | "gradient" | "rainbow" | "multi";
+/** Farbquellen in fester Reihenfolge für Pult-Kanal, MIDI und OSC (ohne „mehrere Slots“, damit die Stufen gleich bleiben). */
 export const COLOR_SOURCES: readonly ColorSource[] = ["original", "A", "B", "C", "D", "E", "gradient", "rainbow"];
+/** Alle Farbquellen, auch „mehrere Slots“ (Auswahl in layer.colorSlots). */
+export const COLOR_SOURCES_ALL: readonly ColorSource[] = [...COLOR_SOURCES, "multi"];
+
+/**
+ * Antrieb einer Ebene: woher Pulsieren und Reaktion kommen.
+ * auto = Audio-Eingang, wenn er auf diese Ebene wirkt, sonst Takt · bpm = nur Takt · audio = nur Audio · static = ruhig.
+ */
+export type Drive = "auto" | "bpm" | "audio" | "static";
+export const DRIVES: readonly Drive[] = ["auto", "bpm", "audio", "static"];
+
+/** Lage und Stärke der Laser-Visuals (Beamer als Showlaser). */
+export interface LaserSettings {
+  /** Verschiebung -1 bis 1 (Bildrand); positiv = rechts bzw. oben. */
+  x: number; y: number;
+  /** Größe bzw. Breite, 1 = normal. */
+  size: number;
+  /** Linien- und Punktstärke, 1 = normal (ca. 4 px Linie, 10 px Punkt bei 1080 Zeilen). */
+  thick: number;
+}
+export const defaultLaser = (): LaserSettings => ({ x: 0, y: 0.3, size: 1, thick: 1 });
+export const LASER_LIMITS = { x: [-1, 1], y: [-1, 1], size: [0.2, 2.5], thick: [0.5, 4] } as const;
 export type Rgb = readonly [number, number, number]; // 0–1
 
 /** Ebenen beim Start. Weitere lassen sich bis MAX_LAYERS hinzufügen. */
@@ -21,6 +43,12 @@ export interface LayerState {
   opacity: number;
   blend: BlendMode;
   colorSource: ColorSource;
+  /** Bei Farbquelle „multi“: die gewählten Slots (0 = A … 4 = E) in dieser Reihenfolge. */
+  colorSlots: number[];
+  /** Woher Pulsieren und Reaktion kommen (Takt, Audio, ruhig). */
+  drive: Drive;
+  /** Laser-Visuals: Lage, Größe, Stärke. */
+  laser: LaserSettings;
   /** Faktor, 0 = Stopp, negativ = rückwärts. */
   speed: number;
   /** Effekt-Stapel, wirkt von oben nach unten. Die ersten drei liegen auf Pult/MIDI „Effekt 1–3“. */
@@ -161,7 +189,8 @@ export const defaultEffects = (): EffectSlot[] => [
 ];
 
 export const defaultLayer = (): LayerState => ({
-  clip: null, clips: defaultClips(), opacity: 1, blend: "normal", colorSource: "original", speed: 1, effects: defaultEffects(), strobe: 0,
+  clip: null, clips: defaultClips(), opacity: 1, blend: "normal", colorSource: "original", colorSlots: [0, 1], drive: "auto", laser: defaultLaser(),
+  speed: 1, effects: defaultEffects(), strobe: 0,
   media: defaultMedia(),
   video: defaultVideo(),
   videoStart: { clip: null, ms: 0, beat: 0 },
@@ -169,7 +198,25 @@ export const defaultLayer = (): LayerState => ({
 
 /** Tiefe Kopie der Ebenen (Szenen und Überblendungen dürfen nichts teilen). */
 export const cloneLayer = (l: LayerState): LayerState =>
-  ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media }, video: { ...l.video }, videoStart: { ...l.videoStart } });
+  ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media }, video: { ...l.video }, videoStart: { ...l.videoStart },
+    colorSlots: [...(l.colorSlots ?? [0, 1])], laser: { ...(l.laser ?? defaultLaser()) } });
+
+/** Palette einer Ebene: die gewählten Slots (bei „multi“), sonst leer. */
+export function layerPalette(l: Pick<LayerState, "colorSource" | "colorSlots">, slots: readonly Rgb[]): Rgb[] {
+  if (l.colorSource !== "multi") return [];
+  const ids = [...new Set((l.colorSlots ?? []).filter(i => Number.isInteger(i) && i >= 0 && i < slots.length))];
+  return (ids.length ? ids : [0, 1]).map(i => slots[i]!);
+}
+
+/** Slot in der Farbauswahl antippen: Original/Verlauf/Regenbogen → nur dieser Slot; sonst Slot hinzu oder weg. */
+export function toggleColorSlot(l: Pick<LayerState, "colorSource" | "colorSlots">, slot: number): void {
+  const single = SLOT_NAMES.indexOf(l.colorSource as typeof SLOT_NAMES[number]);
+  let set = l.colorSource === "multi" ? [...l.colorSlots] : single >= 0 ? [single] : [];
+  set = set.includes(slot) ? set.filter(s => s !== slot) : [...set, slot];
+  if (set.length === 0) { l.colorSource = "original"; return; }
+  if (set.length === 1) { l.colorSource = SLOT_NAMES[set[0]!]!; l.colorSlots = set; return; }
+  l.colorSource = "multi"; l.colorSlots = set;
+}
 
 /** Standard-Zeile: alle fertigen Generatoren. */
 export const defaultClips = (): string[] => [...STARTER_CLIP_IDS];

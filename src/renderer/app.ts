@@ -6,7 +6,7 @@ import { DmxDecoder, DMX_MODE_STANDARD_CHANNELS, CH, channelListCsv } from "../c
 import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, tickVideoStarts, type ControlContext } from "../core/control";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
 import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
-import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, addClip, addLayer, defaultScenes, removeClip, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
+import { BLEND_MODES, COLOR_SOURCES_ALL, MAX_LAYERS, addClip, addLayer, defaultScenes, removeClip, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
 import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
 import { MapMode } from "./mapmode";
 import { LibraryPanel } from "./librarypanel";
@@ -35,6 +35,7 @@ import { mediaClip } from "../core/media";
 import { applyProject, parseProject, serializeProject } from "../core/project";
 import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
+import { LayerPanel } from "./layerpanel";
 import { LayerClock, TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -242,8 +243,13 @@ function rebuildGrid(): void {
     op.addEventListener("input", () => { ctx.show.layers[l]!.opacity = Number(op.value) / 100; });
     opSliders[l] = op;
     const color = el("select"); color.ariaLabel = `Farbe Ebene ${l + 1}`;
-    for (const c of COLOR_SOURCES) color.append(new Option(c === "original" ? "Original" : c === "gradient" ? "Verlauf" : c === "rainbow" ? "Regenbogen" : `Slot ${c}`, c));
-    color.addEventListener("change", () => { ctx.show.layers[l]!.colorSource = color.value as ColorSource; });
+    for (const c of COLOR_SOURCES_ALL) color.append(new Option(c === "original" ? "Original" : c === "gradient" ? "Verlauf" : c === "rainbow" ? "Regenbogen" : c === "multi" ? "Mehrere Slots" : `Slot ${c}`, c));
+    color.addEventListener("change", () => {
+      const layer = ctx.show.layers[l]!;
+      layer.colorSource = color.value as ColorSource;
+      if (layer.colorSource === "multi" && (layer.colorSlots?.length ?? 0) < 2) layer.colorSlots = [0, 1, 2];
+      fxPanel.select(l);
+    });
     color.dataset.ctl = `layer.${l + 1}.color`;
     const blend = el("select"); blend.ariaLabel = `Mischmodus Ebene ${l + 1}`;
     for (const b of BLEND_MODES) blend.append(new Option(({ normal: "Normal", add: "Addieren", screen: "Bildschirm", multiply: "Multiplizieren" } as Record<BlendMode, string>)[b], b));
@@ -868,6 +874,7 @@ function updateUi(now: number, beat: number): void {
   updateDeck();
   for (const msg of leds.compute(mappings, ctx, beat)) midi.send(msg.device, msg.bytes);
   fxPanel.update();
+  layerPanel.update();
   mediaPanel.update();
   videoPanel.update(ctx.tempo.bpm);
   scenePanel.update();
@@ -877,6 +884,7 @@ function updateUi(now: number, beat: number): void {
 }
 
 const fxPanel = new FxPanel(ctx, $("fx-title"), $("fx-list"), $<HTMLSelectElement>("fx-add"));
+const layerPanel = new LayerPanel(ctx, $("layer-panel"), () => fxPanel.layer);
 const mediaPanel = new MediaPanel(ctx, library, $("media-panel"), () => fxPanel.layer, () => rebuildGrid());
 const videoPanel = new VideoPanel(ctx, videoLib, $("video-panel"), () => fxPanel.layer, () => rebuildGrid());
 const showTab = new ShowTab({
