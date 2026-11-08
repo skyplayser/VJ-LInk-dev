@@ -29,10 +29,17 @@
     <button class="bpm" id="bpm" data-ctl="tempo.bpm" title="Anklicken, Zahl eingeben, Enter">120.00</button>
     <input class="bpm bpm-input" id="bpm-input" type="number" min="20" max="300" step="0.01" hidden aria-label="BPM eingeben">
     <span class="beats" id="beats"><i></i><i></i><i></i><i></i></span>
-    <select class="pill tempo-lock" id="tempo-lock" aria-label="Tempo-Quelle">
-      <option value="auto">AUTO</option><option value="ljlink">LJ-LINK</option><option value="link">ABLETON LINK</option>
-      <option value="osc">OSC</option><option value="manual">MANUELL / TAP</option>
-    </select>
+    <div class="map-wrap">
+      <button class="pill tempo-lock" id="tempo-lock" aria-haspopup="menu" aria-expanded="false" title="Tempo-Quelle wählen">AUTO</button>
+      <div class="map-menu" id="tempo-menu" role="menu" hidden>
+        <button role="menuitemradio" data-lock="auto">Automatisch <kbd>beste Quelle</kbd></button>
+        <button role="menuitemradio" data-lock="ljlink">LJ-Link</button>
+        <button role="menuitemradio" data-lock="link">Ableton Link</button>
+        <button role="menuitemradio" data-lock="midi">MIDI-Clock</button>
+        <button role="menuitemradio" data-lock="osc">OSC</button>
+        <button role="menuitemradio" data-lock="manual">Manuell / Tap</button>
+      </div>
+    </div>
     <button class="btn" id="tap" data-ctl="tempo.tap">TAP</button>
   </div>
   <div class="status">

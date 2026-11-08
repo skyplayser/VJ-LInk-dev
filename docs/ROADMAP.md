@@ -6,17 +6,17 @@ Dafür gibt es eine zentrale Liste aller Bedienelemente, die **Control-Registry*
 
 Aufwand: S = ein Abend, M = zwei bis drei Abende, L = eine Woche oder mehr.
 
-## Phase 1: Bedienbarkeit (jetzt)
+## Phase 1: Bedienbarkeit (fertig, Hardware-Test steht aus)
 
 | # | Schritt | Inhalt | Aufwand | Stand |
 |---|---|---|---|---|
-| 1.1 | Control-Registry | Eine Liste aller Regler und Tasten mit ID, Name, Typ (Fader, Schalter, Taste, Halten) | S | heute |
-| 1.2 | Strobe richtig | Geschwindigkeit, Intensität, Takt-Sync oder freie Hz, Ein/Aus, Flash zum Halten, auch per Pult und OSC | S | heute |
-| 1.3 | Fader-Leiste | Immer sichtbare Leiste: Master, Strobe, Ebenen, Effekt, Szenen, Blackout, Tap | S | heute |
-| 1.4 | App-Icon | Logo im Dock, in der Taskleiste und im Fenster | S | heute |
-| 1.5 | **MIDI-Controller** | Geräte erkennen, Hot-Plug, Mapping-Modus wie Daslight für Tastatur, MIDI, DMX und OSC, Zuordnung speichern. Offen: Rückmeldung an LEDs | M | erledigt bis auf LEDs |
-| 1.6 | Controller-Vorlagen | Fertige Belegungen für gängige Geräte (z. B. APC40, Launchpad, nanoKONTROL), Fader, Tasten, Drehregler, Pads | M | nach 1.5 |
-| 1.7 | MIDI-Clock | Tempo und Start von MIDI-Clock als Takt-Quelle | S | nach 1.5 |
+| 1.1 | Control-Registry | Eine Liste aller Regler und Tasten mit ID, Name, Typ (Fader, Schalter, Taste, Halten) | S | erledigt |
+| 1.2 | Strobe richtig | Geschwindigkeit, Intensität, Takt-Sync oder freie Hz, Ein/Aus, Flash zum Halten, auch per Pult und OSC | S | erledigt |
+| 1.3 | Fader-Leiste | Immer sichtbare Leiste: Master, Strobe, Ebenen, Effekt, Szenen, Blackout, Tap | S | erledigt |
+| 1.4 | App-Icon | Logo im Dock, in der Taskleiste und im Fenster | S | erledigt |
+| 1.5 | **MIDI-Controller** | Geräte erkennen, Hot-Plug, Mapping-Modus wie Daslight für Tastatur, MIDI, DMX und OSC, Zuordnung speichern, LED-Rückmeldung | M | erledigt (ungetestet an Hardware) |
+| 1.6 | Controller-Vorlagen | APC mini mk2, APC mini, nanoKONTROL2; Zuweisungen exportieren und importieren. Launchpad/APC40 folgen (brauchen SysEx bzw. Gerät zum Testen) | M | erledigt (ungetestet an Hardware) |
+| 1.7 | MIDI-Clock | Tempo und Start von MIDI-Clock als Takt-Quelle | S | erledigt |
 
 Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung nach einem Neustart noch da ist.
 

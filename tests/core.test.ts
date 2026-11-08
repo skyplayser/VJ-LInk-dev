@@ -559,3 +559,75 @@ describe("Tempo-Quelle festlegen und von Hand setzen", () => {
     expect(t.source).toBe("link");
   });
 });
+
+import { LedFeedback, MidiClock } from "../src/core/mapping";
+import { TEMPLATES, buildTemplate, templateFor, exportMappings } from "../src/core/templates";
+import { hueOf, hueRgb } from "../src/core/controls";
+
+describe("Phase 1: LEDs, Vorlagen, MIDI-Clock", () => {
+  it("LED-Rückmeldung: nur Änderungen, nur mit Gerät, Tap blinkt", () => {
+    const c = ctx(); const t = new MappingTable(); const leds = new LedFeedback();
+    t.add("strobe.on", { p: "midi", type: "note", ch: 1, num: 10 }, undefined, { device: "APC" });
+    t.add("scene.2", { p: "midi", type: "note", ch: 1, num: 11 }); // ohne Gerät: keine LED
+    t.add("master", { p: "midi", type: "cc", ch: 1, num: 7 }, undefined, { device: "APC" }); // Regler: keine LED
+    t.add("tempo.tap", { p: "midi", type: "note", ch: 2, num: 12 }, undefined, { device: "APC", led: { on: 5, off: 0 } });
+    let out = leds.compute(t, c, 0.1);
+    expect(out).toEqual([
+      { device: "APC", bytes: [0x90, 10, 0] },
+      { device: "APC", bytes: [0x91, 12, 5] },
+    ]);
+    expect(leds.compute(t, c, 0.15)).toEqual([]);
+    c.show.strobe.on = true;
+    out = leds.compute(t, c, 0.6);
+    expect(out).toContainEqual({ device: "APC", bytes: [0x90, 10, 127] });
+    expect(out).toContainEqual({ device: "APC", bytes: [0x91, 12, 0] });
+  });
+  it("CC-Taste wechselt Schalter bei jedem Druck", () => {
+    const c = ctx(); const t = new MappingTable();
+    const i = { p: "midi" as const, type: "cc" as const, ch: 1, num: 46 };
+    t.add("strobe.on", i, undefined, { button: true });
+    t.dispatch(c, i, 1); t.dispatch(c, i, 0);
+    expect(c.show.strobe.on).toBe(true);
+    t.dispatch(c, i, 1); t.dispatch(c, i, 0);
+    expect(c.show.strobe.on).toBe(false);
+  });
+  it("MIDI-Clock misst das Tempo und zählt Beats ab Start", () => {
+    const k = new MidiClock();
+    k.feed(0xfa, 0);
+    const tick = 60000 / 128 / 24;
+    let r = null;
+    for (let i = 1; i <= 48; i++) r = k.feed(0xf8, i * tick) ?? r;
+    expect(r!.bpm).toBeCloseTo(128, 1);
+    expect(r!.beat).toBeCloseTo(2);
+    expect(k.feed(0xfc, 9999)).toBeNull();
+    expect(k.running).toBe(false);
+  });
+  it("Vorlagen: alle Ziele existieren, Eingänge eindeutig, Geräte erkannt", () => {
+    for (const tp of TEMPLATES) {
+      const list = buildTemplate(tp, "Gerät");
+      expect(list.length).toBeGreaterThan(20);
+      for (const m of list) expect(resolveControl(m.target), `${tp.id}: ${m.target}`).toBeDefined();
+      const t = new MappingTable();
+      for (const m of list) t.add(m.target, m.input, undefined, m);
+      expect(t.list.length).toBe(list.length); // keine doppelten Eingänge
+    }
+    expect(templateFor("APC mini mk2 Control")!.id).toBe("apc-mini-mk2");
+    expect(templateFor("APC MINI")!.id).toBe("apc-mini");
+    expect(templateFor("nanoKONTROL2 SLIDER/KNOB")!.id).toBe("nanokontrol2");
+    expect(templateFor("Launchpad X")).toBeUndefined();
+  });
+  it("Export und Import behalten Gerät, LED und Taste", () => {
+    const t = new MappingTable();
+    t.add("scene.1", { p: "midi", type: "cc", ch: 1, num: 32 }, "x1", { device: "nano", led: { on: 127, off: 0 }, button: true });
+    const back = parseMappings((JSON.parse(exportMappings(t.list)) as { mappings: unknown }).mappings)!;
+    expect(back[0]).toEqual({ id: "x1", target: "scene.1", input: { p: "midi", type: "cc", ch: 1, num: 32 }, device: "nano", led: { on: 127, off: 0 }, button: true });
+  });
+  it("neue Ziele: Farbe, Mischmodus, Clip aus, Farbton", () => {
+    const c = ctx();
+    setControl(c, "layer.1.color", 1); expect(c.show.layers[0]!.colorSource).toBe("rainbow");
+    setControl(c, "layer.2.blend", 0.3); expect(c.show.layers[1]!.blend).toBe("add");
+    c.show.layers[0]!.clip = "tunnel"; setControl(c, "layer.1.clear", 1); expect(c.show.layers[0]!.clip).toBeNull();
+    setControl(c, "slot.A.hue", 1 / 3); expect(c.show.slots[0]![1]).toBeCloseTo(1); expect(c.show.slots[0]![0]).toBeCloseTo(0);
+    for (const h of [0, 0.1, 0.5, 0.8]) expect(hueOf(hueRgb(h))).toBeCloseTo(h);
+  });
+});

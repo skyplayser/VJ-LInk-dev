@@ -7,7 +7,7 @@ import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, type Contro
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
 import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
 import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, addLayer, defaultScenes, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
-import { MappingTable, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
+import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
 import { MapMode } from "./mapmode";
 import { MidiIn } from "./midi";
 import type { TempoSource } from "../core/tempo";
@@ -56,18 +56,28 @@ let displays: DisplayInfo[] = [];
 const mappings = new MappingTable(defaultKeyMappings());
 let linkState = { connected: false, peers: 0 };
 const dmxPrev = new Map<number, Uint8Array>();
-const midi = new MidiIn((data) => {
+const leds = new LedFeedback();
+const clock = new MidiClock();
+let clockTicks = 0;
+const midi = new MidiIn((data, device, tMs) => {
+  if (data[0]! >= 0xf8) {
+    // MIDI-Clock: alle 6 Takte (Sechzehntel) das Tempo nachführen
+    const r = clock.feed(data[0]!, tMs);
+    if (r && ++clockTicks % 6 === 0) ctx.tempo.update("midi", r.bpm, tMs, r.beat);
+    return;
+  }
   const m = parseMidi(data);
   if (!m) return;
-  if (mapMode.input(m.input)) return;
+  if (mapMode.input(m.input, { device, value: m.value })) return;
   mappings.dispatch(ctx, m.input, m.value);
-}, () => mapMode.render());
+}, () => { leds.reset(); mapMode.render(); });
 const mapMode = new MapMode(ctx, mappings, {
   midiDevices: () => midi.devices,
   midiError: () => midi.error,
   dmx: () => `Art-Net Universe ${settings.universe} · sACN Universe ${settings.sacn}. Kanal am Pult deutlich bewegen. Zusätzlich zum festen Pult-Profil (Adresse ${settings.address}–${settings.address + DMX_MODE_STANDARD_CHANNELS - 1}).`,
   osc: () => "Port 8000. Werte 0–1, 0–127 oder 0–255. Für BPM die Zahl direkt senden (z. B. 128). Adressen /vjlink/… sind fest belegt.",
-}, () => { /* gespeichert wird automatisch */ });
+  toast: msg => toast(msg),
+}, () => { leds.reset(); });
 void midi.start();
 
 /** DMX-Zuweisungen: nur geänderte Kanäle wirken (wie beim Pult-Profil). */
@@ -175,9 +185,11 @@ function rebuildGrid(): void {
     const color = el("select"); color.ariaLabel = `Farbe Ebene ${l + 1}`;
     for (const c of COLOR_SOURCES) color.append(new Option(c === "original" ? "Original" : c === "gradient" ? "Verlauf" : c === "rainbow" ? "Regenbogen" : `Slot ${c}`, c));
     color.addEventListener("change", () => { ctx.show.layers[l]!.colorSource = color.value as ColorSource; });
+    color.dataset.ctl = `layer.${l + 1}.color`;
     const blend = el("select"); blend.ariaLabel = `Mischmodus Ebene ${l + 1}`;
     for (const b of BLEND_MODES) blend.append(new Option(({ normal: "Normal", add: "Addieren", screen: "Bildschirm", multiply: "Multiplizieren" } as Record<BlendMode, string>)[b], b));
     blend.addEventListener("change", () => { ctx.show.layers[l]!.blend = blend.value as BlendMode; });
+    blend.dataset.ctl = `layer.${l + 1}.blend`;
     name.append(op, color, blend);
     row.append(name);
     clipCells[l] = [];
@@ -286,8 +298,20 @@ bpmIn.addEventListener("keydown", e => {
   } else toast("BPM zwischen 20 und 300 eingeben.");
 });
 bpmIn.addEventListener("blur", closeBpm);
-const lockSel = $<HTMLSelectElement>("tempo-lock");
-lockSel.addEventListener("change", () => { ctx.tempo.lock = lockSel.value === "auto" ? null : lockSel.value as TempoSource; });
+// Tempo-Quelle: eigenes Menü statt nativem Auswahlfeld (das native Menü hing, weil die Anzeige ständig aktualisiert wird)
+const lockBtn = $<HTMLButtonElement>("tempo-lock"), tempoMenu = $("tempo-menu");
+const closeTempoMenu = () => { tempoMenu.hidden = true; lockBtn.setAttribute("aria-expanded", "false"); };
+lockBtn.addEventListener("click", () => {
+  if (mapMode.active) return;
+  tempoMenu.hidden = !tempoMenu.hidden; lockBtn.setAttribute("aria-expanded", String(!tempoMenu.hidden));
+  tempoMenu.querySelectorAll<HTMLElement>("[data-lock]").forEach(b => b.setAttribute("aria-checked", String((ctx.tempo.lock ?? "auto") === b.dataset.lock)));
+});
+tempoMenu.querySelectorAll<HTMLButtonElement>("[data-lock]").forEach(b => b.addEventListener("click", () => {
+  ctx.tempo.lock = b.dataset.lock === "auto" ? null : b.dataset.lock as TempoSource;
+  closeTempoMenu();
+}));
+document.addEventListener("pointerdown", e => { if (!tempoMenu.hidden && !(e.target as HTMLElement).closest(".map-wrap")) closeTempoMenu(); });
+window.addEventListener("keydown", e => { if (e.key === "Escape") closeTempoMenu(); });
 
 // Ebenen hinzufügen
 $("layer-add").addEventListener("click", () => {
@@ -308,6 +332,7 @@ function buildSidebar(): void {
       const v = inp.value; ctx.show.slots[i] = [parseInt(v.slice(1, 3), 16) / 255, parseInt(v.slice(3, 5), 16) / 255, parseInt(v.slice(5, 7), 16) / 255];
     });
     slotInputs[i] = inp;
+    inp.dataset.ctl = `slot.${n}.hue`;
     row.append(sw, el("b", "", `Slot ${n}`), inp); slots.append(row);
   });
   (window as unknown as { refreshSlots: () => void }).refreshSlots = () => {
@@ -488,7 +513,7 @@ let engine: Engine | null = null;
 try { engine = new Engine(preview); } catch (e) {
   $("mon-info").textContent = (e as Error).message;
 }
-const SOURCE_LABEL: Record<string, string> = { ljlink: "LJ-LINK", link: "ABLETON LINK", osc: "OSC", midi: "MIDI", audio: "AUDIO", tap: "TAP", manual: "MANUELL" };
+const SOURCE_LABEL: Record<string, string> = { ljlink: "LJ-LINK", link: "ABLETON LINK", osc: "OSC", midi: "MIDI-CLOCK", audio: "AUDIO", tap: "TAP", manual: "MANUELL" };
 let lastUi = 0, lastPublish = 0;
 function setPill(id: string, state: "ok" | "off" | "warn", text?: string): void {
   const p = $(id); p.classList.toggle("ok", state === "ok"); p.classList.toggle("warn", state === "warn");
@@ -519,9 +544,9 @@ function updateUi(now: number, beat: number): void {
   const bi = Math.floor(beat) % 4;
   $("beats").querySelectorAll("i").forEach((b, i) => b.classList.toggle("on", i === ((bi % 4) + 4) % 4));
   const src = ctx.tempo.source;
-  lockSel.classList.toggle("ok", src !== "manual");
-  lockSel.options[0]!.text = `AUTO · ${SOURCE_LABEL[src] ?? src}`;
-  if (document.activeElement !== lockSel) lockSel.value = ctx.tempo.lock ?? "auto";
+  lockBtn.classList.toggle("ok", src !== "manual");
+  const lockText = ctx.tempo.lock ? `FEST · ${SOURCE_LABEL[ctx.tempo.lock] ?? ctx.tempo.lock}` : `AUTO · ${SOURCE_LABEL[src] ?? src}`;
+  if (lockBtn.textContent !== lockText) lockBtn.textContent = lockText;
   setPill("st-link", linkState.connected ? "ok" : "off", linkState.connected ? `LINK · ${linkState.peers}` : "LINK");
   $("st-link").title = linkState.connected ? "Ableton Link über Carabiner verbunden" : "Ableton Link: Carabiner starten (Port 17000)";
   setPill("st-midi", midi.devices.length ? "ok" : "off", midi.devices.length ? `MIDI · ${midi.devices.length}` : "MIDI");
@@ -556,6 +581,7 @@ function updateUi(now: number, beat: number): void {
   });
   (window as unknown as { refreshSlots: () => void }).refreshSlots();
   updateDeck();
+  for (const msg of leds.compute(mappings, ctx, beat)) midi.send(msg.device, msg.bytes);
   fxPanel.update();
   mediaPanel.update();
   scenePanel.update();
@@ -610,10 +636,11 @@ async function loadProject(): Promise<void> {
     scenePanel.update(true);
   }
 }
-void loadProject();
 void (async () => { if (bridge) displays = await bridge.listDisplays(); renderOutputStrip(); fitPreview(); })();
 let updateDeck = buildDeck(ctx, $("deck"));
 function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck")); }
+// Erst laden, wenn alle Teile der Oberfläche stehen (im Browser läuft das Laden ohne Wartezeit durch).
+void loadProject();
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.
 for (const g of READY_GENERATORS) if (!GEN_IDS.includes(g.id as typeof GEN_IDS[number]) || !EFFECT_BY_ID.has(g.id)) console.error("Generator fehlt in der Engine:", g.id);
 requestAnimationFrame(frame);

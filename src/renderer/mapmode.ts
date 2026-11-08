@@ -3,14 +3,18 @@
 import type { ControlContext } from "../core/control";
 import { resolveControl } from "../core/controls";
 import {
-  DmxLearner, PROTOCOL_LABEL, describeInput, type MapInput, type MapProtocol, type MappingTable,
+  DmxLearner, PROTOCOL_LABEL, describeInput, parseMappings, type MapExtra, type MapInput, type MapProtocol, type MappingTable,
 } from "../core/mapping";
+import { TEMPLATES, buildTemplate, exportMappings, templateFor } from "../core/templates";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
 }
 
-export interface MapInfo { midiDevices: () => string[]; midiError: () => string; dmx: () => string; osc: () => string }
+export interface MapInfo {
+  midiDevices: () => string[]; midiError: () => string; dmx: () => string; osc: () => string;
+  toast: (msg: string) => void;
+}
 
 export class MapMode {
   protocol: MapProtocol | null = null;
@@ -19,6 +23,9 @@ export class MapMode {
   private learner = new DmxLearner();
   private lastAssigned = "";
   private confirmClear = false;
+  private confirmTemplate = false;
+  private tplId = "";
+  private tplDevice = "";
   private timer = 0;
 
   constructor(private ctx: ControlContext, private table: MappingTable, private info: MapInfo, private onChanged: () => void) {
@@ -67,7 +74,7 @@ export class MapMode {
    * Eingang im Mapping-Modus. Gibt true zurück, wenn er verbraucht wurde (dann nicht weitergeben).
    * Für DMX kommt hier das ganze Universe an; gelernt wird der Kanal, der sich bewegt.
    */
-  input(input: MapInput | { p: "dmx-frame"; universe: number; data: Uint8Array }): boolean {
+  input(input: MapInput | { p: "dmx-frame"; universe: number; data: Uint8Array }, extra: MapExtra & { value?: number } = {}): boolean {
     if (!this.protocol) return false;
     const p = input.p === "dmx-frame" ? "dmx" : input.p;
     if (p !== this.protocol) return true; // andere Eingänge im Mapping-Modus ruhen lassen
@@ -78,7 +85,9 @@ export class MapMode {
       if (hit) inp = { p: "dmx", universe: hit.universe, channel: hit.channel };
     } else inp = input;
     if (!inp) return true;
-    this.table.add(this.target, inp);
+    // CC mit Wert 0 oder 127 beim Lernen ist fast immer eine Taste
+    const button = inp.p === "midi" && inp.type === "cc" && (extra.value === 0 || extra.value === 1);
+    this.table.add(this.target, inp, undefined, { device: extra.device, button });
     this.lastAssigned = `${label(this.target)} ← ${describeInput(inp)}`;
     this.target = null;
     this.onChanged();
@@ -155,7 +164,32 @@ export class MapMode {
     }
     box.append(tbl);
 
+    if (p === "midi") box.append(this.templateBox());
+
     const foot = el("div", "map-foot");
+    const exp = el("button", "btn small-btn", "Exportieren");
+    exp.title = "Alle Zuweisungen (Tastatur, MIDI, DMX, OSC) als Datei speichern";
+    exp.addEventListener("click", () => {
+      const url = URL.createObjectURL(new Blob([exportMappings(this.table.list)], { type: "application/json" }));
+      const a = el("a"); a.href = url; a.download = "vj-link-zuweisungen.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    const imp = el("button", "btn small-btn", "Importieren");
+    imp.title = "Zuweisungen aus Datei laden (ersetzt die Arten, die in der Datei vorkommen)";
+    const file = el("input"); file.type = "file"; file.accept = "application/json,.json"; file.hidden = true;
+    imp.addEventListener("click", () => file.click());
+    file.addEventListener("change", async () => {
+      const f = file.files?.[0]; if (!f) return;
+      try {
+        const data = JSON.parse(await f.text()) as { kind?: unknown; mappings?: unknown };
+        const list = data.kind === "mappings" ? parseMappings(data.mappings) : null;
+        if (!list) { this.info.toast("Diese Datei enthält keine VJ-Link-Zuweisungen."); return; }
+        const kinds = new Set(list.map(m => m.input.p));
+        this.table.replace([...this.table.list.filter(m => !kinds.has(m.input.p)), ...list]);
+        this.onChanged(); this.render(); this.mark();
+        this.info.toast(`${list.length} Zuweisungen geladen.`);
+      } catch { this.info.toast("Datei lässt sich nicht lesen."); }
+    });
+    foot.append(exp, imp, file);
     const clr = el("button", "btn small-btn danger", this.confirmClear ? "Wirklich alle löschen?" : `Alle ${PROTOCOL_LABEL[p]}-Zuweisungen löschen`);
     clr.disabled = !list.length;
     clr.addEventListener("click", () => {
@@ -164,6 +198,41 @@ export class MapMode {
     });
     foot.append(clr);
     box.append(foot);
+  }
+
+  /** Vorlage für einen Controller laden (ersetzt die MIDI-Zuweisungen). */
+  private templateBox(): HTMLElement {
+    const box = el("div", "tpl-box");
+    box.append(el("b", "", "Controller-Vorlage"));
+    const devs = this.info.midiDevices();
+    if (!this.tplDevice || !devs.includes(this.tplDevice)) this.tplDevice = devs[0] ?? "";
+    const auto = this.tplDevice ? templateFor(this.tplDevice) : undefined;
+    if (!this.tplId || !TEMPLATES.some(t => t.id === this.tplId)) this.tplId = auto?.id ?? TEMPLATES[0]!.id;
+    const tplSel = el("select"); tplSel.setAttribute("aria-label", "Vorlage");
+    for (const t of TEMPLATES) tplSel.append(new Option(t.name + (auto?.id === t.id ? " (erkannt)" : ""), t.id));
+    tplSel.value = this.tplId;
+    tplSel.addEventListener("change", () => { this.tplId = tplSel.value; this.confirmTemplate = false; this.render(); });
+    const devSel = el("select"); devSel.setAttribute("aria-label", "Gerät für die Vorlage");
+    if (!devs.length) devSel.append(new Option("Kein Gerät angeschlossen", ""));
+    for (const d of devs) devSel.append(new Option(d, d));
+    devSel.value = this.tplDevice;
+    devSel.addEventListener("change", () => { this.tplDevice = devSel.value; this.tplId = templateFor(devSel.value)?.id ?? this.tplId; this.render(); });
+    const t = TEMPLATES.find(x => x.id === this.tplId)!;
+    const hasMidi = this.table.ofProtocol("midi").length > 0;
+    const load = el("button", "btn small-btn", this.confirmTemplate ? "Ersetzt alle MIDI-Zuweisungen. Laden?" : "Vorlage laden");
+    load.disabled = !this.tplDevice;
+    load.addEventListener("click", () => {
+      if (hasMidi && !this.confirmTemplate) { this.confirmTemplate = true; this.render(); return; }
+      const keep = this.table.list.filter(m => m.input.p !== "midi");
+      this.table.replace(keep);
+      for (const e of buildTemplate(t, this.tplDevice)) this.table.add(e.target, e.input, undefined, e);
+      this.confirmTemplate = false;
+      this.onChanged(); this.render(); this.mark();
+      this.info.toast(`Vorlage „${t.name}“ geladen.`);
+    });
+    const row = el("div", "inline wrap"); row.append(tplSel, devSel, load);
+    box.append(row, el("p", "muted small", t.info), el("p", "muted small", "Noch nicht an echten Geräten geprüft. Einzelne Tasten lassen sich danach wie gewohnt umbelegen."));
+    return box;
   }
 }
 

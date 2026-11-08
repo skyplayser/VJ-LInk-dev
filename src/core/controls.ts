@@ -3,7 +3,7 @@
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
 import { STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, stepScene, type ControlContext } from "./control";
-import { MAX_LAYERS, clamp01 } from "./show";
+import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, SLOT_NAMES, clamp01, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
@@ -20,7 +20,7 @@ export type ControlKind = "fader" | "toggle" | "hold" | "trigger";
 export interface ControlDef {
   id: string;
   label: string;
-  group: "Master" | "Strobe" | "Ebenen" | "Effekt" | "Tempo" | "Szenen" | "Clips";
+  group: "Master" | "Strobe" | "Ebenen" | "Effekt" | "Tempo" | "Szenen" | "Clips" | "Farben";
   kind: ControlKind;
   /** Erscheint in der Leiste unten. Alles andere ist über MIDI und OSC erreichbar. */
   quick: boolean;
@@ -77,12 +77,29 @@ export function buildControls(): ControlDef[] {
   for (let i = 0; i < MAX_LAYERS; i++) {
     list.push({ id: `layer.${i + 1}.opacity`, label: `E${i + 1}`, group: "Ebenen", kind: "fader", quick: true,
       get: c => c.show.layers[i]?.opacity ?? 0, set: (c, v) => { const l = c.show.layers[i]; if (l) l.opacity = clamp01(v); } });
+    list.push(
+      { id: `layer.${i + 1}.color`, label: `E${i + 1} Farbe`, group: "Ebenen", kind: "fader", quick: false,
+        get: c => Math.max(0, COLOR_SOURCES.indexOf(c.show.layers[i]?.colorSource ?? "original")) / (COLOR_SOURCES.length - 1),
+        set: (c, v) => { const l = c.show.layers[i]; if (l) l.colorSource = COLOR_SOURCES[stepIndex(v, COLOR_SOURCES.length)]!; },
+        format: c => c.show.layers[i]?.colorSource ?? "–" },
+      { id: `layer.${i + 1}.blend`, label: `E${i + 1} Mischmodus`, group: "Ebenen", kind: "fader", quick: false,
+        get: c => Math.max(0, BLEND_MODES.indexOf(c.show.layers[i]?.blend ?? "normal")) / (BLEND_MODES.length - 1),
+        set: (c, v) => { const l = c.show.layers[i]; if (l) l.blend = BLEND_MODES[stepIndex(v, BLEND_MODES.length)]!; },
+        format: c => c.show.layers[i]?.blend ?? "–" },
+      { id: `layer.${i + 1}.clear`, label: `E${i + 1} Clip aus`, group: "Ebenen", kind: "trigger", quick: false,
+        get: c => (c.show.layers[i]?.clip ? 0 : 1), set: (c, v) => { const l = c.show.layers[i]; if (l && on(v)) l.clip = null; } },
+    );
     for (let k = 0; k < 3; k++) {
       list.push({ id: `layer.${i + 1}.fx.${k + 1}`, label: `E${i + 1} Fx${k + 1}`, group: "Ebenen", kind: "fader", quick: false,
         get: c => c.show.layers[i]?.effects[k]?.amount ?? 0,
         set: (c, v) => { const slot = c.show.layers[i]?.effects[k]; if (slot) slot.amount = clamp01(v); } });
     }
   }
+  // Farbslots per Drehregler: Farbton bei voller Sättigung
+  SLOT_NAMES.forEach((n, i) => {
+    list.push({ id: `slot.${n}.hue`, label: `Slot ${n} Farbton`, group: "Farben", kind: "fader", quick: false,
+      get: c => hueOf(c.show.slots[i] ?? [1, 1, 1]), set: (c, v) => { c.show.slots[i] = hueRgb(v); } });
+  });
   list.push(
     { id: "scene.next", label: "Weiter", group: "Szenen", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) stepScene(c, 1); } },
@@ -137,3 +154,17 @@ export function setControl(c: ControlContext, id: string, value: number): boolea
 
 /** MIDI-Wert 0–127 in 0–1 umrechnen. */
 export const fromMidi = (v: number): number => clamp01(v / 127);
+
+/** Farbton 0–1 → kräftige RGB-Farbe. */
+export function hueRgb(h: number): Rgb {
+  const f = (n: number) => { const k = (n + clamp01(h) * 6) % 6; return 1 - Math.max(0, Math.min(k, 4 - k, 1)); };
+  return [f(5), f(3), f(1)];
+}
+/** RGB → Farbton 0–1. */
+export function hueOf([r, g, b]: Rgb): number {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (d < 1e-6) return 0;
+  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h /= 6;
+  return h < 0 ? h + 1 : h;
+}

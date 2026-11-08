@@ -11,7 +11,21 @@ export type MapInput =
   | { p: "dmx"; universe: number; channel: number }
   | { p: "osc"; address: string };
 
-export interface Mapping { id: string; target: string; input: MapInput }
+/** LED-Rückmeldung: Wert für „an“ und „aus“ (Velocity bzw. CC-Wert), optional eigener MIDI-Kanal. */
+export interface LedSpec { on: number; off: number; ch?: number }
+
+export interface Mapping {
+  id: string;
+  target: string;
+  input: MapInput;
+  /** MIDI-Gerät (für die LED-Rückmeldung). */
+  device?: string;
+  led?: LedSpec;
+  /** CC-Taste statt Regler: Schalter wechseln bei jedem Druck. */
+  button?: boolean;
+}
+
+export interface MapExtra { device?: string; led?: LedSpec; button?: boolean }
 
 export const PROTOCOL_LABEL: Record<MapProtocol, string> = {
   key: "Tastatur", midi: "MIDI", dmx: "DMX / Art-Net", osc: "OSC",
@@ -39,8 +53,8 @@ export function describeInput(i: MapInput): string {
   }
 }
 
-/** Tasten, MIDI-Noten und OSC-Taster wechseln Schalter bei jedem Druck; Regler setzen ihn direkt. */
-const isButtonLike = (i: MapInput): boolean => i.p === "key" || (i.p === "midi" && i.type === "note");
+/** Tasten, MIDI-Noten und CC-Tasten wechseln Schalter bei jedem Druck; Regler setzen ihn direkt. */
+const isButtonLike = (m: Mapping): boolean => m.input.p === "key" || (m.input.p === "midi" && (m.input.type === "note" || !!m.button));
 
 export class MappingTable {
   list: Mapping[] = [];
@@ -52,15 +66,18 @@ export class MappingTable {
   replace(list: Mapping[]): void {
     this.list = [];
     this.byInput.clear();
-    for (const m of list) this.add(m.target, m.input, m.id);
+    for (const m of list) this.add(m.target, m.input, m.id, m);
   }
 
   /** Neue Zuweisung. Ein Eingang hat genau ein Ziel: eine alte Zuweisung desselben Eingangs fällt weg. */
-  add(target: string, input: MapInput, id = newId()): Mapping {
+  add(target: string, input: MapInput, id = newId(), extra: MapExtra = {}): Mapping {
     const key = inputKey(input);
     const old = this.byInput.get(key);
     if (old) this.list = this.list.filter(m => m !== old);
     const m: Mapping = { id, target, input };
+    if (extra.device) m.device = extra.device;
+    if (extra.led) m.led = { ...extra.led };
+    if (extra.button) m.button = true;
     this.list.push(m);
     this.byInput.set(key, m);
     return m;
@@ -101,7 +118,7 @@ export class MappingTable {
       case "trigger": if (rising) def.set(c, 1); break;
       case "hold": if (rising) def.set(c, 1); else if (falling) def.set(c, 0); break;
       case "toggle":
-        if (isButtonLike(m.input)) { if (rising) def.set(c, def.get(c) >= 0.5 ? 0 : 1); }
+        if (isButtonLike(m)) { if (rising) def.set(c, def.get(c) >= 0.5 ? 0 : 1); }
         else if (rising) def.set(c, 1); else if (falling) def.set(c, 0);
         break;
     }
@@ -174,7 +191,74 @@ export function parseMappings(v: unknown): Mapping[] | null {
     else if (input.p === "midi" && (input.type === "cc" || input.type === "note") && n(input.ch, 1, 16) && n(input.num, 0, 127)) inp = { p: "midi", type: input.type, ch: input.ch as number, num: input.num as number };
     else if (input.p === "dmx" && n(input.universe, 0, 63999) && n(input.channel, 1, 512)) inp = { p: "dmx", universe: input.universe as number, channel: input.channel as number };
     else if (input.p === "osc" && typeof input.address === "string" && /^\/[\x21-\x7e]{1,120}$/.test(input.address)) inp = { p: "osc", address: input.address };
-    if (inp) out.push({ id: id.slice(0, 20), target, input: inp });
+    if (!inp) continue;
+    const mm: Mapping = { id: id.slice(0, 20), target, input: inp };
+    const raw = m as { device?: unknown; led?: Record<string, unknown>; button?: unknown };
+    if (typeof raw.device === "string" && raw.device.length <= 80) mm.device = raw.device;
+    if (raw.led && n(raw.led.on, 0, 127) && n(raw.led.off, 0, 127)) {
+      mm.led = { on: raw.led.on as number, off: raw.led.off as number };
+      if (n(raw.led.ch, 1, 16)) mm.led.ch = raw.led.ch as number;
+    }
+    if (raw.button === true) mm.button = true;
+    out.push(mm);
   }
   return out;
+}
+
+// ---- LED-Rückmeldung -----------------------------------------------------------------
+
+export interface LedMsg { device: string; bytes: [number, number, number] }
+
+/**
+ * Schickt den Zustand von Tasten an den Controller zurück (Szene aktiv, Clip läuft, Strobe an …).
+ * Nur für Zuweisungen mit Gerät; gesendet wird nur, was sich geändert hat. Tap blinkt im Takt.
+ */
+export class LedFeedback {
+  private sent = new Map<string, number>();
+
+  reset(): void { this.sent.clear(); }
+
+  compute(table: MappingTable, c: ControlContext, beat: number): LedMsg[] {
+    const out: LedMsg[] = [];
+    for (const m of table.list) {
+      if (m.input.p !== "midi" || !m.device) continue;
+      if (m.input.type === "cc" && !m.led && !m.button) continue; // Regler haben keine LED
+      const def = resolveControl(m.target);
+      if (!def || def.kind === "fader") continue;
+      const on = m.target === "tempo.tap" ? beat - Math.floor(beat) < 0.25 : def.get(c) >= 0.5;
+      const led = m.led ?? { on: 127, off: 0 };
+      const vel = on ? led.on : led.off;
+      if (this.sent.get(m.id) === vel) continue;
+      this.sent.set(m.id, vel);
+      const ch = ((led.ch ?? m.input.ch) - 1) & 0x0f;
+      out.push({ device: m.device, bytes: [(m.input.type === "note" ? 0x90 : 0xb0) | ch, m.input.num, vel] });
+    }
+    return out;
+  }
+}
+
+// ---- MIDI-Clock ----------------------------------------------------------------------
+
+/** Tempo aus MIDI-Clock (24 Takte pro Viertel). Start setzt den Beat auf 0. */
+export class MidiClock {
+  private ticks: number[] = [];
+  private count = 0;
+  running = false;
+
+  feed(status: number, tMs: number): { bpm: number; beat: number } | null {
+    if (status === 0xfa) { this.count = 0; this.ticks = []; this.running = true; return null; }
+    if (status === 0xfb) { this.running = true; return null; }
+    if (status === 0xfc) { this.running = false; return null; }
+    if (status !== 0xf8) return null;
+    const last = this.ticks[this.ticks.length - 1];
+    if (last !== undefined && tMs - last > 500) this.ticks = []; // Pause: neu messen
+    this.ticks.push(tMs);
+    if (this.ticks.length > 49) this.ticks.shift(); // über 2 Beats mitteln
+    this.count++;
+    if (this.ticks.length < 13) return null;
+    const span = this.ticks[this.ticks.length - 1]! - this.ticks[0]!;
+    if (span <= 0) return null;
+    const bpm = 60000 / ((span / (this.ticks.length - 1)) * 24);
+    return { bpm: Math.round(bpm * 100) / 100, beat: this.count / 24 };
+  }
 }
