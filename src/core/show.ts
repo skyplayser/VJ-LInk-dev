@@ -1,5 +1,5 @@
 // Zustand der Show: wird vom Pult, von OSC, von LJ-Link und von der Oberfläche verändert.
-import { READY_GENERATORS } from "./effects";
+import { STARTER_CLIP_IDS } from "./effects";
 export type BlendMode = "normal" | "add" | "screen" | "multiply";
 export const BLEND_MODES: readonly BlendMode[] = ["normal", "add", "screen", "multiply"];
 export type ColorSource = "original" | "A" | "B" | "C" | "D" | "E" | "gradient" | "rainbow";
@@ -159,7 +159,7 @@ export const cloneLayer = (l: LayerState): LayerState =>
   ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media } });
 
 /** Standard-Zeile: alle fertigen Generatoren. */
-export const defaultClips = (): string[] => READY_GENERATORS.map(g => g.id);
+export const defaultClips = (): string[] => [...STARTER_CLIP_IDS];
 
 /** Clip in die Zeile einer Ebene aufnehmen (am Ende, ohne Doppelte). */
 export function addClip(l: LayerState, id: string): void { if (!l.clips.includes(id)) l.clips.push(id); }

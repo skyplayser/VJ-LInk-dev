@@ -36,7 +36,7 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 | 3.1 | Effekt-Stapel | Pro Ebene bis zu 6 Effekte, Reihenfolge, einzeln abschaltbar, Live-Vorschau im Clip-Raster | L | erledigt |
 | 3.2 | Erste Post-Effekte | Kaleidoskop, Spiegeln, RGB-Versatz, Feedback, Glitch, Röhre, Pixel, Leuchten, Beat-Zoom, Invertieren | L | erledigt |
 | 3.3 | Modulation | Regler per Ziehen an Beat-LFO, Audio-Bänder, MIDI, DMX, OSC hängen | M |
-| 3.4 | Restliche Generatoren | Die übrigen 27 Visuals der Liste, in Gruppen von je 4 bis 5 | L |
+| 3.4 | Restliche Generatoren | Alle Visuals der Liste bis auf „Silhouette“ (braucht Kamera) | L | erledigt |
 
 ## Phase 4: Ausgänge und Mapping
 

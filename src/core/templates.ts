@@ -1,7 +1,7 @@
 // Fertige Belegungen für gängige MIDI-Controller. Laden ersetzt die MIDI-Zuweisungen.
 // Hinweis: Die Notennummern stammen aus den Herstellerangaben; an echten Geräten noch nicht getestet.
 import type { LedSpec, MapInput, Mapping } from "./mapping";
-import { READY_GENERATORS } from "./effects";
+import { STARTER_CLIP_IDS } from "./effects";
 
 export interface TemplateEntry { target: string; input: MapInput; led?: LedSpec; button?: boolean }
 
@@ -16,7 +16,7 @@ export interface ControllerTemplate {
 
 const note = (num: number, ch = 1): MapInput => ({ p: "midi", type: "note", ch, num });
 const cc = (num: number, ch = 1): MapInput => ({ p: "midi", type: "cc", ch, num });
-const clipId = (col: number): string | undefined => READY_GENERATORS[col]?.id;
+const clipId = (col: number): string | undefined => STARTER_CLIP_IDS[col];
 
 /** Gemeinsames Grundmuster für 8 × 8 Raster: Zeile = Ebene, Spalte = Clip. */
 function gridClips(noteOf: (row: number, col: number) => number, led: LedSpec): TemplateEntry[] {

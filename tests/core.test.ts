@@ -718,3 +718,14 @@ describe("Clips pro Ebene", () => {
     expect(old.layers[0]!.clips).toContain("tunnel");
   });
 });
+
+import { STARTER_CLIP_IDS } from "../src/core/effects";
+import { GEN_IDS } from "../src/engine/shaders";
+describe("Bibliothek der Visuals", () => {
+  it("jeder fertige Generator existiert im Shader, Start-Clips stehen vorn", () => {
+    for (const g of READY_GENERATORS) expect(GEN_IDS as readonly string[]).toContain(g.id);
+    expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
+    expect(READY_GENERATORS.length).toBe(27);
+    expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual(["silhouette"]);
+  });
+});
