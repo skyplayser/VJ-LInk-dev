@@ -1,10 +1,10 @@
 // Katalog der Visuals. `status: "ready"` heißt: die Engine hat dafür einen Generator.
-export type EffectCategory = "audio" | "geometry" | "particles" | "retro" | "optical" | "tools";
+export type EffectCategory = "audio" | "geometry" | "particles" | "retro" | "optical" | "laser" | "tools";
 export type EffectKind = "generator" | "post" | "master";
 export type EffectStatus = "ready" | "planned";
 
 export interface EffectDef {
-  /** Nummer aus der Wunschliste (1–35). */
+  /** Nummer im Katalog (1–35 aus der Wunschliste, ab 36 Laser). */
   no: number;
   id: string;
   name: string;
@@ -55,13 +55,22 @@ export const EFFECTS: readonly EffectDef[] = [
   // Optische Raumeffekte
   e(27, "mirror-ball", "Spiegelkugel", "optical", "generator", "ready", "Tausende drehende Lichtpunkte im Raum."),
   e(28, "uv-glow", "UV / Schwarzlicht", "optical", "generator", "ready", "Fluoreszierende Muster auf Schwarz."),
-  e(29, "laser-sheet", "Laser-Fläche", "optical", "generator", "ready", "Waagerechte Laserebene wie Nebeldecke."),
-  e(30, "laser-fans", "Laser-Fächer", "optical", "generator", "ready", "Grüne oder RGB-Fächer und Wellenformen.", ["beat"]),
+  e(29, "laser-sheet", "Laser-Fläche (Ansicht)", "laser", "generator", "ready", "Laserebene von der Seite gesehen, für Leinwand und LED-Wand."),
+  e(30, "laser-fans", "Laser-Fächer (Ansicht)", "laser", "generator", "ready", "Strahlenfächer von der Seite gesehen, für Leinwand und LED-Wand.", ["beat"]),
   e(31, "strobe-flash", "Strobe / Blinder", "optical", "master", "ready", "Weiße oder farbige Blitze, taktgebunden (Master- und Ebenen-Strobe).", ["beat"]),
   e(32, "moire", "Moiré-Strahlen", "optical", "generator", "ready", "Überlagerte Reflexionen mit Moiré-Mustern."),
   e(33, "flower", "Blumen-Strahlen", "optical", "generator", "ready", "Gegenläufig drehende Strahlenkränze.", ["beat"]),
   e(34, "co2-jet", "CO2-Stoß", "optical", "generator", "ready", "Weiße Vertikal-Stöße, die sofort verfliegen.", ["beat"]),
   e(35, "silhouette", "Silhouette", "optical", "post", "planned", "Gegenlicht: Personen als schwarze Umrisse."),
+  // Laser: Beamer als Showlaser in Nebel/Hazer. Ein Punkt im Bild wird ein Strahl, eine Linie eine Lichtfläche,
+  // ein Kreis ein Kegel. Darum: dünne, satte Punkte und Linien auf reinem Schwarz, wie ein Laserprojektor.
+  e(36, "laser-beams", "Strahlen-Fächer", "laser", "generator", "ready", "Reihe aus Punkten: im Nebel ein Fächer aus Einzelstrahlen. Schwenkt, öffnet sich, Lauflicht im Takt.", ["beat"]),
+  e(37, "laser-sky", "Lichtdecke (Liquid Sky)", "laser", "generator", "ready", "Wellige Linie: im Nebel eine fließende Lichtdecke über dem Publikum.", ["bass"]),
+  e(38, "laser-cone", "Kegel / Tunnel", "laser", "generator", "ready", "Kreis: im Nebel ein Lichtkegel, der im Takt atmet, mit drehenden Lücken.", ["beat"]),
+  e(39, "laser-wave", "Laser-Welle", "laser", "generator", "ready", "Sinuslinie, Höhe folgt dem Bass: im Nebel eine wogende Fläche.", ["bass", "beat"]),
+  e(40, "laser-matrix", "Strahlen-Matrix", "laser", "generator", "ready", "Raster aus Punkten: viele Einzelstrahlen, blinken, laufen, funkeln im Takt.", ["beat"]),
+  e(41, "laser-propeller", "Propeller", "laser", "generator", "ready", "Drehende Linien durch die Mitte: im Nebel rotierende Lichtflächen.", ["beat"]),
+  e(42, "laser-scan", "Laser-Figuren", "laser", "generator", "ready", "Lissajous-Figuren wie ein Laserscanner, wechseln alle 8 Beats.", ["beat"]),
 ];
 
 export const EFFECT_BY_ID: ReadonlyMap<string, EffectDef> = new Map(EFFECTS.map(x => [x.id, x]));
@@ -93,6 +102,7 @@ export const POST_EFFECTS: readonly PostEffectDef[] = [
   { id: "invert", name: "Invertieren", info: "Kehrt die Farben um." },
   { id: "tint", name: "Farbüberlagerung", info: "Färbt die Ebene in ihrer Farbquelle (Slot, Verlauf, Regenbogen; Original = Slot A)." },
   { id: "ascii", name: "ASCII", info: "Bild als Zeichenraster (. : + # @) in den Farben des Bildes.", no: 25 },
+  { id: "laser", name: "Laser-Look", info: "Macht aus jedem Visual dünne, satte Linien auf reinem Schwarz, wie ein Laser. Für den Beamer im Nebel." },
 ];
 
 export const POST_BY_ID: ReadonlyMap<string, PostEffectDef> = new Map(POST_EFFECTS.map(x => [x.id, x]));

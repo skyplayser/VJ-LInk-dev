@@ -18,8 +18,9 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Szenen | Eigene Szenen anlegen, umbenennen, überschreiben, sortieren, löschen. Übergang je Szene: Schnitt, Beats oder Sekunden, Überblenden oder über Schwarz. Abfolge: weiter nach Takten, Sekunden oder Phrasenwechsel (mit „Auto“). Auslöser: Tasten 1–9, Pfeile, Pult, OSC |
 | Grafiken | Logos und Bilder (PNG, JPG, WebP, GIF, SVG) laden oder hineinziehen, Freistellen (weißen/schwarzen Hintergrund entfernen, wird erkannt), Größe, Lage, Drehung, Animation im Takt (Pulsieren, Drehen, Hüpfen, Schweben, Wackeln, Heranzoomen), Effekte und Farbüberlagerung |
 | Speichern | Projekt und Grafiken werden automatisch gespeichert und beim Start geladen |
-| Visuals | 27 Generatoren aus der Wunschliste (alle außer „Silhouette“, die eine Kamera braucht), Live-Vorschau im Clip-Raster mit Farbe und Effekten der Ebene |
-| Katalog | Alle 35 Visuals der Wunschliste mit Status (`bereit` / `geplant`) |
+| Visuals | 27 Generatoren aus der Wunschliste (alle außer „Silhouette“, die eine Kamera braucht) und 7 Laser-Visuals, Live-Vorschau im Clip-Raster mit Farbe und Effekten der Ebene |
+| Laser | Kategorie für den Beamer als Showlaser im Nebel: ein Punkt im Bild wird ein Strahl, eine Linie eine Lichtfläche, ein Kreis ein Kegel. Strahlen-Fächer, Lichtdecke (Liquid Sky), Kegel/Tunnel, Laser-Welle, Strahlen-Matrix, Propeller, Laser-Figuren (Lissajous); dazu Laser-Fläche und Laser-Fächer in Seitenansicht für Leinwände. Effekt „Laser-Look“ macht aus jedem Visual dünne, satte Linien auf Schwarz. Feste Laserfarben, Wechsel alle 8 Beats, reines Schwarz |
+| Katalog | Alle 35 Visuals der Wunschliste und die Laser mit Status (`bereit` / `geplant`) |
 | Takt | Quellen-Rangfolge LJ-Link → Ableton Link → OSC → MIDI → Audio → Tap, Tap-Tempo, Rückfall bei Ausfall ohne Phasensprung |
 | Pult | Art-Net und sACN als Eingang, DMX-Belegung „Standard“ (70 Kanäle), nur geänderte Kanäle wirken, Kanalliste als CSV |
 | OSC | Eingang auf Port 8000, Adressen `/vjlink/…` |

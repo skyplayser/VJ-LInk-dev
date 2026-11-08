@@ -594,7 +594,7 @@ function buildSidebar(): void {
 }
 
 // ---- Bauen: Katalog -------------------------------------------------------------------
-const CAT_LABEL: Record<EffectCategory, string> = { audio: "Audio und Equalizer", geometry: "Geometrie", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Optische Raumeffekte", tools: "Werkzeuge" };
+const CAT_LABEL: Record<EffectCategory, string> = { audio: "Audio und Equalizer", geometry: "Geometrie", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Optische Raumeffekte", laser: "Laser-Effekte", tools: "Werkzeuge" };
 const KIND_LABEL = { generator: "Generator", post: "Effekt", master: "Master" } as const;
 const REACT_LABEL = { beat: "Beat", bass: "Bass", mid: "Mitten", high: "Höhen", wave: "Wellenform" } as const;
 function buildCatalog(): void {
