@@ -6,6 +6,7 @@ import {
   type Cue, type CueEnd, type CueEnv, type CueLoop, type CueOver, type CueStart, type Fit,
 } from "../core/video";
 import type { MediaLibrary } from "./medialib";
+import { formatFrames, formatTc, parseTc, type TcFps, type TcNow } from "../core/timecode";
 import type { VideoLibrary } from "./videolib";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
@@ -14,7 +15,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const fmt1 = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
 
-const START_LABEL: Record<CueStart, string> = { manual: "von Hand", after: "nach vorigem", with: "mit vorigem" };
+const START_LABEL: Record<CueStart, string> = { manual: "von Hand", after: "nach vorigem", with: "mit vorigem", timecode: "Timecode" };
 const END_LABEL: Record<CueEnd, string> = { hold: "stehen bleiben", fade: "ausblenden", next: "weiter" };
 const LOOP_LABEL: Record<CueLoop, string> = { off: "aus", count: "x-mal", untilGo: "bis WEITER", forever: "endlos" };
 const FIT_LABEL: Record<Fit, string> = { fill: "füllen", fit: "einpassen", original: "original" };
@@ -28,6 +29,9 @@ export interface ShowDeps {
   /** Dateien übernehmen; gibt die Clip-IDs (vid:/img:) zurück. */
   importFiles(files: File[]): Promise<{ id: string; name: string }[]>;
   toast(msg: string): void;
+  /** Laufender Timecode (oder null) und seine Bildrate. */
+  tcNow(): TcNow | null;
+  tcFps(): TcFps;
 }
 
 export class ShowTab {
@@ -130,7 +134,8 @@ export class ShowTab {
         : c.kind === "image" ? (this.d.images.items.find(m => `img:${m.id}` === c.media)?.name ?? "Datei fehlt")
         : c.kind === "scene" ? `Szene ${c.scene} „${this.d.ctx.scenes[c.scene - 1]?.name ?? "?"}“` : "Bild aus";
       nm.append(el("small", (sub === "Datei fehlt" ? "missing" : ""), sub + (c.kind === "video" && c.volume > 0 ? " · Ton" : "")));
-      const start = el("span", `chip${c.start === "with" ? " with" : ""}`, START_LABEL[c.start] + (c.wait > 0 ? ` +${c.wait} s` : ""));
+      const start = el("span", `chip${c.start === "with" ? " with" : c.start === "timecode" ? " tc" : ""}`,
+        c.start === "timecode" ? `TC ${c.tc}` : START_LABEL[c.start] + (c.wait > 0 ? ` +${c.wait} s` : ""));
       const du = this.dur(c);
       row.append(nm, start, el("span", "cdur", du === null ? "–" : fmt(du)), el("span", `chip${c.loop !== "off" && c.kind === "video" ? " loop" : ""}`, this.endChip(c)));
       row.append(el("span", "cstate"), el("i", "cprog"));
@@ -179,7 +184,26 @@ export class ShowTab {
     };
 
     seg("Start", START_LABEL, () => c.start, v => { c.start = v; });
-    num("Wartezeit", () => c.wait, v => { c.wait = v; }, "s");
+    if (c.start === "timecode") {
+      const r = el("div", "cd-row"); r.append(el("span", "", "Timecode"));
+      const w = el("span", "inline");
+      const i = el("input", "tc-in"); i.value = c.tc; i.setAttribute("aria-label", "Timecode für den Start"); i.placeholder = "hh:mm:ss:ff";
+      i.addEventListener("change", () => {
+        const fps = this.d.tcFps();
+        const t = parseTc(i.value, fps);
+        if (t) c.tc = formatTc(t, 25).replace(";", ":"); else this.d.toast("Timecode als hh:mm:ss:ff eingeben, z. B. 00:20:00:00.");
+        this.update(true);
+      });
+      const learn = el("button", "btn small-btn", "Hier lernen");
+      learn.title = "Übernimmt den gerade laufenden Timecode";
+      learn.addEventListener("click", () => {
+        const now = this.d.tcNow();
+        if (!now) { this.d.toast("Kein Timecode aktiv. In den Einstellungen unter Timecode einschalten."); return; }
+        c.tc = formatFrames(Math.round(now.frames), now.fps).replace(";", ":");
+        this.update(true);
+      });
+      w.append(i, learn); r.append(w); box.append(r);
+    } else num("Wartezeit", () => c.wait, v => { c.wait = v; }, "s");
 
     if (c.kind === "scene") {
       const r = el("label", "cd-row"); r.append(el("span", "", "Szene"));

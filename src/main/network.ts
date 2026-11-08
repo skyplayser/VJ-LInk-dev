@@ -2,6 +2,7 @@
 import dgram from "node:dgram";
 import { WebSocketServer, type WebSocket } from "ws";
 import { ARTNET_PORT, parseArtDmx } from "../core/artnet";
+import { parseArtTimecode } from "../core/timecode";
 import { SACN_PORT, parseSacn, sacnMulticastAddress } from "../core/sacn";
 import { parseOsc } from "../core/osc";
 import { LJ_DEFAULT_PORT, parseLjMessage } from "../core/ljlink";
@@ -17,6 +18,7 @@ export class Network {
     lj: { listening: false, port: LJ_DEFAULT_PORT, clients: 0 },
   };
   private sockets: dgram.Socket[] = [];
+  private artnet?: dgram.Socket;
   private wss?: WebSocketServer;
   private sacn?: dgram.Socket;
   private joined?: string;
@@ -24,11 +26,14 @@ export class Network {
   constructor(private emit: (e: ControlEvent) => void) {}
 
   start(sacnUniverse = 1): void {
-    this.udp("artnet", ARTNET_PORT, msg => {
+    this.artnet = this.udp("artnet", ARTNET_PORT, (msg, from) => {
       const p = parseArtDmx(msg);
-      if (p) this.emit({ type: "dmx", source: "artnet", universe: p.universe, data: p.data });
-      else return false;
+      if (p) { this.emit({ type: "dmx", source: "artnet", universe: p.universe, data: p.data }); return; }
+      const t = parseArtTimecode(msg);
+      if (t) { this.emit({ type: "timecode", source: "artnet", tc: t.tc, fps: t.fps, from }); return; }
+      return false;
     });
+    this.artnet.on("listening", () => { try { this.artnet!.setBroadcast(true); } catch { /* ohne Broadcast */ } });
     this.sacn = this.udp("sacn", SACN_PORT, msg => {
       const p = parseSacn(msg);
       if (p) this.emit({ type: "dmx", source: "sacn", universe: p.universe, data: p.data });
@@ -47,10 +52,10 @@ export class Network {
     setInterval(() => this.emit({ type: "status", status: this.status }), 500).unref();
   }
 
-  private udp(key: "artnet" | "sacn" | "osc", port: number, onMsg: (b: Buffer) => false | void): dgram.Socket {
+  private udp(key: "artnet" | "sacn" | "osc", port: number, onMsg: (b: Buffer, from: string) => false | void): dgram.Socket {
     const s = dgram.createSocket({ type: "udp4", reuseAddr: true });
     s.on("message", (msg, rinfo) => {
-      if (onMsg(msg) === false) return;
+      if (onMsg(msg, rinfo.address) === false) return;
       const st = this.status[key];
       st.packets++;
       if (key === "artnet") this.status.artnet.lastFrom = rinfo.address;
@@ -94,6 +99,12 @@ export class Network {
         this.emit({ type: "lj-connection", clients: wss.clients.size });
       });
     });
+  }
+
+  /** Art-Net-Timecode senden (VJ-Link ist die Uhr). Ziel: IP oder Broadcast-Adresse. */
+  sendArtnet(bytes: Uint8Array, host: string): void {
+    if (!this.artnet || !/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return;
+    this.artnet.send(bytes, ARTNET_PORT, host, () => { /* Fehler zählen nicht */ });
   }
 
   stop(): void {

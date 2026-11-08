@@ -32,7 +32,10 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Tempo | BPM anklicken und eintippen, Tempo-Quelle festlegen (Auto, LJ-Link, Ableton Link, OSC, Manuell), Ableton Link über Carabiner |
 | Bedienung | Fader-Leiste (Master, Ebenen, Effekt, Strobe mit Speed und Intensität, Strobe White, Szenen, Tap, Blackout), jedes Element auch per OSC (`/vjlink/ctl/<id>`) |
 | Oberfläche | VISUALS, SHOW, Bauen (Katalog), Ausgabe, Verbinden; Logo als App-Icon |
-| Videos | MP4, MOV, M4V, WebM in die Bibliothek (Kopie im App-Ordner, gestreamt über vjmedia://). Als Clip mit Loop-Bereich, Takt-Loop (4–32 Beats), Größe, Ton. Läuft auf allen Ausgängen synchron |
+| Videos | MP4, MOV, M4V, WebM in die Bibliothek (Kopie im App-Ordner, gestreamt über vjmedia://). Nahtloser Loop mit zwei Abspielern. Als Clip mit Loop-Bereich, Takt-Loop (4–32 Beats), Größe, Ton. Läuft auf allen Ausgängen synchron |
+| Timecode | Empfangen (Art-Net, MIDI-Timecode) oder senden (Art-Net, MTC), 24/25/29,97 DF/30 fps; Cues starten per Timecode, Videos folgen (Spulen, Anhalten), Versatz, „Hier lernen“ |
+| Einstellungen | Zahnrad oben rechts: Audio-Eingang und -Ausgang, Timecode, MIDI-Geräte, DMX und Netzwerk, Ausgänge und Testbild, Oberfläche |
+| Testbild | Farbbalken, Raster, Kreis, Ränder, laufender Zeiger; Schnellknopf bei den Ausgängen, auf jedem Ausgang mit Auflösung; auch als Visual in der Bibliothek |
 | SHOW | Ablauf mit Cues (Video, Bild, Schwarz, VJ-Szene): WEITER (Leertaste), Zurück, Alles stoppen; Start von Hand / nach vorigem / mit vorigem + Wartezeit; Kürzen; Wiederholen aus / x-mal / bis WEITER / endlos, auch nur einen Bereich; Ende stehen bleiben / ausblenden / weiter; Einblenden, Lautstärke, Größe, Visuals aus oder darüber |
 
 ## Noch offen

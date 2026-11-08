@@ -11,6 +11,8 @@ import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, par
 import { MapMode } from "./mapmode";
 import { LibraryPanel } from "./librarypanel";
 import { AudioIn } from "./audioin";
+import { TimecodeClock, MtcDecoder, formatFrames } from "../core/timecode";
+import { TcPanel, defaultTcSettings, type TcSettings } from "./tcpanel";
 import { cueRenders, cueTick, isVideoClip, newCueState, videoClip, videoIdOf, type CueEnv } from "../core/video";
 import { VideoLibrary, isVideoFile } from "./videolib";
 import { VideoPool } from "./videopool";
@@ -41,14 +43,21 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 // ---- Einstellungen (nur Komfort, Oberfläche funktioniert auch ohne) -------------------
 interface Settings {
   universe: number; sacn: number; address: number; uiScale: "auto" | number;
-  audioDevice: string; audioGain: number; audioScope: "audio" | "all";
+  audioDevice: string; audioGain: number; audioScope: "audio" | "all"; audioOut: string;
+  tc: TcSettings;
 }
 function loadSettings(): Settings {
-  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio" };
-  try { return { ...d, ...JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") }; } catch { return d; }
+  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings() };
+  try {
+    const raw = JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") as Partial<Settings>;
+    return { ...d, ...raw, tc: { ...d.tc, ...(raw.tc ?? {}) } };
+  } catch { return d; }
 }
 const settings = loadSettings();
 function saveSettings(): void { try { localStorage.setItem("vjlink.settings", JSON.stringify(settings)); } catch { /* ohne Speicher weiter */ } }
+
+// ---- Timecode -------------------------------------------------------------------------
+const tcClock = new TimecodeClock();
 
 // ---- Zustand --------------------------------------------------------------------------
 const ctx: ControlContext = {
@@ -57,7 +66,6 @@ const ctx: ControlContext = {
 };
 ctx.tempo.update("manual", 120, Date.now(), 0);
 const decoder = new DmxDecoder(settings.address, ctx.scenes);
-let testPattern = false;
 let netStatus: NetStatus | null = null;
 let lastDmx: Uint8Array | null = null;
 let lastDmxAt = 0;
@@ -70,7 +78,13 @@ const dmxPrev = new Map<number, Uint8Array>();
 const leds = new LedFeedback();
 const clock = new MidiClock();
 let clockTicks = 0;
+const mtc = new MtcDecoder();
 const midi = new MidiIn((data, device, tMs) => {
+  if (data[0] === 0xf1 && data.length >= 2) {
+    const r = mtc.feed(data[1]!);
+    if (r) tcClock.receive(r.tc, r.fps, "mtc", tMs, device);
+    return;
+  }
   if (data[0]! >= 0xf8) {
     // MIDI-Clock: alle 6 Takte (Sechzehntel) das Tempo nachführen
     const r = clock.feed(data[0]!, tMs);
@@ -126,6 +140,7 @@ function onControl(e: ControlEvent): void {
       mappings.dispatch(ctx, input, oscValue(a), typeof a === "number" ? a : undefined);
       break;
     }
+    case "timecode": tcClock.receive(e.tc, e.fps, "artnet", now, e.from); break;
     case "link":
       linkState = { connected: e.connected, peers: e.peers };
       if (e.connected && e.bpm > 0) ctx.tempo.update("link", e.bpm, now, e.beat);
@@ -171,10 +186,13 @@ function layerClips(l: number): { id: string; name: string }[] {
 const videoLib = new VideoLibrary();
 /** Abspieler für die Vorschau im Hauptfenster (darf Ton ausgeben). */
 const previewPool = new VideoPool(id => videoLib.url(id), true);
+previewPool.setSink(settings.audioOut);
 let lastSweep = 0;
 const cueEnv: CueEnv = {
   duration: m => (m && isVideoClip(m) ? videoLib.duration(videoIdOf(m)) : 0),
   recallScene: i => { recallScene(ctx, i); },
+  timecode: () => tcClock.now(Date.now()),
+  get chase() { return tcClock.chase; },
 };
 ctx.cueEnv = cueEnv;
 
@@ -382,9 +400,8 @@ window.addEventListener("keydown", e => { if (e.key === "Escape") closeTempoMenu
 // ---- Audio-Eingang ---------------------------------------------------------------------
 const audioIn = new AudioIn();
 audioIn.gain = settings.audioGain; audioIn.scope = settings.audioScope;
-const audioBtn = $<HTMLButtonElement>("audio-btn"), audioMenu = $("audio-menu");
+const audioBtn = $<HTMLButtonElement>("audio-btn"), audioMenu = $("settings");
 const audioMeter = Array.from($("audio-meter").children) as HTMLElement[];
-const closeAudioMenu = () => { audioMenu.hidden = true; audioBtn.setAttribute("aria-expanded", "false"); };
 
 async function fillAudioDevices(): Promise<void> {
   const box = $("audio-devices");
@@ -411,14 +428,24 @@ async function chooseAudio(id: string): Promise<void> {
   void fillAudioDevices(); // nach der Freigabe stehen die echten Gerätenamen zur Verfügung
 }
 
-audioBtn.addEventListener("click", () => {
-  if (mapMode.active) return;
-  audioMenu.hidden = !audioMenu.hidden; audioBtn.setAttribute("aria-expanded", String(!audioMenu.hidden));
-  if (!audioMenu.hidden) void fillAudioDevices();
-});
-document.addEventListener("pointerdown", e => { if (!audioMenu.hidden && !(e.target as HTMLElement).closest(".map-wrap")) closeAudioMenu(); });
-window.addEventListener("keydown", e => { if (e.key === "Escape") closeAudioMenu(); });
-navigator.mediaDevices?.addEventListener("devicechange", () => { if (!audioMenu.hidden) void fillAudioDevices(); });
+audioBtn.addEventListener("click", () => { if (!mapMode.active) openSettings("audio"); });
+navigator.mediaDevices?.addEventListener("devicechange", () => { if (!audioMenu.hidden) { void fillAudioDevices(); void fillAudioOuts(); } });
+
+/** Audio-Ausgang für den Ton von Videos (Hauptfenster). */
+async function fillAudioOuts(): Promise<void> {
+  const box = $("audio-outs");
+  let outs: MediaDeviceInfo[] = [];
+  try { outs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audiooutput"); } catch { /* keine Liste */ }
+  box.replaceChildren();
+  const item = (id: string, label: string) => {
+    const b = el("button", "am-item", label); b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String((settings.audioOut || "") === id));
+    b.addEventListener("click", () => { settings.audioOut = id; saveSettings(); previewPool.setSink(id); void fillAudioOuts(); });
+    box.append(b);
+  };
+  item("", "Standard des Systems");
+  for (const d of outs) if (d.deviceId && d.deviceId !== "default") item(d.deviceId, d.label || "Ausgang");
+}
 const gainIn = $<HTMLInputElement>("audio-gain");
 gainIn.value = String(Math.round(audioIn.gain * 100));
 gainIn.addEventListener("input", () => { audioIn.gain = Number(gainIn.value) / 100; settings.audioGain = audioIn.gain; saveSettings(); });
@@ -450,6 +477,88 @@ function updateAudioUi(): void {
   }));
 }
 if (settings.audioDevice) void chooseAudio(settings.audioDevice);
+
+// ---- Einstellungen ---------------------------------------------------------------------
+function updateTcUi(): void {
+  const now = tcClock.now(Date.now());
+  const b = $("tc-btn");
+  b.hidden = tcClock.mode === "off";
+  $("tc-val").textContent = now ? formatFrames(Math.floor(now.frames), now.fps) : "--:--:--:--";
+  b.classList.toggle("ok", !!now?.running && tcClock.mode === "send");
+  b.classList.toggle("warn", !!now?.running && tcClock.mode === "receive");
+  b.title = tcClock.mode === "receive" ? `Timecode empfangen (${tcClock.source === "artnet" ? "Art-Net" : "MIDI"})` : "Timecode senden";
+  if (!setBox.hidden) tcPanel.update();
+}
+const tcPanel = new TcPanel(tcClock, settings.tc, saveSettings, {
+  midiOutputs: () => midi.outputs,
+  sendMidi: (dev, b) => midi.send(dev, b),
+  sendArt: (b, host) => bridge?.sendArtTimecode(b, host),
+  toast,
+});
+ctx.tc = tcClock;
+const setBox = $("settings");
+const SEC_TITLE: Record<string, string> = { audio: "Audio", timecode: "Timecode", midi: "MIDI", dmx: "DMX und Netzwerk", outputs: "Ausgänge und Testbild", ui: "Oberfläche" };
+function openSettings(sec = "audio"): void {
+  setBox.hidden = false;
+  setBox.querySelectorAll<HTMLButtonElement>(".set-nav [data-sec]").forEach(b => b.classList.toggle("on", b.dataset.sec === sec));
+  setBox.querySelectorAll<HTMLElement>(".set-sec").forEach(x => { x.hidden = x.dataset.sec !== sec; });
+  $("set-title").textContent = SEC_TITLE[sec] ?? "Einstellungen";
+  if (sec === "audio") { void fillAudioDevices(); void fillAudioOuts(); }
+  if (sec === "timecode") tcPanel.build($("set-tc"));
+  if (sec === "midi") buildMidiSection();
+  if (sec === "outputs") void refreshDisplays().then(() => renderSetOutputs());
+}
+const closeSettings = () => { setBox.hidden = true; };
+setBox.querySelectorAll<HTMLButtonElement>(".set-nav [data-sec]").forEach(b => b.addEventListener("click", () => openSettings(b.dataset.sec)));
+$("set-close").addEventListener("click", closeSettings);
+setBox.addEventListener("pointerdown", e => { if (e.target === setBox) closeSettings(); });
+window.addEventListener("keydown", e => { if (e.key === "Escape" && !setBox.hidden) { closeSettings(); e.stopPropagation(); } }, true);
+$("settings-btn").addEventListener("click", () => openSettings());
+$("tc-btn").addEventListener("click", () => openSettings("timecode"));
+
+function buildMidiSection(): void {
+  const box = $("set-midi"); box.replaceChildren();
+  const list = (title: string, items: string[]) => {
+    box.append(el("h3", "", title));
+    const l = el("div", "am-list");
+    if (!items.length) l.append(el("p", "am-hint", "Keines gefunden. Gerät anstecken, es erscheint sofort."));
+    for (const i of items) l.append(el("div", "am-item static", i));
+    box.append(l);
+  };
+  list("Eingänge", midi.devices);
+  list("Ausgänge (LEDs, MIDI-Timecode)", midi.outputs);
+  const p = el("p", "am-hint", "Tasten, Regler und Pads zuweisen: oben MAPPING → MIDI. Dort gibt es auch fertige Vorlagen für Controller.");
+  box.append(p);
+  if (midi.error) box.append(el("p", "am-hint", midi.error));
+}
+
+// DMX-Felder und Oberflächen-Größe wohnen jetzt in den Einstellungen
+$("set-dmx").append(...Array.from(document.querySelectorAll("#tab-connect .form")));
+$("set-dmx").append(el("p", "am-hint", "Live-Werte und Status der Eingänge: Tab VERBINDEN."));
+document.querySelectorAll("#tab-connect h2").forEach(h => { if (h.textContent === "DMX-Einstellungen") h.remove(); });
+{
+  const ui = $("ui-scale").closest("label")!;
+  $("set-ui").append(el("h3", "", "Größe"), ui, el("p", "am-hint", "Automatisch passt alles dem Fenster an, auch auf großen Bildschirmen."));
+  document.querySelectorAll("#tab-output h2").forEach(h => { if (h.textContent === "Oberfläche") h.remove(); });
+}
+function renderSetOutputs(): void {
+  const box = $("set-outputs"); box.replaceChildren();
+  box.append(el("h3", "", "Testbild"));
+  const t = el("button", `btn${ctx.show.testCard ? " on-test" : ""}`, ctx.show.testCard ? "Testbild aus" : "Testbild an");
+  t.dataset.ctl = "test.toggle";
+  t.addEventListener("click", () => { ctx.show.testCard = !ctx.show.testCard; syncTestUi(); renderSetOutputs(); });
+  box.append(t, el("p", "am-hint", "Zeigt auf jedem Ausgang Raster, Farbbalken, Kreis und die genaue Auflösung. Zum Ausrichten von Beamer und LED-Wand."));
+  box.append(el("h3", "", "Bildschirme"));
+  const l = el("div", "am-list");
+  for (const d of displays) {
+    const b = el("button", "am-item", `${d.label} · ${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)}${d.primary ? " · Hauptbildschirm" : ""}`);
+    b.setAttribute("aria-checked", String(d.open));
+    b.addEventListener("click", async () => { if (!bridge) return; displays = await bridge.toggleOutput(d.id); renderDisplays(); renderOutputStrip(); fitPreview(); renderSetOutputs(); });
+    l.append(b);
+  }
+  if (!displays.length) l.append(el("p", "am-hint", bridge ? "Keine Bildschirme gefunden." : "Mehrere Ausgänge gibt es nur in der App."));
+  box.append(l, el("p", "am-hint", "Grün = als Ausgang geöffnet. Esc auf einem Ausgang schließt ihn."));
+}
 
 // Ebenen hinzufügen
 $("layer-add").addEventListener("click", () => {
@@ -500,7 +609,7 @@ function buildSidebar(): void {
 }
 
 // ---- Bauen: Katalog -------------------------------------------------------------------
-const CAT_LABEL: Record<EffectCategory, string> = { audio: "Audio und Equalizer", geometry: "Geometrie", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Optische Raumeffekte" };
+const CAT_LABEL: Record<EffectCategory, string> = { audio: "Audio und Equalizer", geometry: "Geometrie", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Optische Raumeffekte", tools: "Werkzeuge" };
 const KIND_LABEL = { generator: "Generator", post: "Effekt", master: "Master" } as const;
 const REACT_LABEL = { beat: "Beat", bass: "Bass", mid: "Mitten", high: "Höhen", wave: "Wellenform" } as const;
 function buildCatalog(): void {
@@ -580,7 +689,15 @@ function renderDisplays(): void {
   }
   $("output-note").textContent = displays.length > 1 ? "" : "Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darüber verdeckt diese Oberfläche; Taste Esc oder Schließen im Hauptfenster beendet ihn.";
 }
-$<HTMLInputElement>("testpattern").addEventListener("change", e => { testPattern = (e.target as HTMLInputElement).checked; });
+$<HTMLInputElement>("testpattern").addEventListener("change", e => { ctx.show.testCard = (e.target as HTMLInputElement).checked; syncTestUi(); });
+/** Testbild-Knöpfe und Häkchen auf den aktuellen Stand bringen. */
+function syncTestUi(): void {
+  const on = ctx.show.testCard;
+  $<HTMLInputElement>("testpattern").checked = on;
+  $("test-quick").classList.toggle("on-test", on);
+  $("test-quick").setAttribute("aria-pressed", String(on));
+}
+$("test-quick").addEventListener("click", () => { ctx.show.testCard = !ctx.show.testCard; syncTestUi(); });
 
 // ---- Verbinden ------------------------------------------------------------------------
 function card(title: string, state: "ok" | "off" | "err", lines: string[], live = false): HTMLElement {
@@ -697,7 +814,7 @@ function frame(): void {
     lastPublish = now;
     const t = ctx.tempo.snapshot;
     const f: Frame = {
-      show: ctx.show, bpm: ctx.tempo.bpm, originMs: t.originMs, beatAtOrigin: t.beatAtOrigin, testPattern,
+      show: ctx.show, bpm: ctx.tempo.bpm, originMs: t.originMs, beatAtOrigin: t.beatAtOrigin, testPattern: ctx.show.testCard,
       videoDurations: Object.fromEntries(videoLib.items.map(v => [v.id, v.duration])),
     };
     bridge.publishFrame(JSON.parse(JSON.stringify(f)) as Frame);
@@ -748,6 +865,7 @@ function updateUi(now: number, beat: number): void {
   });
   (window as unknown as { refreshSlots: () => void }).refreshSlots();
   updateAudioUi();
+  updateTcUi();
   updateDeck();
   for (const msg of leds.compute(mappings, ctx, beat)) midi.send(msg.device, msg.bytes);
   fxPanel.update();
@@ -762,7 +880,10 @@ function updateUi(now: number, beat: number): void {
 const fxPanel = new FxPanel(ctx, $("fx-title"), $("fx-list"), $<HTMLSelectElement>("fx-add"));
 const mediaPanel = new MediaPanel(ctx, library, $("media-panel"), () => fxPanel.layer, () => rebuildGrid());
 const videoPanel = new VideoPanel(ctx, videoLib, $("video-panel"), () => fxPanel.layer, () => rebuildGrid());
-const showTab = new ShowTab({ ctx, env: cueEnv, videos: videoLib, images: library, importFiles: f => importToLibrary(f), toast });
+const showTab = new ShowTab({
+  ctx, env: cueEnv, videos: videoLib, images: library, importFiles: f => importToLibrary(f), toast,
+  tcNow: () => tcClock.now(Date.now()), tcFps: () => tcClock.fps,
+});
 const scenePanel = new ScenePanel(ctx, $("scenes"), $<HTMLButtonElement>("scene-auto"), $<HTMLButtonElement>("scene-add"));
 rebuildGrid(); buildSidebar(); buildCatalog(); bindSettings();
 fxPanel.select(0);

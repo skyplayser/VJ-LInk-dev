@@ -156,6 +156,9 @@ app.whenReady().then(async () => {
   });
   ipcMain.on("project:save", (e, json: unknown) => { if (fromControl(e)) void storage!.saveProject(json); });
   ipcMain.handle("video:add", async (e, src: unknown, name: unknown) => fromControl(e) ? storage!.addVideo(src, name) : "Nicht erlaubt.");
+  ipcMain.on("tc:artnet", (e, b: unknown, host: unknown) => {
+    if (fromControl(e) && b instanceof Uint8Array && b.length === 19 && typeof host === "string") net?.sendArtnet(b, host);
+  });
   ipcMain.on("video:remove", (e, id: unknown) => { if (fromControl(e)) void storage!.removeVideo(id); });
   ipcMain.handle("project:load", async e => {
     if (!fromControl(e)) return { project: null, media: [] };

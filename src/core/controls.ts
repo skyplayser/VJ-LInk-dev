@@ -116,6 +116,14 @@ export function buildControls(): ControlDef[] {
       get: () => 0, set: (c, v) => { if (on(v)) showBack(c); } },
     { id: "show.stop", label: "Alles stoppen", group: "Show", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) showStop(c); } },
+    { id: "tc.start", label: "Timecode Start", group: "Show", kind: "trigger", quick: false,
+      get: c => (c.tc?.sending ? 1 : 0), set: (c, v) => { if (on(v)) c.tc?.start(Date.now()); } },
+    { id: "tc.stop", label: "Timecode Stopp", group: "Show", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (on(v)) c.tc?.stop(Date.now()); } },
+    { id: "tc.zero", label: "Timecode auf Start", group: "Show", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (on(v)) c.tc?.locate(0, Date.now()); } },
+    { id: "test.toggle", label: "Testbild", group: "Master", kind: "toggle", quick: false,
+      get: c => (c.show.testCard ? 1 : 0), set: (c, v) => { c.show.testCard = on(v); } },
   );
   list.push(
     { id: "scene.next", label: "Weiter", group: "Szenen", kind: "trigger", quick: false,

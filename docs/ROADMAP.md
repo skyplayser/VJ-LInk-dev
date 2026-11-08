@@ -85,6 +85,6 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 |---|---|---|
 | 1 | Video als Clip (Loop-Bereich, Takt-Loop, Größe, Ton) | erledigt |
 | 2 | Ablauf-Ansicht SHOW: Cues, WEITER, Start/Ende, Kürzen, Loops, Blenden | erledigt |
-| 3 | Timecode empfangen und senden (Art-Net, MTC), Videos folgen dem Timecode | offen |
+| 3 | Timecode empfangen und senden (Art-Net, MTC), Videos folgen dem Timecode | erledigt (an Pulten noch zu testen) |
 | 4 | Vorlagen, Uhrzeit-Start, Signal-Cues, LTC, Probe-Modus, Sperre | offen |
 | 5 | Ausgang pro Cue (hängt an Mapping 4.1–4.3), Umwandeln | offen |

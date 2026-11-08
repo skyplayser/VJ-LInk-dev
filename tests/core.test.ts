@@ -156,9 +156,9 @@ describe("Steuerung", () => {
 
 describe("Effekt-Katalog", () => {
   it("enthält die 35 Visuals mit eindeutigen IDs", () => {
-    expect(EFFECTS.length).toBe(35);
-    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(35);
-    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 35 }, (_, i) => i + 1));
+    expect(EFFECTS.length).toBe(36); // 35 aus der Wunschliste + Testbild
+    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(36);
+    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 36 }, (_, i) => i + 1));
   });
 });
 
@@ -726,7 +726,7 @@ describe("Bibliothek der Visuals", () => {
   it("jeder fertige Generator existiert im Shader, Start-Clips stehen vorn", () => {
     for (const g of READY_GENERATORS) expect(GEN_IDS as readonly string[]).toContain(g.id);
     expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
-    expect(READY_GENERATORS.length).toBe(27);
+    expect(READY_GENERATORS.length).toBe(28);
     expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual(["silhouette"]);
   });
 });
@@ -812,5 +812,78 @@ describe("Nahtloser Loop", () => {
     expect(planLoop({ active: 5.0, target: 1.0, rate: 1, loop: [1, 5], standbyReady: false })).toBe("seek");
     expect(planLoop({ active: 2.0, target: 3.0, rate: 1, standbyReady: false })).toBe("seek");
     expect(planLoop({ active: 2.0, target: 2.1, rate: 1, standbyReady: false })).toBe("ok");
+  });
+});
+
+import { MtcDecoder, TimecodeClock, buildArtTimecode, formatTc, framesToTc, mtcQuarterFrames, parseArtTimecode, parseTc, tcToFrames } from "../src/core/timecode";
+describe("Timecode", () => {
+  it("rechnet Bilder und Zeit hin und her, auch 29,97 Drop-Frame", () => {
+    expect(tcToFrames({ h: 0, m: 1, s: 0, f: 0 }, 25)).toBe(1500);
+    expect(framesToTc(1500, 25)).toEqual({ h: 0, m: 1, s: 0, f: 0 });
+    // Drop-Frame: nach 00:00:59;29 kommt 00:01:00;02
+    const a = tcToFrames({ h: 0, m: 0, s: 59, f: 29 }, 29.97);
+    expect(framesToTc(a + 1, 29.97)).toEqual({ h: 0, m: 1, s: 0, f: 2 });
+    expect(framesToTc(tcToFrames({ h: 0, m: 10, s: 0, f: 0 }, 29.97), 29.97)).toEqual({ h: 0, m: 10, s: 0, f: 0 });
+    for (const n of [0, 1799, 1800, 17981, 17982, 107892, 2589407]) expect(tcToFrames(framesToTc(n, 29.97), 29.97)).toBe(n);
+    expect(formatTc({ h: 1, m: 2, s: 3, f: 4 }, 29.97)).toBe("01:02:03;04");
+    expect(parseTc("00:20:00:00")).toEqual({ h: 0, m: 20, s: 0, f: 0 });
+    expect(parseTc("00:20:00:25", 25)).toBeNull();
+  });
+  it("Art-Net-Timecode: bauen und lesen", () => {
+    const b = buildArtTimecode({ h: 1, m: 2, s: 3, f: 4 }, 25);
+    expect(b.length).toBe(19);
+    expect(parseArtTimecode(b)).toEqual({ tc: { h: 1, m: 2, s: 3, f: 4 }, fps: 25 });
+    expect(parseArtTimecode(new Uint8Array(19))).toBeNull();
+  });
+  it("MIDI-Timecode: 8 Viertelbilder ergeben die Zeit (+2 Bilder)", () => {
+    const d = new MtcDecoder();
+    let r = null;
+    for (const x of mtcQuarterFrames({ h: 10, m: 20, s: 30, f: 12 }, 30)) r = d.feed(x) ?? r;
+    expect(r).toEqual({ tc: { h: 10, m: 20, s: 30, f: 14 }, fps: 30 });
+  });
+  it("Uhr: empfangen, weiterzählen, Aussetzer, Senden", () => {
+    const c = new TimecodeClock();
+    expect(c.receive({ h: 0, m: 0, s: 1, f: 0 }, 25, "artnet", 0)).toBe(false); // aus
+    c.mode = "receive";
+    expect(c.receive({ h: 0, m: 0, s: 1, f: 0 }, 25, "mtc", 0)).toBe(false); // andere Quelle
+    c.receive({ h: 0, m: 0, s: 1, f: 0 }, 25, "artnet", 0);
+    c.receive({ h: 0, m: 0, s: 1, f: 1 }, 25, "artnet", 40);
+    expect(c.now(240)!.frames).toBeCloseTo(26 + 5);
+    expect(c.now(240)!.running).toBe(true);
+    expect(c.now(3000)!.stale).toBe(true);
+    expect(c.now(3000)!.running).toBe(false);
+    c.offset = 25; c.receive({ h: 0, m: 0, s: 2, f: 0 }, 25, "artnet", 4000);
+    expect(c.now(4000)!.frames).toBe(75);
+    const s = new TimecodeClock(); s.mode = "send"; s.fps = 25;
+    s.locate(100, 0); s.start(0);
+    expect(s.now(1000)!.frames).toBeCloseTo(125);
+    s.stop(1000);
+    expect(s.now(5000)!.frames).toBeCloseTo(125);
+  });
+  it("Cues starten per Timecode und folgen ihm", () => {
+    const st = ncs();
+    let tcNow = { frames: 0, fps: 25 as const, running: true, stale: false };
+    const env: CueEnv = { duration: () => 10, recallScene: () => {}, timecode: () => tcNow, chase: true };
+    const q = newCue("video", "Award", "vid:aaaaaa"); q.start = "timecode"; q.tc = "00:00:02:00";
+    st.list.push(q);
+    tcNow = { ...tcNow, frames: 40 }; cueTick(st, 1000, env);
+    expect(st.run.active.length).toBe(0);
+    tcNow = { ...tcNow, frames: 100 }; cueTick(st, 2000, env); // 2 s nach Start
+    expect(cueRenders(st, 2000, env)[0]!.t).toBeCloseTo(2);
+    tcNow = { ...tcNow, frames: 200 }; cueTick(st, 2100, env); // vorgespult: Video springt mit
+    expect(cueRenders(st, 2100, env)[0]!.t).toBeCloseTo(6);
+    tcNow = { ...tcNow, frames: 200, running: false }; cueTick(st, 2200, env);
+    expect(cueRenders(st, 2200, env)[0]!.rate).toBe(0); // Timecode steht → Bild steht
+    tcNow = { ...tcNow, frames: 10, running: true }; cueTick(st, 2300, env); // zurückgespult
+    expect(st.run.active.length).toBe(0);
+  });
+  it("Nur starten (ohne Folgen): Start beim Überschreiten der Zeit", () => {
+    const st = ncs();
+    let f = 40;
+    const env: CueEnv = { duration: () => 10, recallScene: () => {}, timecode: () => ({ frames: f, fps: 25, running: true, stale: false }), chase: false };
+    const q = newCue("image", "Logo", "img:bbbbbb"); q.start = "timecode"; q.tc = "00:00:02:00";
+    st.list.push(q);
+    cueTick(st, 0, env); expect(st.run.active.length).toBe(0);
+    f = 52; cueTick(st, 500, env); expect(st.run.active.length).toBe(1);
   });
 });

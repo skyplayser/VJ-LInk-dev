@@ -29,18 +29,19 @@ fit();
 
 const test = document.createElement("canvas");
 const tctx = test.getContext("2d")!;
+/** Über dem Testbild der Engine: die genaue Auflösung dieses Ausgangs. */
 function drawTestPattern(): void {
   const w = canvas.width, h = canvas.height;
   test.width = w; test.height = h;
-  tctx.fillStyle = "#101010"; tctx.fillRect(0, 0, w, h);
-  tctx.strokeStyle = "#555"; tctx.lineWidth = 1;
-  const step = Math.max(32, Math.round(h / 12));
-  for (let x = 0; x <= w; x += step) { tctx.beginPath(); tctx.moveTo(x + .5, 0); tctx.lineTo(x + .5, h); tctx.stroke(); }
-  for (let y = 0; y <= h; y += step) { tctx.beginPath(); tctx.moveTo(0, y + .5); tctx.lineTo(w, y + .5); tctx.stroke(); }
-  tctx.strokeStyle = "#fff"; tctx.lineWidth = 4; tctx.strokeRect(2, 2, w - 4, h - 4);
+  tctx.clearRect(0, 0, w, h);
+  const fs = Math.max(14, Math.round(h / 14));
+  tctx.font = `700 ${fs}px system-ui, sans-serif`;
+  const label = `${w} × ${h}`;
+  const tw = tctx.measureText(label).width;
+  const bx = w / 2 - tw / 2 - fs * 0.5, by = h * 0.27 - fs * 0.8;
+  tctx.fillStyle = "rgba(0,0,0,.8)"; tctx.fillRect(bx, by, tw + fs, fs * 1.6);
   tctx.fillStyle = "#fff"; tctx.textAlign = "center"; tctx.textBaseline = "middle";
-  tctx.font = `700 ${Math.round(h / 8)}px system-ui, sans-serif`;
-  tctx.fillText(`${w} × ${h}`, w / 2, h / 2);
+  tctx.fillText(label, w / 2, h * 0.27);
 }
 
 // Testbild: eigener 2D-Canvas darüber, damit die WebGL-Fläche unberührt bleibt.
@@ -60,7 +61,7 @@ function loop(): void {
   const now = Date.now();
   if (frame) {
     if (frame.testPattern !== wasTest) { wasTest = frame.testPattern; showTest(wasTest); }
-    if (!wasTest) engine.render(frame.show, frameBeat(frame, now), now, frame.bpm);
+    engine.render(frame.show, frameBeat(frame, now), now, frame.bpm);
   } else {
     engine.gl.clearColor(0, 0, 0, 1); engine.gl.clear(engine.gl.COLOR_BUFFER_BIT);
   }

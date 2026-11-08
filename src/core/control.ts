@@ -10,6 +10,8 @@ import { setControl } from "./controls";
 export interface ControlContext {
   /** SHOW-Ablauf (Cues und laufender Zustand). */
   cues: CueState;
+  /** Timecode-Uhr (setzt die Oberfläche). */
+  tc?: import("./timecode").TimecodeClock;
   /** Längen der Videos und Szenenabruf für den Ablauf (setzt die Oberfläche). */
   cueEnv?: CueEnv;
   show: ShowState;

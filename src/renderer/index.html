@@ -30,19 +30,8 @@
     <button class="pill audio-pill" id="audio-btn" aria-haspopup="dialog" aria-expanded="false" title="Audio-Eingang für Equalizer und Oszilloskop">
       <span class="meter" id="audio-meter"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span id="audio-label">AUDIO</span>
     </button>
-    <div class="map-menu audio-menu" id="audio-menu" role="dialog" aria-label="Audio-Eingang" hidden>
-      <b class="am-title">Audio-Eingang</b>
-      <div id="audio-devices" class="am-list" role="radiogroup" aria-label="Eingang"></div>
-      <label class="am-row">Pegel <input type="range" id="audio-gain" min="25" max="400" step="5" value="100"><span id="audio-gain-val">100 %</span></label>
-      <div class="am-meter" aria-hidden="true"><i id="audio-level"></i></div>
-      <span class="am-cap">Wirkt auf</span>
-      <div class="seg am-seg" role="radiogroup" aria-label="Wirkt auf">
-        <button data-scope="audio" role="radio">Audio-Visuals</button>
-        <button data-scope="all" role="radio">Alle Visuals</button>
-      </div>
-      <p class="am-hint" id="audio-hint"></p>
-    </div>
   </div>
+  <button class="pill tc-pill" id="tc-btn" title="Timecode (Einstellungen)">TC <span id="tc-val">--:--:--:--</span></button>
   <div class="tempo">
     <button class="bpm" id="bpm" data-ctl="tempo.bpm" title="Anklicken, Zahl eingeben, Enter">120.00</button>
     <input class="bpm bpm-input" id="bpm-input" type="number" min="20" max="300" step="0.01" hidden aria-label="BPM eingeben">
@@ -68,6 +57,9 @@
     <span class="pill" id="st-midi"><span class="dot"></span>MIDI</span>
     <span class="pill" id="st-fps">– FPS</span>
   </div>
+  <button class="btn icon-btn" id="settings-btn" title="Einstellungen" aria-label="Einstellungen">
+    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.4h-4l-.3 2.6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+  </button>
   <button class="btn blackout" id="blackout" data-ctl="blackout">BLACKOUT</button>
 </header>
 
@@ -81,7 +73,7 @@
           <div class="mon-box" id="mon-box"><canvas id="preview" width="640" height="360" aria-label="Vorschau des Ausgangs"></canvas></div>
         </div>
         <aside class="outs-strip" aria-label="Geöffnete Ausgänge">
-          <h2>Ausgänge</h2>
+          <div class="h2row" style="margin:0 0 8px"><h2 style="margin:0">Ausgänge</h2><button class="btn small-btn" id="test-quick" data-ctl="test.toggle" aria-pressed="false" title="Testbild auf Vorschau und allen Ausgängen">Testbild</button></div>
           <div id="outs-strip"></div>
         </aside>
       </div>
@@ -162,6 +154,43 @@
   <div id="lj-decks" class="cards"></div>
 </section>
 </main>
+<div class="settings" id="settings" role="dialog" aria-modal="true" aria-label="Einstellungen" hidden>
+  <div class="set-box">
+    <nav class="set-nav" aria-label="Bereiche">
+      <b>Einstellungen</b>
+      <button data-sec="audio" class="on">Audio</button>
+      <button data-sec="timecode">Timecode</button>
+      <button data-sec="midi">MIDI</button>
+      <button data-sec="dmx">DMX und Netzwerk</button>
+      <button data-sec="outputs">Ausgänge und Testbild</button>
+      <button data-sec="ui">Oberfläche</button>
+    </nav>
+    <div class="set-main">
+      <div class="set-head"><h2 id="set-title">Audio</h2><button class="btn small-btn" id="set-close">Schließen (Esc)</button></div>
+      <section class="set-sec" data-sec="audio">
+        <h3>Eingang</h3>
+        <p class="am-hint">Mikrofon oder Line-In für Equalizer, Oszilloskop & Co.</p>
+      <div id="audio-devices" class="am-list" role="radiogroup" aria-label="Eingang"></div>
+      <label class="am-row">Pegel <input type="range" id="audio-gain" min="25" max="400" step="5" value="100"><span id="audio-gain-val">100 %</span></label>
+      <div class="am-meter" aria-hidden="true"><i id="audio-level"></i></div>
+      <span class="am-cap">Wirkt auf</span>
+      <div class="seg am-seg" role="radiogroup" aria-label="Wirkt auf">
+        <button data-scope="audio" role="radio">Audio-Visuals</button>
+        <button data-scope="all" role="radio">Alle Visuals</button>
+      </div>
+      <p class="am-hint" id="audio-hint"></p>
+        <h3>Ausgang</h3>
+        <p class="am-hint">Wohin der Ton von Videos geht (Cues mit Ton, Video-Clips mit Ton an).</p>
+        <div id="audio-outs" class="am-list" role="radiogroup" aria-label="Audio-Ausgang"></div>
+      </section>
+      <section class="set-sec" data-sec="timecode" hidden><div id="set-tc"></div></section>
+      <section class="set-sec" data-sec="midi" hidden><div id="set-midi"></div></section>
+      <section class="set-sec" data-sec="dmx" hidden><div id="set-dmx"></div></section>
+      <section class="set-sec" data-sec="outputs" hidden><div id="set-outputs"></div></section>
+      <section class="set-sec" data-sec="ui" hidden><div id="set-ui"></div></section>
+    </div>
+  </div>
+</div>
 <footer id="deck" class="deck" aria-label="Fader und Tasten"></footer>
 <script src="app.js"></script>
 </body>

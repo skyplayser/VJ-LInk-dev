@@ -86,7 +86,7 @@ function cue(v: unknown): Cue | null {
   const kind = oneOf(v.kind, ["video", "image", "black", "scene"] as const, "black");
   const c = newCue(kind, str(v.name, "Cue", 60) || "Cue", clip(v.media), v.id);
   c.scene = num(v.scene, 1, 1, 999);
-  c.start = oneOf(v.start, ["manual", "after", "with"] as const, "manual");
+  c.start = oneOf(v.start, ["manual", "after", "with", "timecode"] as const, "manual");
   c.wait = num(v.wait, 0, 0, 3600);
   c.trimIn = num(v.trimIn, 0, 0, 86400); c.trimOut = num(v.trimOut, 0, 0, 86400);
   c.loop = oneOf(v.loop, ["off", "count", "untilGo", "forever"] as const, "off");
@@ -99,6 +99,7 @@ function cue(v: unknown): Cue | null {
   c.volume = clamp01(num(v.volume, 1));
   c.fit = oneOf(v.fit, FITS, "fill");
   c.over = oneOf(v.over, ["replace", "over"] as const, "replace");
+  c.tc = typeof v.tc === "string" && /^\d{2}:\d{2}:\d{2}[:;]\d{2}$/.test(v.tc) ? v.tc : "00:00:00:00";
   return c;
 }
 

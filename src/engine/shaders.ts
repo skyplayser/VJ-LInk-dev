@@ -1,6 +1,6 @@
 // GLSL ES 3.00. Ein Programm, Generator per Nummer gewählt (uGen).
 export const GEN_IDS = ["bar-spectrum", "radial-eq", "oscilloscope", "pulse-rings", "tunnel", "synth-grid", "starfield", "plasma",
-  "lissajous", "vu-meter", "dot-matrix", "plexus", "hypercube", "vector-gobos", "bokeh", "burst", "lightning", "ripples", "fire", "liquid-light", "mirror-ball", "uv-glow", "laser-sheet", "laser-fans", "moire", "flower", "co2-jet"] as const;
+  "lissajous", "vu-meter", "dot-matrix", "plexus", "hypercube", "vector-gobos", "bokeh", "burst", "lightning", "ripples", "fire", "liquid-light", "mirror-ball", "uv-glow", "laser-sheet", "laser-fans", "moire", "flower", "co2-jet", "testcard"] as const;
 export type GenId = typeof GEN_IDS[number];
 
 export const VERT = `#version 300 es
@@ -449,6 +449,35 @@ vec3 co2Jet(vec2 uv){
   return vec3(min(1.0, acc * fade * 1.4));
 }
 
+// 36 Testbild: Farbbalken, Graustufen, Raster, Kreis, Ränder, laufender Zeiger (zeigt, dass das Bild lebt)
+vec3 testcard(vec2 uv){
+  vec2 px = uv * uRes;
+  vec3 c;
+  if (uv.y > 0.34) {
+    int bar = int(floor(uv.x * 7.0));
+    c = bar == 0 ? vec3(0.75) : bar == 1 ? vec3(0.75, 0.75, 0.0) : bar == 2 ? vec3(0.0, 0.75, 0.75) : bar == 3 ? vec3(0.0, 0.75, 0.0)
+      : bar == 4 ? vec3(0.75, 0.0, 0.75) : bar == 5 ? vec3(0.75, 0.0, 0.0) : vec3(0.0, 0.0, 0.75);
+  } else if (uv.y > 0.22) {
+    c = vec3(floor(uv.x * 11.0) / 10.0);
+  } else {
+    c = uv.x < 0.25 ? vec3(0.0, 0.13, 0.3) : uv.x < 0.5 ? vec3(1.0) : uv.x < 0.75 ? vec3(0.2, 0.0, 0.4) : vec3(0.02);
+  }
+  float cell = uRes.y / 12.0;
+  vec2 g = abs(fract(px / cell + 0.5) - 0.5) * cell;
+  float grid = step(min(g.x, g.y), 0.75);
+  c = mix(c, vec3(0.92), grid * 0.65);
+  vec2 p = cp(uv);
+  float r = length(p);
+  c = mix(c, vec3(1.0), smoothstep(1.6 / uRes.y, 0.0, abs(r - 0.42)));
+  c = mix(c, vec3(1.0), step(abs(p.x), 1.0 / uRes.y) * step(r, 0.42) + step(abs(p.y), 1.0 / uRes.y) * step(r, 0.42));
+  float a = atan(p.y, p.x), sweep = mod(-uTime * 3.1416, 6.2832) - 3.1416;
+  c = mix(c, vec3(1.0, 0.2, 0.4), smoothstep(0.05, 0.0, abs(a - sweep)) * step(r, 0.4) * step(0.05, r));
+  vec2 e = min(px, uRes - px);
+  c = mix(c, vec3(1.0), step(min(e.x, e.y), 3.0));
+  c = mix(c, vec3(1.0, 0.1, 0.1), step(max(e.x, e.y), cell * 0.5) * step(min(e.x, e.y), cell * 0.5) * 0.9);
+  return c;
+}
+
 void main(){
   vec2 uv = vUv;
   vec3 c;
@@ -479,6 +508,7 @@ void main(){
   else if (uGen == 24) c = moire(uv);
   else if (uGen == 25) c = flower(uv);
   else if (uGen == 26) c = co2Jet(uv);
+  else if (uGen == 27) c = testcard(uv);
   else c = vec3(0.0);
 
   float lum = clamp(dot(c, vec3(0.299, 0.587, 0.114)) * 1.15, 0.0, 1.0);

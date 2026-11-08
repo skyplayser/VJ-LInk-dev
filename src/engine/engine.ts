@@ -340,6 +340,7 @@ export class Engine {
       this.draw();
     }
     if (!show.blackout && show.cues.length) this.drawCues(show.cues, nowMs, w, h);
+    if (show.testCard) this.drawTestCard(show, beat, nowMs, w, h);
     this.dropStaleFeedback();
 
     const ms = performance.now() - t0;
@@ -424,6 +425,13 @@ export class Engine {
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     this.draw();
     gl.disable(gl.BLEND);
+  }
+
+  /** Testbild als oberste Fläche (in voller Auflösung des Fensters). */
+  private drawTestCard(show: ShowState, beat: number, nowMs: number, w: number, h: number): void {
+    const l: LayerState = { ...show.layers[0]!, clip: "testcard", effects: [], colorSource: "original", opacity: 1, strobe: 0 };
+    const img = this.renderLayer(l, "testcard", nowMs / 1000, w, h, show, beat, 0, new Float32Array(8), false);
+    if (img) this.drawFlat(img.tex, w, h, "fill", 1, w, h);
   }
 
   /** SHOW-Ablauf: Cues über bzw. statt der Visuals. */

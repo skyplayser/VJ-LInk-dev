@@ -1,6 +1,7 @@
 // Was die Oberfläche an die Ausgänge schickt: Show-Zustand plus Takt-Ursprung.
 import type { ShowState } from "./show";
 import type { MediaPayload } from "./media";
+import type { Tc, TcFps } from "./timecode";
 
 export interface Frame {
   show: ShowState;
@@ -22,7 +23,8 @@ export type ControlEvent =
   | { type: "lj"; raw: string }
   | { type: "lj-connection"; clients: number }
   | { type: "status"; status: NetStatus }
-  | { type: "link"; connected: boolean; peers: number; bpm: number; beat: number };
+  | { type: "link"; connected: boolean; peers: number; bpm: number; beat: number }
+  | { type: "timecode"; source: "artnet"; tc: Tc; fps: TcFps; from: string };
 
 export interface NetStatus {
   artnet: { listening: boolean; packets: number; lastFrom?: string; error?: string };
@@ -70,6 +72,8 @@ export interface VjBridge {
   /** Video in die Bibliothek kopieren. Gibt ID und Endung oder eine Fehlermeldung zurück. */
   addVideo(path: string, name: string): Promise<{ id: string; ext: string; name: string } | string>;
   removeVideo(id: string): void;
+  /** Art-Net-Timecode senden (19-Byte-Paket an IP oder Broadcast). */
+  sendArtTimecode(bytes: Uint8Array, host: string): void;
   /** Mikrofon-Zugriff beim System anfragen (macOS). */
   askMicrophone(): Promise<boolean>;
   loadProject(): Promise<ProjectLoad>;

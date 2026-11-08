@@ -12,7 +12,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 }
 
 const CAT: Record<EffectCategory, string> = {
-  audio: "Audio und Equalizer", geometry: "Geometrie und Tunnel", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Licht und Raum",
+  audio: "Audio und Equalizer", geometry: "Geometrie und Tunnel", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Licht und Raum", tools: "Werkzeuge",
 };
 
 export class LibraryPanel {

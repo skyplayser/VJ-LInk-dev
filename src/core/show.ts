@@ -144,6 +144,8 @@ export interface ShowState {
   layers: LayerState[];
   /** SHOW-Ablauf: was gerade über bzw. statt den Visuals läuft. */
   cues: CueRender[];
+  /** Testbild auf Vorschau und allen Ausgängen. */
+  testCard: boolean;
   slots: Rgb[];
   /** Audio-Analyse 0–1, vom Audio-Eingang oder aus LJ-Link-Wellenform. */
   audio: AudioState;
@@ -206,6 +208,7 @@ export function defaultShow(): ShowState {
     master: 1, strobe: defaultStrobe(), blackout: false, scene: 0, transitionBeats: 1, transition: null, sceneStart: { beat: 0, ms: 0 }, fxMaster: 1, autoVj: false,
     layers,
     cues: [],
+    testCard: false,
     slots: [[1, 0.1, 0.35], [1, 0.7, 0.1], [0.2, 0.9, 0.5], [0.1, 0.8, 1], [0.7, 0.35, 1]],
     audio: { bass: 0, mid: 0, high: 0 },
   };

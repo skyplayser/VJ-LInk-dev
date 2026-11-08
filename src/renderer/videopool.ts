@@ -12,6 +12,17 @@ export class VideoPool {
   private entries = new Map<string, Entry>();
   /** Zähler für Tests: Wechsel am Loop-Ende und harte Sprünge. */
   stats = { swaps: 0, seeks: 0 };
+  /** Audio-Ausgang (Geräte-ID, leer = Standard). */
+  private sink = "";
+
+  setSink(id: string): void {
+    this.sink = id;
+    for (const e of this.entries.values()) for (const el of e.els) this.applySink(el);
+  }
+  private applySink(el: HTMLVideoElement): void {
+    const m = el as HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> };
+    if (this.audio && m.setSinkId) void m.setSinkId(this.sink).catch(() => { /* Gerät nicht mehr da: Standard */ });
+  }
 
   /** `audio`: Darf dieses Fenster Ton ausgeben (nur das Hauptfenster)? */
   constructor(private urlFor: (id: string) => string | null, private audio: boolean) {}
@@ -23,6 +34,7 @@ export class VideoPool {
     el.muted = true;
     el.playsInline = true;
     el.src = url;
+    this.applySink(el);
     return el;
   }
 

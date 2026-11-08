@@ -18,6 +18,7 @@ const bridge: VjBridge = {
   pathForFile: f => webUtils.getPathForFile(f),
   addVideo: (p, n) => ipcRenderer.invoke("video:add", p, n),
   removeVideo: id => { ipcRenderer.send("video:remove", id); },
+  sendArtTimecode: (b, host) => { ipcRenderer.send("tc:artnet", b, host); },
   loadProject: () => ipcRenderer.invoke("project:load"),
   platform: process.platform,
 };
