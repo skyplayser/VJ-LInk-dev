@@ -3,6 +3,7 @@ import type { ControlContext } from "./control";
 import { POST_BY_ID } from "./effects";
 import { isValidMediaId, type MediaItem } from "./media";
 import { parseMappings, type Mapping } from "./mapping";
+import { FITS, newCue, type Cue, type VideoItem, type VideoSettings } from "./video";
 import {
   BLEND_MODES, COLOR_SOURCES, KEY_MODES, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
@@ -19,17 +20,22 @@ export interface ProjectFile {
   fxMaster: number;
   strobe: { speed: number; intensity: number; sync: boolean };
   media: MediaItem[];
+  videos: VideoItem[];
+  /** SHOW-Ablauf */
+  cues: Cue[];
   /** Fehlt in alten Dateien: dann gilt die Standard-Tastenbelegung. */
   mappings?: Mapping[];
 }
 
-export function serializeProject(c: ControlContext, media: readonly MediaItem[], mappings: readonly Mapping[] = []): string {
+export function serializeProject(c: ControlContext, media: readonly MediaItem[], mappings: readonly Mapping[] = [], videos: readonly VideoItem[] = []): string {
   const s = c.show;
   const p: ProjectFile = {
     version: PROJECT_VERSION,
     layers: s.layers, scenes: c.scenes, slots: s.slots, transitionBeats: s.transitionBeats, fxMaster: s.fxMaster,
     strobe: { speed: s.strobe.speed, intensity: s.strobe.intensity, sync: s.strobe.sync },
     media: [...media],
+    videos: [...videos],
+    cues: c.cues.list,
     mappings: [...mappings],
   };
   return JSON.stringify(p);
@@ -45,7 +51,7 @@ const str = (v: unknown, d: string, max = 80): string => (typeof v === "string" 
 
 function clip(v: unknown): string | null {
   if (typeof v !== "string") return null;
-  if (v.startsWith("img:")) return isValidMediaId(v.slice(4)) ? v : null;
+  if (v.startsWith("img:") || v.startsWith("vid:")) return isValidMediaId(v.slice(4)) ? v : null;
   return /^[a-z0-9-]{1,40}$/.test(v) ? v : null;
 }
 
@@ -66,6 +72,36 @@ function media(v: unknown): MediaSettings | undefined {
   };
 }
 
+function video(v: unknown): VideoSettings | undefined {
+  if (!isObj(v)) return undefined;
+  return {
+    loopIn: num(v.loopIn, 0, 0, 86400), loopOut: num(v.loopOut, 0, 0, 86400),
+    beats: oneOf(String(num(v.beats, 0)), ["0", "4", "8", "16", "32"] as const, "0") === "0" ? 0 : num(v.beats, 0),
+    fit: oneOf(v.fit, FITS, "fill"), sound: v.sound === true,
+  };
+}
+
+function cue(v: unknown): Cue | null {
+  if (!isObj(v) || typeof v.id !== "string" || !/^[a-z0-9]{3,24}$/.test(v.id)) return null;
+  const kind = oneOf(v.kind, ["video", "image", "black", "scene"] as const, "black");
+  const c = newCue(kind, str(v.name, "Cue", 60) || "Cue", clip(v.media), v.id);
+  c.scene = num(v.scene, 1, 1, 999);
+  c.start = oneOf(v.start, ["manual", "after", "with"] as const, "manual");
+  c.wait = num(v.wait, 0, 0, 3600);
+  c.trimIn = num(v.trimIn, 0, 0, 86400); c.trimOut = num(v.trimOut, 0, 0, 86400);
+  c.loop = oneOf(v.loop, ["off", "count", "untilGo", "forever"] as const, "off");
+  c.loopCount = num(v.loopCount, 2, 1, 999);
+  c.loopRange = v.loopRange === true;
+  c.loopIn = num(v.loopIn, 0, 0, 86400); c.loopOut = num(v.loopOut, 0, 0, 86400);
+  c.end = oneOf(v.end, ["hold", "fade", "next"] as const, "hold");
+  c.fadeIn = num(v.fadeIn, 0.5, 0, 60); c.fadeOut = num(v.fadeOut, 1, 0, 60);
+  c.hold = num(v.hold, 0, 0, 86400);
+  c.volume = clamp01(num(v.volume, 1));
+  c.fit = oneOf(v.fit, FITS, "fill");
+  c.over = oneOf(v.over, ["replace", "over"] as const, "replace");
+  return c;
+}
+
 /** Teil-Ebene (für Szenen): nur Felder übernehmen, die gültig vorhanden sind. */
 function partialLayer(v: unknown): Partial<LayerState> | null {
   if (!isObj(v)) return null;
@@ -79,6 +115,7 @@ function partialLayer(v: unknown): Partial<LayerState> | null {
   if ("strobe" in v) out.strobe = num(v.strobe, 0, 0, 8);
   const fx = effects(v.effects); if (fx) out.effects = fx;
   const md = media(v.media); if (md) out.media = md;
+  const vd = video(v.video); if (vd) out.video = vd;
   return out;
 }
 
@@ -131,6 +168,11 @@ export function parseProject(json: string): ProjectFile | null {
     strobe: { speed: clamp01(num(st.speed, 0.5)), intensity: clamp01(num(st.intensity, 1)), sync: st.sync !== false },
     media: mediaList,
     mappings: parseMappings(raw.mappings) ?? undefined,
+    videos: (Array.isArray(raw.videos) ? raw.videos : []).filter(isObj).filter(m => isValidMediaId(m.id)).map(m => ({
+      id: m.id as string, name: str(m.name, "Video", 80), ext: oneOf(m.ext, ["mp4", "m4v", "mov", "webm"] as const, "mp4"),
+      duration: num(m.duration, 0, 0, 86400), width: num(m.width, 0, 0, 16384), height: num(m.height, 0, 0, 16384),
+    })),
+    cues: (Array.isArray(raw.cues) ? raw.cues : []).map(cue).filter((x): x is Cue => !!x).slice(0, 500),
   };
 }
 
@@ -145,4 +187,6 @@ export function applyProject(c: ControlContext, p: ProjectFile): void {
   Object.assign(s.strobe, p.strobe);
   s.scene = 0;
   s.transition = null;
+  c.cues.list = p.cues;
+  c.cues.run = { active: [], next: 0, current: -1 };
 }

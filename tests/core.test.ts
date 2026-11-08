@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TempoClock } from "../src/core/tempo";
+import { newCueState } from "../src/core/video";
 import { parseArtDmx } from "../src/core/artnet";
 import { parseSacn } from "../src/core/sacn";
 import { buildOsc, parseOsc } from "../src/core/osc";
@@ -11,7 +12,7 @@ import { handleLj, handleOsc, type ControlContext } from "../src/core/control";
 
 function ctx(): ControlContext {
   return { show: defaultShow(), tempo: new TempoClock(), scenes: defaultScenes(), lj: newLjState(),
-    rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1 };
+    cues: newCueState(), rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1 };
 }
 
 describe("Takt", () => {
@@ -727,5 +728,75 @@ describe("Bibliothek der Visuals", () => {
     expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
     expect(READY_GENERATORS.length).toBe(27);
     expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual(["silhouette"]);
+  });
+});
+
+import { clipVideoTime, cueGo, cueRenders, cueTick, cueTime, newCue, newCueState as ncs, type CueEnv } from "../src/core/video";
+describe("Video als Clip", () => {
+  it("Loop in normaler Geschwindigkeit und im Takt", () => {
+    const v = { loopIn: 2, loopOut: 6, beats: 0, fit: "fill" as const, sound: false };
+    const st = { clip: "vid:x", ms: 1000, beat: 8 };
+    expect(clipVideoTime(v, st, 10, 0, 1000 + 1500, 120).t).toBeCloseTo(3.5);
+    expect(clipVideoTime(v, st, 10, 0, 1000 + 5000, 120).t).toBeCloseTo(3); // 5 s im 4-s-Loop
+    v.beats = 8; // 8 Beats bei 120 BPM = 4 s, Loop 4 s → Tempo 1
+    const r = clipVideoTime(v, st, 10, 12, 0, 120);
+    expect(r.rate).toBeCloseTo(1);
+    expect(r.t).toBeCloseTo(4); // halber Loop
+    expect(clipVideoTime(v, st, 10, 16, 0, 120).t).toBeCloseTo(2); // neuer Durchlauf auf dem Beat
+    expect(clipVideoTime(v, st, 10, 12, 0, 240).rate).toBeCloseTo(2);
+  });
+});
+
+describe("SHOW-Ablauf", () => {
+  const env = (rec: number[] = []): CueEnv => ({ duration: m => (m === "vid:aaaaaa" ? 10 : 0), recallScene: i => rec.push(i) });
+  it("WEITER startet der Reihe nach, „mit vorigem“ zusammen, Szene wird abgerufen", () => {
+    const s = ncs(); const rec: number[] = [];
+    const a = newCue("video", "Intro", "vid:aaaaaa");
+    const b = newCue("scene", "Licht"); b.start = "with"; b.wait = 1; b.scene = 3;
+    const c = newCue("image", "Logo", "img:bbbbbb");
+    s.list.push(a, b, c);
+    expect(cueGo(s, 0, env(rec))).toBe("started");
+    expect(s.run.active.length).toBe(2);
+    expect(s.run.next).toBe(2);
+    cueTick(s, 500, env(rec)); expect(rec).toEqual([]);
+    cueTick(s, 1100, env(rec)); expect(rec).toEqual([2]);
+    expect(cueRenders(s, 2000, env(rec))[0]!.t).toBeCloseTo(2);
+    cueGo(s, 3000, env(rec));
+    const r = cueRenders(s, 3200, env(rec));
+    expect(r.map(x => x.kind)).toEqual(["video", "image"]); // Intro blendet über 0,5 s aus
+    expect(r[0]!.opacity).toBeLessThan(1);
+    cueTick(s, 4000, env(rec));
+    expect(cueRenders(s, 4000, env(rec)).map(x => x.kind)).toEqual(["image"]);
+  });
+  it("„nach vorigem“ startet am Ende, „bis WEITER“ beendet erst den Loop", () => {
+    const s = ncs(); const e = env();
+    const a = newCue("video", "Opener", "vid:aaaaaa"); a.loop = "untilGo"; a.loopRange = true; a.loopIn = 4; a.loopOut = 6;
+    const b = newCue("black", "Schwarz"); b.start = "after";
+    s.list.push(a, b);
+    cueGo(s, 0, e);
+    expect(cueTime(a, s.run.active[0]!, 9000, 10).t).toBeCloseTo(5); // 4 + (9-6) mod 2 = 5
+    expect(cueGo(s, 9000, e)).toBe("released");
+    cueTick(s, 12000, e); expect(s.run.current).toBe(0); // 5 s + 3 s → bei 14 s zu Ende
+    cueTick(s, 14100, e);
+    expect(s.run.current).toBe(1);
+    expect(cueRenders(s, 14600, e).some(r => r.kind === "black")).toBe(true);
+  });
+  it("x-mal wiederholen und Ende „weiter“", () => {
+    const s = ncs(); const e = env();
+    const a = newCue("video", "Loop", "vid:aaaaaa"); a.trimOut = 4; a.loop = "count"; a.loopCount = 3; a.end = "next";
+    const b = newCue("image", "Bild", "img:bbbbbb");
+    s.list.push(a, b);
+    cueGo(s, 0, e);
+    expect(cueTime(a, s.run.active[0]!, 9000, 10).t).toBeCloseTo(1);
+    cueTick(s, 11000, e); expect(s.run.current).toBe(0);
+    cueTick(s, 12100, e); expect(s.run.current).toBe(1);
+  });
+  it("Projekt speichert den Ablauf", () => {
+    const c = ctx();
+    const q = newCue("video", "Intro", "vid:aaaaaa"); q.loop = "forever"; q.over = "over";
+    c.cues.list.push(q);
+    const p = parseProject(serializeProject(c, [], [], [{ id: "aaaaaa", name: "Intro", ext: "mp4", duration: 10, width: 1920, height: 1080 }]))!;
+    expect(p.cues[0]).toEqual(q);
+    expect(p.videos[0]!.duration).toBe(10);
   });
 });

@@ -2,7 +2,7 @@
 // Jedes Element hat eine feste ID; Werte laufen immer von 0 bis 1.
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
 import { STROBE_DIVISIONS, strobeHz } from "./audio";
-import { recallScene, stepScene, type ControlContext } from "./control";
+import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
 import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, SLOT_NAMES, clamp01, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
 
@@ -20,7 +20,7 @@ export type ControlKind = "fader" | "toggle" | "hold" | "trigger";
 export interface ControlDef {
   id: string;
   label: string;
-  group: "Master" | "Strobe" | "Ebenen" | "Effekt" | "Tempo" | "Szenen" | "Clips" | "Farben";
+  group: "Master" | "Strobe" | "Ebenen" | "Effekt" | "Tempo" | "Szenen" | "Clips" | "Farben" | "Show";
   kind: ControlKind;
   /** Erscheint in der Leiste unten. Alles andere ist über MIDI und OSC erreichbar. */
   quick: boolean;
@@ -109,6 +109,14 @@ export function buildControls(): ControlDef[] {
         set: (c, v) => { const o = c.show.slots[i] ?? [0, 0, 0]; const nx: [number, number, number] = [o[0], o[1], o[2]]; nx[k] = clamp01(v); c.show.slots[i] = nx; } });
     });
   });
+  list.push(
+    { id: "show.go", label: "WEITER", group: "Show", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (on(v)) showGo(c); } },
+    { id: "show.back", label: "Zurück", group: "Show", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (on(v)) showBack(c); } },
+    { id: "show.stop", label: "Alles stoppen", group: "Show", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (on(v)) showStop(c); } },
+  );
   list.push(
     { id: "scene.next", label: "Weiter", group: "Szenen", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) stepScene(c, 1); } },

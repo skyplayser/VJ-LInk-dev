@@ -1,9 +1,12 @@
-import { BrowserWindow, app, ipcMain, nativeImage, screen, session, systemPreferences, type Display } from "electron";
+import { BrowserWindow, app, ipcMain, nativeImage, protocol, screen, session, systemPreferences, type Display } from "electron";
 import path from "node:path";
 import { Network } from "./network";
 import { Storage } from "./storage";
 import { LinkClient } from "./link";
 import type { ControlEvent, DisplayInfo, Frame, NetConfig } from "../core/frame";
+
+// Eigenes Protokoll für Videos: streamt aus dem Bibliotheksordner, spulbar, für WebGL freigegeben.
+protocol.registerSchemesAsPrivileged([{ scheme: "vjmedia", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true } }]);
 
 let control: BrowserWindow | null = null;
 const outputs = new Map<number, BrowserWindow>();
@@ -93,6 +96,9 @@ function toggleOutput(id: number): DisplayInfo[] {
   return listDisplays();
 }
 
+// Für Tests: eigener Datenordner, damit das echte Projekt unberührt bleibt
+if (process.env.VJLINK_DATA) app.setPath("userData", process.env.VJLINK_DATA);
+
 app.whenReady().then(async () => {
   // Nur das Hauptfenster: MIDI (ohne SysEx) und Audio-Eingang (Mikrofon/Line-In, keine Kamera).
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
@@ -104,6 +110,7 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler((wc, perm) => wc === control?.webContents && (perm === "midi" || perm === "media"));
   storage = new Storage(app.getPath("userData"));
   await storage.init();
+  protocol.handle("vjmedia", req => storage!.serveVideo(req));
   if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(ICON));
   createControl();
   net = new Network((e: ControlEvent) => { control?.webContents.send("control", e); });
@@ -148,6 +155,8 @@ app.whenReady().then(async () => {
     if (await storage!.removeMedia(id)) for (const w of outputs.values()) if (!w.isDestroyed()) w.webContents.send("media", { type: "remove", id });
   });
   ipcMain.on("project:save", (e, json: unknown) => { if (fromControl(e)) void storage!.saveProject(json); });
+  ipcMain.handle("video:add", async (e, src: unknown, name: unknown) => fromControl(e) ? storage!.addVideo(src, name) : "Nicht erlaubt.");
+  ipcMain.on("video:remove", (e, id: unknown) => { if (fromControl(e)) void storage!.removeVideo(id); });
   ipcMain.handle("project:load", async e => {
     if (!fromControl(e)) return { project: null, media: [] };
     return { project: await storage!.loadProject(), media: await storage!.allMedia() };

@@ -7,6 +7,7 @@ import {
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
+import { clipVideoTime, isVideoClip, videoIdOf, type CueRender, type Fit } from "../core/video";
 import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
@@ -24,6 +25,16 @@ export interface ThumbCell { layer: number; col: number; clip: string; x: number
 
 export interface EngineOptions { transparent?: boolean }
 
+/** Liefert das aktuelle Videobild für einen Abspieler (Schlüssel) an Stelle t mit Geschwindigkeit rate. */
+export type VideoProvider = (key: string, id: string, t: number, rate: number, opts: { sound: boolean; volume: number }) => { el: TexImageSource; w: number; h: number } | null;
+
+/** Größe der Bildfläche (in Bildhöhen) für füllen, einpassen oder Originalgröße. */
+export function fitScale(fit: Fit, canvasAspect: number, mediaAspect: number, mediaH: number, canvasH: number): number {
+  if (fit === "original") return canvasH > 0 ? mediaH / canvasH : 1;
+  const r = canvasAspect / Math.max(1e-3, mediaAspect);
+  return fit === "fill" ? Math.max(1, r) : Math.min(1, r);
+}
+
 export class Engine {
   readonly gl: WebGL2RenderingContext;
   private gen: Program;
@@ -32,6 +43,14 @@ export class Engine {
   private fin: Program;
   private img: Program;
   private media = new Map<string, { tex: WebGLTexture; w: number; h: number }>();
+  private videoTex = new Map<string, WebGLTexture>();
+  private black: WebGLTexture | null = null;
+  private nowMs = 0;
+  private bpm = 120;
+  /** Videobilder kommen aus dem Fenster (siehe VideoPool). */
+  videoSource: VideoProvider | null = null;
+  /** Länge eines Videos in Sekunden (aus der Bibliothek). */
+  videoDuration: (id: string) => number = () => 0;
   private vao: WebGLVertexArrayObject;
   private work: [Target | null, Target | null] = [null, null];
   private compTo: Target | null = null;
@@ -141,7 +160,17 @@ export class Engine {
    */
   private renderLayer(l: LayerState, fbKey: string, time: number, w: number, h: number,
     show: ShowState, beat: number, pulse: number, bands: Float32Array, key: boolean): Target | null {
-    const media = isMediaClip(l.clip) ? this.media.get(mediaIdOf(l.clip)) : undefined;
+    // Video-Clip: aktuelles Bild des Abspielers als Textur
+    let media = isMediaClip(l.clip) ? this.media.get(mediaIdOf(l.clip)) : undefined;
+    let isVideo = false;
+    if (isVideoClip(l.clip)) {
+      const id = videoIdOf(l.clip);
+      const vt = clipVideoTime(l.video, l.videoStart, this.videoDuration(id), beat, this.nowMs, this.bpm);
+      const src = this.videoSource?.(fbKey, id, vt.t, vt.rate, { sound: l.video.sound, volume: 1 }) ?? null;
+      if (!src) return null;
+      media = this.uploadVideo(fbKey, src);
+      isVideo = true;
+    }
     const gen = l.clip && !media ? GEN_IDS.indexOf(l.clip as typeof GEN_IDS[number]) : -1;
     if (gen < 0 && !media) return null;
     const gl = this.gl;
@@ -153,15 +182,18 @@ export class Engine {
     if (media) {
       // 1a) Grafik mit Animation
       const im = this.img;
-      const tf = mediaTransform(l.media, beat, time);
+      const tf = isVideo
+        ? { x: 0, y: 0, rotation: 0, scale: fitScale(l.video.fit, w / h, media.w / Math.max(1, media.h), media.h, h) }
+        : mediaTransform(l.media, beat, time);
       gl.useProgram(im.p);
+      gl.uniform1f(this.loc(im, "uOpacity"), 1);
       gl.uniform1i(this.loc(im, "uImg"), 0);
       gl.uniform2f(this.loc(im, "uRes"), w, h);
       gl.uniform1f(this.loc(im, "uImgAspect"), media.w / Math.max(1, media.h));
       gl.uniform2f(this.loc(im, "uPos"), tf.x, tf.y);
       gl.uniform1f(this.loc(im, "uScale"), tf.scale);
       gl.uniform1f(this.loc(im, "uRot"), tf.rotation);
-      gl.uniform1i(this.loc(im, "uKeyMode"), l.media.keyMode === "white" ? 1 : l.media.keyMode === "black" ? 2 : 0);
+      gl.uniform1i(this.loc(im, "uKeyMode"), isVideo ? 0 : l.media.keyMode === "white" ? 1 : l.media.keyMode === "black" ? 2 : 0);
       gl.uniform1f(this.loc(im, "uKeyTol"), l.media.keyTol ?? 0.25);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, media.tex);
       this.bindTarget(this.work[0]);
@@ -278,6 +310,7 @@ export class Engine {
     for (let i = 0; i < MAX_LAYERS; i++) this.layerTime[i]! += dt * (show.layers[i]?.speed ?? 1);
     gl.bindVertexArray(this.vao);
 
+    this.nowMs = nowMs; this.bpm = bpm;
     const w = this.canvas.width, h = this.canvas.height;
     if (show.blackout) {
       this.bindTarget(null); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
@@ -305,6 +338,7 @@ export class Engine {
       this.bindTarget(null, 0, 0, w, h);
       this.draw();
     }
+    if (!show.blackout && show.cues.length) this.drawCues(show.cues, nowMs, w, h);
     this.dropStaleFeedback();
 
     const ms = performance.now() - t0;
@@ -341,6 +375,73 @@ export class Engine {
       this.draw();
     }
     this.dropStaleFeedback();
+  }
+
+  // ---- Videos und SHOW-Ablauf ---------------------------------------------------------
+  private uploadVideo(key: string, src: { el: TexImageSource; w: number; h: number }): { tex: WebGLTexture; w: number; h: number } {
+    const gl = this.gl;
+    let tex = this.videoTex.get(key);
+    if (!tex) {
+      tex = gl.createTexture()!;
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.videoTex.set(key, tex);
+    }
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, src.el); } catch { /* Bild gerade nicht lesbar */ }
+    return { tex, w: src.w, h: src.h };
+  }
+
+  private blackTex(): WebGLTexture {
+    if (this.black) return this.black;
+    const gl = this.gl, tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    this.black = tex;
+    return tex;
+  }
+
+  /** Eine Fläche (Bild, Video, Schwarz) über das fertige Bild legen. */
+  private drawFlat(tex: WebGLTexture, mw: number, mh: number, fit: Fit, opacity: number, w: number, h: number): void {
+    const gl = this.gl, im = this.img;
+    gl.useProgram(im.p);
+    gl.uniform1i(this.loc(im, "uImg"), 0);
+    gl.uniform2f(this.loc(im, "uRes"), w, h);
+    gl.uniform1f(this.loc(im, "uImgAspect"), mw / Math.max(1, mh));
+    gl.uniform2f(this.loc(im, "uPos"), 0, 0);
+    gl.uniform1f(this.loc(im, "uScale"), fitScale(fit, w / h, mw / Math.max(1, mh), mh, h));
+    gl.uniform1f(this.loc(im, "uRot"), 0);
+    gl.uniform1i(this.loc(im, "uKeyMode"), 0);
+    gl.uniform1f(this.loc(im, "uOpacity"), opacity);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+    this.bindTarget(null, 0, 0, w, h);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    this.draw();
+    gl.disable(gl.BLEND);
+  }
+
+  /** SHOW-Ablauf: Cues über bzw. statt der Visuals. */
+  private drawCues(cues: readonly CueRender[], nowMs: number, w: number, h: number): void {
+    for (const c of cues) {
+      // „statt Visuals“: erst die Visuals mit der Deckkraft des Cues abdunkeln
+      if (c.over === "replace" || c.kind === "black") this.drawFlat(this.blackTex(), w, h, "fill", c.opacity, w, h);
+      if (c.kind === "black" || !c.media) continue;
+      if (c.kind === "image" && isMediaClip(c.media)) {
+        const m = this.media.get(mediaIdOf(c.media));
+        if (m) this.drawFlat(m.tex, m.w, m.h, c.fit, c.opacity, w, h);
+      } else if (c.kind === "video" && isVideoClip(c.media)) {
+        const t = c.t + (c.rate > 0 ? ((nowMs - c.atMs) / 1000) * c.rate : 0);
+        const src = this.videoSource?.("cue:" + c.key, videoIdOf(c.media), t, c.rate, { sound: true, volume: c.volume }) ?? null;
+        if (!src) continue;
+        const v = this.uploadVideo("cue:" + c.key, src);
+        this.drawFlat(v.tex, v.w, v.h, c.fit, c.opacity, w, h);
+      }
+    }
   }
 
   /** Feedback-Texturen löschen, die einige Bilder lang nicht gebraucht wurden. */

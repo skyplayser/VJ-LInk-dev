@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src vjmedia: blob:; connect-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VJ-Link</title>
 <link rel="stylesheet" href="style.css">
@@ -11,7 +11,8 @@
 <header class="top">
   <div class="logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
   <nav class="tabs" role="tablist">
-    <button role="tab" data-tab="show" class="on">SHOW</button>
+    <button role="tab" data-tab="visuals" class="on">VISUALS</button>
+    <button role="tab" data-tab="show">SHOW</button>
     <button role="tab" data-tab="build">BAUEN</button>
     <button role="tab" data-tab="output">AUSGABE</button>
     <button role="tab" data-tab="connect">VERBINDEN</button>
@@ -71,7 +72,7 @@
 </header>
 
 <main>
-<section id="tab-show" class="tab on">
+<section id="tab-visuals" class="tab on">
   <div class="show-grid">
     <div class="left">
       <div class="monrow">
@@ -85,7 +86,7 @@
         </aside>
       </div>
       <div class="h2row grid-head"><h2>Clip-Raster <span class="muted">· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2><button class="btn small-btn" id="layer-add">+ Ebene</button></div>
-      <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple hidden>
+      <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" multiple hidden>
       <div id="toast" class="toast" role="status" hidden></div>
       <div id="grid" class="clip-grid"></div>
     </div>
@@ -95,11 +96,31 @@
       <div class="h2row"><h2>Szenen</h2><span><button class="btn small-btn" id="scene-add">+ Szene speichern</button> <button class="btn small-btn toggle" id="scene-auto" aria-pressed="false" title="Szenen laufen nach ihrer Einstellung „Danach“ automatisch weiter">Auto</button></span></div>
       <div id="scenes" class="scene-list"></div>
       <section id="media-panel" class="media-panel" hidden></section>
+      <section id="video-panel" class="media-panel" hidden></section>
       <h2 id="fx-title">Effekte</h2>
       <div id="fx-list" class="fx-list"></div>
       <select id="fx-add" class="fx-add" aria-label="Effekt hinzufügen"></select>
     </aside>
   </div>
+</section>
+
+<section id="tab-show" class="tab">
+  <div class="sh-grid">
+    <div class="sh-left">
+      <div class="h2row"><h2>Ablauf <span class="muted" id="cue-sum"></span></h2>
+        <span class="inline"><button class="btn small-btn" id="cue-add-media">+ Video / Bild</button><button class="btn small-btn" id="cue-add-black">+ Schwarz</button><button class="btn small-btn" id="cue-add-scene">+ VJ-Szene</button></span></div>
+      <div id="cue-list" class="cue-list"></div>
+      <div class="cue-drop" id="cue-drop">Videos oder Bilder hierher ziehen. Jede Datei wird ein Cue.</div>
+    </div>
+    <aside class="sh-right">
+      <div class="sh-mon"><div class="lbl"><b id="sh-now">● AUSGANG</b><span id="sh-now-time"></span></div><div class="sh-mon-slot" id="sh-mon-slot"></div></div>
+      <div class="sh-next"><span class="lbl">ALS NÄCHSTES</span><div class="sh-next-row"><span class="sh-next-thumb" id="sh-next-thumb"></span><b id="sh-next-name">–</b></div></div>
+      <button class="cue-go" id="cue-go" data-ctl="show.go">WEITER ▶<small id="cue-go-sub">Leertaste</small></button>
+      <div class="sh-row"><button class="btn" id="cue-back" data-ctl="show.back">◀ Zurück</button><button class="btn danger-btn" id="cue-stop" data-ctl="show.stop">Alles stoppen</button></div>
+      <div id="cue-details" class="cue-details"></div>
+    </aside>
+  </div>
+  <input type="file" id="cue-file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple hidden>
 </section>
 
 <section id="tab-build" class="tab">

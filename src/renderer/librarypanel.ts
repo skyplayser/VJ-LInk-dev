@@ -4,6 +4,8 @@ import { EFFECTS, type EffectCategory } from "../core/effects";
 import { mediaClip } from "../core/media";
 import { addClip, forgetClip, removeClip } from "../core/show";
 import type { MediaLibrary } from "./medialib";
+import type { VideoLibrary } from "./videolib";
+import { videoClip } from "../core/video";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -18,7 +20,7 @@ export class LibraryPanel {
   layer = 0;
   private armedDelete = "";
 
-  constructor(private ctx: ControlContext, private lib: MediaLibrary, private onChange: () => void, private onImport: (layer: number) => void) {
+  constructor(private ctx: ControlContext, private lib: MediaLibrary, private videos: VideoLibrary, private onChange: () => void, private onImport: (layer: number) => void) {
     this.panel.setAttribute("role", "dialog");
     this.panel.setAttribute("aria-label", "Bibliothek");
     this.panel.hidden = true;
@@ -78,6 +80,32 @@ export class LibraryPanel {
       body.append(grid);
     }
 
+    body.append(el("h4", "", "Eigene Videos"));
+    const vg = el("div", "lib-grid");
+    for (const v of this.videos.items) {
+      const id = videoClip(v.id);
+      const on = l.clips.includes(id);
+      const wrap = el("div", "lib-media");
+      const b = el("button", `lib-chip${on ? " on" : ""}`, v.name);
+      b.setAttribute("aria-pressed", String(on));
+      b.addEventListener("click", () => { if (on) removeClip(l, id); else addClip(l, id); this.onChange(); this.render(); });
+      const del = el("button", "icon danger", this.armedDelete === v.id ? "Löschen?" : "×");
+      del.title = "Video ganz aus der Bibliothek löschen (alle Ebenen, Szenen und Cues)";
+      del.classList.toggle("wide", this.armedDelete === v.id);
+      del.addEventListener("click", () => {
+        if (this.armedDelete !== v.id) { this.armedDelete = v.id; this.render(); return; }
+        forgetClip(this.ctx.show, this.ctx.scenes, id);
+        for (const c of this.ctx.cues.list) if (c.media === id) c.media = null;
+        this.videos.remove(v.id);
+        this.armedDelete = "";
+        this.onChange(); this.render();
+      });
+      wrap.append(b, del);
+      vg.append(wrap);
+    }
+    if (!this.videos.items.length) vg.append(el("p", "lib-hint", "Noch keine Videos. Über „+ Datei laden“ unten oder einfach hineinziehen."));
+    body.append(vg);
+
     body.append(el("h4", "", "Eigene Grafiken"));
     const mg = el("div", "lib-grid");
     for (const m of this.lib.items) {
@@ -100,8 +128,8 @@ export class LibraryPanel {
       wrap.append(b, del);
       mg.append(wrap);
     }
-    const imp = el("button", "lib-chip add", "+ Grafik laden");
-    imp.title = "Logo oder Bild laden (PNG, JPG, WebP, GIF, SVG)";
+    const imp = el("button", "lib-chip add", "+ Datei laden");
+    imp.title = "Video (MP4, MOV, WebM) oder Bild (PNG, JPG, WebP, GIF, SVG) laden";
     imp.addEventListener("click", () => this.onImport(this.layer));
     mg.append(imp);
     body.append(mg);

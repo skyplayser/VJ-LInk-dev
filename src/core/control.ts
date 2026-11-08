@@ -4,9 +4,14 @@ import { matchRules, reduceLj, type LjMessage, type LjState, type Rule, type Rul
 import type { OscMessage } from "./osc";
 import { SLOT_NAMES, applyScene, clamp01, cloneLayers, transitionProgress, type Scene, type SceneTransition, type ShowState } from "./show";
 import { READY_GENERATORS } from "./effects";
+import { cueBack, cueGo, cueStopAll, type CueEnv, type CueState } from "./video";
 import { setControl } from "./controls";
 
 export interface ControlContext {
+  /** SHOW-Ablauf (Cues und laufender Zustand). */
+  cues: CueState;
+  /** Längen der Videos und Szenenabruf für den Ablauf (setzt die Oberfläche). */
+  cueEnv?: CueEnv;
   show: ShowState;
   tempo: TempoClock;
   scenes: Scene[];
@@ -168,3 +173,15 @@ export function runAction(c: ControlContext, a: RuleAction): void {
     case "nextBank": c.bank += 1; break;
   }
 }
+
+/** Startzeit merken, sobald eine Ebene einen anderen Clip bekommt (Videos laufen dann ab dort). */
+export function tickVideoStarts(c: ControlContext, nowMs: number): void {
+  for (const l of c.show.layers) {
+    if (l.videoStart.clip !== l.clip) l.videoStart = { clip: l.clip, ms: nowMs, beat: Math.floor(c.tempo.beatAt(nowMs)) };
+  }
+}
+
+/** SHOW-Ablauf bedienen (auch per Taste, MIDI, Pult, OSC). */
+export function showGo(c: ControlContext, nowMs = Date.now()): string { return c.cueEnv ? cueGo(c.cues, nowMs, c.cueEnv) : "end"; }
+export function showBack(c: ControlContext): void { cueBack(c.cues); }
+export function showStop(c: ControlContext, nowMs = Date.now()): void { cueStopAll(c.cues, nowMs, 1); }

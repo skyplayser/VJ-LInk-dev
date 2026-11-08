@@ -8,6 +8,8 @@ export interface Frame {
   originMs: number;
   beatAtOrigin: number;
   testPattern: boolean;
+  /** Länge der Videos (Sekunden), damit Ausgänge Loops gleich rechnen. */
+  videoDurations?: Record<string, number>;
 }
 
 export const frameBeat = (f: Frame, nowMs: number): number =>
@@ -63,6 +65,11 @@ export interface VjBridge {
   onDisplays(cb: (d: DisplayInfo[]) => void): void;
   /** Größe der Oberfläche: „auto“ passt sie dem Fenster an, sonst fester Faktor (1 = 100 %). */
   setUiScale(v: "auto" | number): void;
+  /** Pfad einer gezogenen bzw. gewählten Datei (nur in der App). */
+  pathForFile(f: File): string;
+  /** Video in die Bibliothek kopieren. Gibt ID und Endung oder eine Fehlermeldung zurück. */
+  addVideo(path: string, name: string): Promise<{ id: string; ext: string; name: string } | string>;
+  removeVideo(id: string): void;
   /** Mikrofon-Zugriff beim System anfragen (macOS). */
   askMicrophone(): Promise<boolean>;
   loadProject(): Promise<ProjectLoad>;

@@ -51,7 +51,7 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
-| 5.1 | Bilder und Videos | Bilder/Logos: erledigt (laden, ziehen, animieren, Effekte). Videos offen (Lizenzfrage H.264 klären) | L | teilweise |
+| 5.1 | Bilder und Videos | Bilder/Logos und Videos (Clip mit Takt-Loop, SHOW-Ablauf) erledigt. Offen: Lizenzfrage H.264 klären, nahtloser Loop mit zwei Abspielern | L | erledigt |
 | 5.2 | Text | DJ-Name, Logo, Laufschrift, Tracktitel aus LJ-Link | M |
 | 5.3 | Auto-VJ | Szenenwechsel bei Phrasen oder alle n Takte | S | erledigt |
 
@@ -78,3 +78,13 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 ## Heute
 
 1.1 bis 1.4 in dieser Reihenfolge. Danach steht die Grundlage für MIDI (1.5), das beim nächsten Mal beginnt.
+
+## SHOW (Video-Ablauf), siehe docs/video-ablauf-konzept.html
+
+| Stufe | Inhalt | Stand |
+|---|---|---|
+| 1 | Video als Clip (Loop-Bereich, Takt-Loop, Größe, Ton) | erledigt |
+| 2 | Ablauf-Ansicht SHOW: Cues, WEITER, Start/Ende, Kürzen, Loops, Blenden | erledigt |
+| 3 | Timecode empfangen und senden (Art-Net, MTC), Videos folgen dem Timecode | offen |
+| 4 | Vorlagen, Uhrzeit-Start, Signal-Cues, LTC, Probe-Modus, Sperre | offen |
+| 5 | Ausgang pro Cue (hängt an Mapping 4.1–4.3), Umwandeln | offen |

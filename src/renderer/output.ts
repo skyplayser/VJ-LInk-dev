@@ -3,11 +3,18 @@ import { Engine } from "../engine/engine";
 import { frameBeat, type Frame } from "../core/frame";
 import { bridge } from "./bridge";
 import { decodeImage } from "./medialib";
+import { VideoPool } from "./videopool";
 
 const canvas = document.getElementById("out") as HTMLCanvasElement;
 const engine = new Engine(canvas);
 let frame: Frame | null = null;
-bridge?.onFrame(f => { frame = f; });
+// Videos kommen direkt aus der Bibliothek (vjmedia://), Ton gibt nur das Hauptfenster aus
+const videos = new VideoPool(id => `vjmedia://video/${id}`, false);
+const durations = new Map<string, number>();
+engine.videoSource = (key, id, t, rate, o) => videos.get(key, id, t, rate, o);
+engine.videoDuration = id => durations.get(id) ?? 0;
+setInterval(() => videos.sweep(), 1000);
+bridge?.onFrame(f => { frame = f; for (const [id, d] of Object.entries(f.videoDurations ?? {})) durations.set(id, d); });
 bridge?.onMedia(async e => {
   if (e.type === "remove") { engine.removeMedia(e.id); return; }
   try { const d = await decodeImage(e.item.dataUrl); engine.setMedia(e.item.id, d.src, d.w, d.h); } catch { /* Bild unlesbar */ }

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { ControlEvent, Frame, MediaEvent, NetConfig, VjBridge } from "../core/frame";
 
 const bridge: VjBridge = {
@@ -15,6 +15,9 @@ const bridge: VjBridge = {
   onDisplays: cb => { ipcRenderer.on("displays", (_e, d) => cb(d)); },
   setUiScale: v => { ipcRenderer.send("ui:scale", v); },
   askMicrophone: () => ipcRenderer.invoke("audio:ask"),
+  pathForFile: f => webUtils.getPathForFile(f),
+  addVideo: (p, n) => ipcRenderer.invoke("video:add", p, n),
+  removeVideo: id => { ipcRenderer.send("video:remove", id); },
   loadProject: () => ipcRenderer.invoke("project:load"),
   platform: process.platform,
 };

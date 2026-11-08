@@ -31,7 +31,9 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Audio | Audio-Eingang (Mikrofon, Line-In) für Equalizer und Oszilloskop oder alle Visuals, mit Pegel |
 | Tempo | BPM anklicken und eintippen, Tempo-Quelle festlegen (Auto, LJ-Link, Ableton Link, OSC, Manuell), Ableton Link über Carabiner |
 | Bedienung | Fader-Leiste (Master, Ebenen, Effekt, Strobe mit Speed und Intensität, Strobe White, Szenen, Tap, Blackout), jedes Element auch per OSC (`/vjlink/ctl/<id>`) |
-| Oberfläche | Show, Bauen (Katalog), Ausgabe, Verbinden; Logo als App-Icon |
+| Oberfläche | VISUALS, SHOW, Bauen (Katalog), Ausgabe, Verbinden; Logo als App-Icon |
+| Videos | MP4, MOV, M4V, WebM in die Bibliothek (Kopie im App-Ordner, gestreamt über vjmedia://). Als Clip mit Loop-Bereich, Takt-Loop (4–32 Beats), Größe, Ton. Läuft auf allen Ausgängen synchron |
+| SHOW | Ablauf mit Cues (Video, Bild, Schwarz, VJ-Szene): WEITER (Leertaste), Zurück, Alles stoppen; Start von Hand / nach vorigem / mit vorigem + Wartezeit; Kürzen; Wiederholen aus / x-mal / bis WEITER / endlos, auch nur einen Bereich; Ende stehen bleiben / ausblenden / weiter; Einblenden, Lautstärke, Größe, Visuals aus oder darüber |
 
 ## Noch offen
 

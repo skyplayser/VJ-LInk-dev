@@ -664,6 +664,7 @@ uniform float uImgAspect;
 uniform vec2  uPos;
 uniform float uScale;
 uniform float uRot;
+uniform float uOpacity;  // Deckkraft (Cues im SHOW-Ablauf), sonst 1
 uniform int   uKeyMode;  // 0 aus, 1 Weiß entfernen, 2 Schwarz entfernen
 uniform float uKeyTol;
 void main(){
@@ -681,5 +682,5 @@ void main(){
     float t = max(uKeyTol, 0.01);
     c *= smoothstep(t * 0.4, t, d);                         // weiche Kante, kein harter Rand
   }
-  outColor = c;
+  outColor = c * uOpacity;
 }`;

@@ -1,5 +1,6 @@
 // Zustand der Show: wird vom Pult, von OSC, von LJ-Link und von der Oberfläche verändert.
 import { STARTER_CLIP_IDS } from "./effects";
+import { defaultVideo, type CueRender, type PlayStart, type VideoSettings } from "./video";
 export type BlendMode = "normal" | "add" | "screen" | "multiply";
 export const BLEND_MODES: readonly BlendMode[] = ["normal", "add", "screen", "multiply"];
 export type ColorSource = "original" | "A" | "B" | "C" | "D" | "E" | "gradient" | "rainbow";
@@ -27,6 +28,10 @@ export interface LayerState {
   strobe: number;
   /** Lage und Animation, wenn der Clip eine Grafik ist („img:…“). */
   media: MediaSettings;
+  /** Loop-Bereich, Takt-Loop und Größe, wenn der Clip ein Video ist („vid:…“). */
+  video: VideoSettings;
+  /** Wann der aktuelle Clip startete (für Videos; setzt der Steuer-Kern). */
+  videoStart: PlayStart;
 }
 
 export type MediaAnim = "none" | "pulse" | "spin" | "bounce" | "float" | "wobble" | "zoom";
@@ -137,6 +142,8 @@ export interface ShowState {
   fxMaster: number;
   autoVj: boolean;
   layers: LayerState[];
+  /** SHOW-Ablauf: was gerade über bzw. statt den Visuals läuft. */
+  cues: CueRender[];
   slots: Rgb[];
   /** Audio-Analyse 0–1, vom Audio-Eingang oder aus LJ-Link-Wellenform. */
   audio: AudioState;
@@ -152,11 +159,13 @@ export const defaultEffects = (): EffectSlot[] => [
 export const defaultLayer = (): LayerState => ({
   clip: null, clips: defaultClips(), opacity: 1, blend: "normal", colorSource: "original", speed: 1, effects: defaultEffects(), strobe: 0,
   media: defaultMedia(),
+  video: defaultVideo(),
+  videoStart: { clip: null, ms: 0, beat: 0 },
 });
 
 /** Tiefe Kopie der Ebenen (Szenen und Überblendungen dürfen nichts teilen). */
 export const cloneLayer = (l: LayerState): LayerState =>
-  ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media } });
+  ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media }, video: { ...l.video }, videoStart: { ...l.videoStart } });
 
 /** Standard-Zeile: alle fertigen Generatoren. */
 export const defaultClips = (): string[] => [...STARTER_CLIP_IDS];
@@ -196,6 +205,7 @@ export function defaultShow(): ShowState {
   return {
     master: 1, strobe: defaultStrobe(), blackout: false, scene: 0, transitionBeats: 1, transition: null, sceneStart: { beat: 0, ms: 0 }, fxMaster: 1, autoVj: false,
     layers,
+    cues: [],
     slots: [[1, 0.1, 0.35], [1, 0.7, 0.1], [0.2, 0.9, 0.5], [0.1, 0.8, 1], [0.7, 0.35, 1]],
     audio: { bass: 0, mid: 0, high: 0 },
   };
@@ -246,6 +256,7 @@ export function applyScene(state: ShowState, scene: Scene): void {
     if (patch.effects) layer.effects = patch.effects.map(e => ({ ...e }));
     if (patch.media) layer.media = { ...patch.media };
     if (patch.clips) layer.clips = [...patch.clips];
+    if (patch.video) layer.video = { ...patch.video };
   });
 }
 

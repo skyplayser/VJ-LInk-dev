@@ -3,7 +3,7 @@ import { Engine } from "../engine/engine";
 import { GEN_IDS } from "../engine/shaders";
 import { TempoClock } from "../core/tempo";
 import { DmxDecoder, DMX_MODE_STANDARD_CHANNELS, CH, channelListCsv } from "../core/dmx";
-import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, type ControlContext } from "../core/control";
+import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, tickVideoStarts, type ControlContext } from "../core/control";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
 import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
 import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, addClip, addLayer, defaultScenes, removeClip, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
@@ -11,6 +11,11 @@ import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, par
 import { MapMode } from "./mapmode";
 import { LibraryPanel } from "./librarypanel";
 import { AudioIn } from "./audioin";
+import { cueRenders, cueTick, isVideoClip, newCueState, videoClip, videoIdOf, type CueEnv } from "../core/video";
+import { VideoLibrary, isVideoFile } from "./videolib";
+import { VideoPool } from "./videopool";
+import { VideoPanel } from "./videopanel";
+import { ShowTab } from "./showtab";
 import { AUDIO_CLIPS, micDrives } from "../core/audio";
 import { MidiIn } from "./midi";
 import type { TempoSource } from "../core/tempo";
@@ -48,7 +53,7 @@ function saveSettings(): void { try { localStorage.setItem("vjlink.settings", JS
 // ---- Zustand --------------------------------------------------------------------------
 const ctx: ControlContext = {
   show: defaultShow(), tempo: new TempoClock(), scenes: defaultScenes(), lj: newLjState(),
-  rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1,
+  cues: newCueState(), rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1,
 };
 ctx.tempo.update("manual", 120, Date.now(), 0);
 const decoder = new DmxDecoder(settings.address, ctx.scenes);
@@ -137,6 +142,11 @@ document.querySelectorAll<HTMLButtonElement>(".tabs button").forEach(b => b.addE
   document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.id === `tab-${b.dataset.tab}`));
   if (b.dataset.tab === "output") refreshDisplays();
+  // Die Ausgangs-Vorschau wandert mit: in SHOW sitzt sie neben dem Ablauf
+  const box = $("mon-box");
+  if (b.dataset.tab === "show") $("sh-mon-slot").append(box);
+  else if (b.dataset.tab === "visuals") monHome.append(box);
+  fitPreview();
 }));
 
 // ---- Show: Clip-Raster ----------------------------------------------------------------
@@ -152,11 +162,23 @@ function layerClips(l: number): { id: string; name: string }[] {
   const out: { id: string; name: string }[] = [];
   for (const id of ctx.show.layers[l]?.clips ?? []) {
     if (id.startsWith("img:")) { const m = library.items.find(i => mediaClip(i.id) === id); if (m) out.push({ id, name: m.name }); }
+    else if (isVideoClip(id)) { const v = videoLib.find(videoIdOf(id)); if (v) out.push({ id, name: v.name }); }
     else { const g = READY_GENERATORS.find(x => x.id === id); if (g) out.push({ id, name: g.name }); }
   }
   return out;
 }
-const libraryPanel = new LibraryPanel(ctx, library, () => rebuildGrid(), l => { importTarget = l; $<HTMLInputElement>("file-input").click(); });
+// ---- Videos --------------------------------------------------------------------------
+const videoLib = new VideoLibrary();
+/** Abspieler für die Vorschau im Hauptfenster (darf Ton ausgeben). */
+const previewPool = new VideoPool(id => videoLib.url(id), true);
+let lastSweep = 0;
+const cueEnv: CueEnv = {
+  duration: m => (m && isVideoClip(m) ? videoLib.duration(videoIdOf(m)) : 0),
+  recallScene: i => { recallScene(ctx, i); },
+};
+ctx.cueEnv = cueEnv;
+
+const libraryPanel = new LibraryPanel(ctx, library, videoLib, () => rebuildGrid(), l => { importTarget = l; $<HTMLInputElement>("file-input").click(); });
 
 function rebuildGrid(): void {
   const grid = $("grid");
@@ -207,8 +229,9 @@ function rebuildGrid(): void {
     const clips = layerClips(l);
     rowClips[l] = clips.map(c => c.id);
     clips.forEach((clip, c) => {
-      const b = el("button", clip.id.startsWith("img:") ? "cell media" : "cell");
+      const b = el("button", clip.id.startsWith("img:") || isVideoClip(clip.id) ? "cell media" : "cell");
       b.append(el("span", "cell-name", clip.name));
+      if (isVideoClip(clip.id)) b.append(el("span", "vbadge", "VIDEO"));
       b.dataset.ctl = `clip.${l + 1}.${clip.id}`;
       b.title = `${clip.name} · Klick startet/stoppt`;
       b.addEventListener("click", ev => {
@@ -243,26 +266,39 @@ function toast(msg: string): void {
 }
 
 /** Dateien laden; die erste Grafik kommt auf die Ziel-Ebene. */
-async function importFiles(files: FileList | File[], layer: number): Promise<void> {
-  let first: string | null = null;
-  const imported: string[] = [];
+/** Dateien in die Bibliotheken übernehmen (Videos und Bilder). Gibt Clip-IDs und Namen zurück. */
+async function importToLibrary(files: FileList | File[]): Promise<{ id: string; name: string }[]> {
+  const out: { id: string; name: string }[] = [];
   for (const f of Array.from(files)) {
-    const r = await library.importFile(f);
-    if (typeof r === "string") { toast(r); continue; }
-    first ??= mediaClip(r.id);
-    imported.push(mediaClip(r.id));
+    if (isVideoFile(f)) {
+      toast(`„${f.name}“ wird übernommen …`);
+      const r = await videoLib.importFile(f);
+      if (typeof r === "string") { toast(r); continue; }
+      out.push({ id: videoClip(r.id), name: r.name });
+    } else {
+      const r = await library.importFile(f);
+      if (typeof r === "string") { toast(r); continue; }
+      out.push({ id: mediaClip(r.id), name: r.name });
+    }
   }
+  return out;
+}
+
+async function importFiles(files: FileList | File[], layer: number): Promise<void> {
+  const added = await importToLibrary(files);
+  const imported = added.map(a => a.id);
+  const first: string | null = imported[0] ?? null;
   if (first) {
     const l = ctx.show.layers[layer]!;
     for (const id of imported) addClip(l, id);
     rebuildGrid();
     libraryPanel.render();
     l.clip = first;
-    const bg = library.background.get(first.slice(4));
+    const bg = first.startsWith("img:") ? library.background.get(first.slice(4)) : undefined;
     if (bg) { l.media.keyMode = bg; toast(`Logo auf ${bg === "white" ? "weißem" : "schwarzem"} Grund erkannt: Hintergrund wird ausgeblendet (Grafik → Freistellen).`); }
     if (layer > 0 && l.opacity < 0.05) l.opacity = 1;
     fxPanel.select(layer);
-    toast("Grafik geladen. Lage und Animation rechts unter „Grafik“.");
+    toast(isVideoClip(first) ? "Video geladen. Loop und Takt rechts unter „Video“." : "Grafik geladen. Lage und Animation rechts unter „Grafik“.");
   }
 }
 $<HTMLInputElement>("file-input").addEventListener("change", e => {
@@ -626,7 +662,12 @@ function fitPreview(): void {
 }
 new ResizeObserver(() => fitPreview()).observe($("mon-box"));
 let engine: Engine | null = null;
-try { engine = new Engine(preview); } catch (e) {
+const monHome = $("mon-box").parentElement!;
+try {
+  engine = new Engine(preview);
+  engine.videoSource = (key, id, t, rate, o) => previewPool.get(key, id, t, rate, o);
+  engine.videoDuration = id => videoLib.duration(id);
+} catch (e) {
   $("mon-info").textContent = (e as Error).message;
 }
 const SOURCE_LABEL: Record<string, string> = { ljlink: "LJ-LINK", link: "ABLETON LINK", osc: "OSC", midi: "MIDI-CLOCK", audio: "AUDIO", tap: "TAP", manual: "MANUELL" };
@@ -641,6 +682,10 @@ function frame(): void {
   ctx.tempo.tick(now);
   tickTransition(ctx, now);
   tickAuto(ctx, now);
+  tickVideoStarts(ctx, now);
+  cueTick(ctx.cues, now, cueEnv);
+  ctx.show.cues = cueRenders(ctx.cues, now, cueEnv);
+  if (now - lastSweep > 1000) { lastSweep = now; previewPool.sweep(); }
   // Audio-Eingang: Spektrum und Wellenform in den Show-Zustand (gehen so auch an die Ausgänge)
   const mic = audioIn.sample();
   if (mic) ctx.show.audio.mic = mic; else delete ctx.show.audio.mic;
@@ -651,7 +696,10 @@ function frame(): void {
   if (now - lastPublish > 33 && bridge) {
     lastPublish = now;
     const t = ctx.tempo.snapshot;
-    const f: Frame = { show: ctx.show, bpm: ctx.tempo.bpm, originMs: t.originMs, beatAtOrigin: t.beatAtOrigin, testPattern };
+    const f: Frame = {
+      show: ctx.show, bpm: ctx.tempo.bpm, originMs: t.originMs, beatAtOrigin: t.beatAtOrigin, testPattern,
+      videoDurations: Object.fromEntries(videoLib.items.map(v => [v.id, v.duration])),
+    };
     bridge.publishFrame(JSON.parse(JSON.stringify(f)) as Frame);
   }
   if (now - lastUi > 100) { lastUi = now; updateUi(now, beat); }
@@ -704,30 +752,42 @@ function updateUi(now: number, beat: number): void {
   for (const msg of leds.compute(mappings, ctx, beat)) midi.send(msg.device, msg.bytes);
   fxPanel.update();
   mediaPanel.update();
+  videoPanel.update(ctx.tempo.bpm);
   scenePanel.update();
+  if ($("tab-show").classList.contains("on")) showTab.update();
   autosave(now);
   if ($("tab-connect").classList.contains("on")) drawConnect(now);
 }
 
 const fxPanel = new FxPanel(ctx, $("fx-title"), $("fx-list"), $<HTMLSelectElement>("fx-add"));
 const mediaPanel = new MediaPanel(ctx, library, $("media-panel"), () => fxPanel.layer, () => rebuildGrid());
+const videoPanel = new VideoPanel(ctx, videoLib, $("video-panel"), () => fxPanel.layer, () => rebuildGrid());
+const showTab = new ShowTab({ ctx, env: cueEnv, videos: videoLib, images: library, importFiles: f => importToLibrary(f), toast });
 const scenePanel = new ScenePanel(ctx, $("scenes"), $<HTMLButtonElement>("scene-auto"), $<HTMLButtonElement>("scene-add"));
 rebuildGrid(); buildSidebar(); buildCatalog(); bindSettings();
 fxPanel.select(0);
 const thumbs = new ThumbView($("grid"), () => ({ cells: clipCells, clips: rowClips }), ctx);
 if (engine) library.attach(engine);
-if (thumbs.gl) library.attach(thumbs.gl);
+if (thumbs.gl) {
+  library.attach(thumbs.gl);
+  // Im Clip-Raster zeigen Videos ihr Vorschaubild (spart Dekodieren)
+  thumbs.gl.videoSource = (_key, id) => { const p = videoLib.posters.get(id); return p ? { el: p, w: p.width, h: p.height } : null; };
+  thumbs.gl.videoDuration = id => videoLib.duration(id);
+}
 
 // ---- Projekt laden und automatisch speichern -----------------------------------------
 let lastSaved = "", lastSaveCheck = 0, loaded = false;
 function autosave(now: number): void {
   if (!loaded || now - lastSaveCheck < 2000) return;
   lastSaveCheck = now;
-  const json = serializeProject(ctx, library.items, mappings.list);
+  const json = serializeProject(ctx, library.items, mappings.list, videoLib.items);
   if (json === lastSaved) return;
   lastSaved = json;
   if (bridge) bridge.saveProject(json);
   else try { localStorage.setItem("vjlink.project", json); } catch { /* Speicher voll oder gesperrt */ }
+}
+function json0(raw: string | null): ReturnType<typeof parseProject> {
+  return raw ? parseProject(raw) : null;
 }
 async function loadProject(): Promise<void> {
   try {
@@ -735,6 +795,9 @@ async function loadProject(): Promise<void> {
     if (bridge) {
       const r = await bridge.loadProject();
       for (const m of r.media) await library.load(m);
+      // Videos: Angaben stehen im Projekt, die Dateien im Bibliotheksordner
+      const pv = json0(r.project);
+      for (const v of pv?.videos ?? []) await videoLib.add(v);
       json = r.project;
     } else {
       try { json = localStorage.getItem("vjlink.project"); } catch { json = null; }
@@ -744,8 +807,8 @@ async function loadProject(): Promise<void> {
       applyProject(ctx, p);
       if (p.mappings) mappings.replace(p.mappings);
       // Grafiken, deren Datei fehlt, nicht als Clip stehen lassen
-      const known = new Set(library.items.map(i => mediaClip(i.id)));
-      for (const l of ctx.show.layers) if (l.clip?.startsWith("img:") && !known.has(l.clip)) l.clip = null;
+      const known = new Set([...library.items.map(i => mediaClip(i.id)), ...videoLib.items.map(v => videoClip(v.id))]);
+      for (const l of ctx.show.layers) if ((l.clip?.startsWith("img:") || isVideoClip(l.clip)) && !known.has(l.clip!)) l.clip = null;
       lastSaved = json!;
     }
   } finally {
@@ -766,7 +829,10 @@ for (const g of READY_GENERATORS) if (!GEN_IDS.includes(g.id as typeof GEN_IDS[n
 requestAnimationFrame(frame);
 
 // Entwicklungshilfe: im Browser-Modus Zustand von außen setzen.
-if (!bridge) (window as unknown as { __vj: unknown }).__vj = {
+(window as unknown as { __vj: unknown }).__vj = {
   ctx, onControl, select: (l: number) => fxPanel.select(l),
   loadMedia: async (p: { id: string; name: string; dataUrl: string }) => { await library.load(p); rebuildGrid(); },
+  addVideo: async (v: { id: string; name: string; ext: string }) => { await videoLib.add({ ...v, duration: 0, width: 0, height: 0 }); rebuildGrid(); },
+  importFiles: (f: File[]) => importToLibrary(f),
+  rebuild: () => { rebuildGrid(); rebuildDeck(); },
 };
