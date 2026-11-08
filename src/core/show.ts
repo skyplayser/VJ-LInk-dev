@@ -104,6 +104,23 @@ export interface StrobeState {
 export const defaultStrobe = (): StrobeState =>
   ({ on: false, flash: false, untilBeat: 0, speed: 0.5, intensity: 1, sync: true, white: false, whiteFlash: false });
 
+/** Live-Audio vom Mikrofon oder Line-In. */
+export interface MicData {
+  /** 8 Frequenzbänder 0–1, tief nach hoch. */
+  bands: number[];
+  /** 64 Abtastwerte der Wellenform, -1 bis 1 (für das Oszilloskop). */
+  wave: number[];
+  /** „audio“ = nur Audio-Visuals (Equalizer, Oszilloskop …), „all“ = alle Visuals reagieren. */
+  scope: "audio" | "all";
+}
+
+export interface AudioState {
+  /** Bass/Mitten/Höhen aus LJ-Link (Wellenform des Master-Decks). */
+  bass: number; mid: number; high: number;
+  /** Gesetzt, solange ein Audio-Eingang läuft. */
+  mic?: MicData;
+}
+
 export interface ShowState {
   master: number;
   strobe: StrobeState;
@@ -119,7 +136,7 @@ export interface ShowState {
   layers: LayerState[];
   slots: Rgb[];
   /** Audio-Analyse 0–1, vom Audio-Eingang oder aus LJ-Link-Wellenform. */
-  audio: { bass: number; mid: number; high: number };
+  audio: AudioState;
 }
 
 /** Standard-Stapel: drei Effekte mit Stärke 0, damit „Effekt 1–3“ am Pult sofort etwas bewirken. */

@@ -9,6 +9,8 @@ import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "..
 import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, addLayer, defaultScenes, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
 import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
 import { MapMode } from "./mapmode";
+import { AudioIn } from "./audioin";
+import { AUDIO_CLIPS, micDrives } from "../core/audio";
 import { MidiIn } from "./midi";
 import type { TempoSource } from "../core/tempo";
 import { frameBeat, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
@@ -31,9 +33,12 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 };
 
 // ---- Einstellungen (nur Komfort, Oberfläche funktioniert auch ohne) -------------------
-interface Settings { universe: number; sacn: number; address: number; uiScale: "auto" | number }
+interface Settings {
+  universe: number; sacn: number; address: number; uiScale: "auto" | number;
+  audioDevice: string; audioGain: number; audioScope: "audio" | "all";
+}
 function loadSettings(): Settings {
-  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto" };
+  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio" };
   try { return { ...d, ...JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") }; } catch { return d; }
 }
 const settings = loadSettings();
@@ -315,6 +320,78 @@ tempoMenu.querySelectorAll<HTMLButtonElement>("[data-lock]").forEach(b => b.addE
 document.addEventListener("pointerdown", e => { if (!tempoMenu.hidden && !(e.target as HTMLElement).closest(".map-wrap")) closeTempoMenu(); });
 window.addEventListener("keydown", e => { if (e.key === "Escape") closeTempoMenu(); });
 
+// ---- Audio-Eingang ---------------------------------------------------------------------
+const audioIn = new AudioIn();
+audioIn.gain = settings.audioGain; audioIn.scope = settings.audioScope;
+const audioBtn = $<HTMLButtonElement>("audio-btn"), audioMenu = $("audio-menu");
+const audioMeter = Array.from($("audio-meter").children) as HTMLElement[];
+const closeAudioMenu = () => { audioMenu.hidden = true; audioBtn.setAttribute("aria-expanded", "false"); };
+
+async function fillAudioDevices(): Promise<void> {
+  const box = $("audio-devices");
+  const list = await audioIn.devices();
+  box.replaceChildren();
+  const item = (id: string, label: string) => {
+    const b = el("button", "am-item", label); b.setAttribute("role", "radio");
+    const on = id === "" ? !audioIn.active : audioIn.active && audioIn.deviceId === id;
+    b.setAttribute("aria-checked", String(on));
+    b.addEventListener("click", () => { void chooseAudio(id); });
+    box.append(b);
+  };
+  item("", "Aus (EQ im Takt)");
+  for (const d of list) item(d.id, d.label);
+  if (!list.length) box.append(el("p", "am-hint", "Kein Eingang gefunden."));
+}
+
+async function chooseAudio(id: string): Promise<void> {
+  if (!id) { audioIn.stop(); settings.audioDevice = ""; saveSettings(); void fillAudioDevices(); return; }
+  if (bridge && !(await bridge.askMicrophone())) { toast("Kein Zugriff auf das Mikrofon. macOS: Systemeinstellungen → Datenschutz → Mikrofon."); return; }
+  const ok = await audioIn.start(id);
+  if (!ok) { toast(audioIn.error); }
+  else { settings.audioDevice = id; saveSettings(); }
+  void fillAudioDevices(); // nach der Freigabe stehen die echten Gerätenamen zur Verfügung
+}
+
+audioBtn.addEventListener("click", () => {
+  if (mapMode.active) return;
+  audioMenu.hidden = !audioMenu.hidden; audioBtn.setAttribute("aria-expanded", String(!audioMenu.hidden));
+  if (!audioMenu.hidden) void fillAudioDevices();
+});
+document.addEventListener("pointerdown", e => { if (!audioMenu.hidden && !(e.target as HTMLElement).closest(".map-wrap")) closeAudioMenu(); });
+window.addEventListener("keydown", e => { if (e.key === "Escape") closeAudioMenu(); });
+navigator.mediaDevices?.addEventListener("devicechange", () => { if (!audioMenu.hidden) void fillAudioDevices(); });
+const gainIn = $<HTMLInputElement>("audio-gain");
+gainIn.value = String(Math.round(audioIn.gain * 100));
+gainIn.addEventListener("input", () => { audioIn.gain = Number(gainIn.value) / 100; settings.audioGain = audioIn.gain; saveSettings(); });
+audioMenu.querySelectorAll<HTMLButtonElement>("[data-scope]").forEach(b => b.addEventListener("click", () => {
+  audioIn.scope = b.dataset.scope as "audio" | "all"; settings.audioScope = audioIn.scope; saveSettings();
+}));
+const AUDIO_NAMES = READY_GENERATORS.filter(g => AUDIO_CLIPS.has(g.id)).map(g => g.name).join(", ");
+
+function updateAudioUi(): void {
+  const mic = ctx.show.audio.mic;
+  audioBtn.classList.toggle("ok", !!mic);
+  const label = mic ? (audioIn.label.replace(/\s*\(.*\)\s*$/, "").slice(0, 14) || "LIVE") : "AUDIO";
+  if ($("audio-label").textContent !== label) $("audio-label").textContent = label;
+  audioMeter.forEach((m, i) => { m.style.height = `${Math.round((mic?.bands[i] ?? 0) * 100)}%`; });
+  $("audio-gain-val").textContent = `${Math.round(audioIn.gain * 100)} %`;
+  const lvl = mic ? Math.max(...mic.bands) : 0;
+  $("audio-level").style.width = `${Math.round(lvl * 100)}%`;
+  $("audio-level").classList.toggle("hot", lvl > 0.97);
+  audioMenu.querySelectorAll<HTMLButtonElement>("[data-scope]").forEach(b => {
+    const on = b.dataset.scope === audioIn.scope; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on));
+  });
+  $("audio-hint").textContent = audioIn.scope === "audio"
+    ? `Nur ${AUDIO_NAMES}. Alle anderen Visuals laufen weiter im Takt.`
+    : "Alle Visuals reagieren auf den Eingang (Bass, Mitten, Höhen).";
+  // Zellen im Clip-Raster markieren, die gerade vom Eingang gesteuert werden
+  clipCells.forEach(row => row.forEach((cell, c) => {
+    const on = !!mic && micDrives(ctx.show.audio, clipIds[c] ?? null);
+    if ((cell.dataset.audio === "1") !== on) cell.dataset.audio = on ? "1" : "";
+  }));
+}
+if (settings.audioDevice) void chooseAudio(settings.audioDevice);
+
 // Ebenen hinzufügen
 $("layer-add").addEventListener("click", () => {
   const i = addLayer(ctx.show);
@@ -541,6 +618,9 @@ function frame(): void {
   ctx.tempo.tick(now);
   tickTransition(ctx, now);
   tickAuto(ctx, now);
+  // Audio-Eingang: Spektrum und Wellenform in den Show-Zustand (gehen so auch an die Ausgänge)
+  const mic = audioIn.sample();
+  if (mic) ctx.show.audio.mic = mic; else delete ctx.show.audio.mic;
   const beat = ctx.tempo.beatAt(now);
   engine?.render(ctx.show, beat, now, ctx.tempo.bpm);
   thumbs.draw(now);
@@ -596,6 +676,7 @@ function updateUi(now: number, beat: number): void {
     if (document.activeElement !== blend) blend.value = layer.blend;
   });
   (window as unknown as { refreshSlots: () => void }).refreshSlots();
+  updateAudioUi();
   updateDeck();
   for (const msg of leds.compute(mappings, ctx, beat)) midi.send(msg.device, msg.bytes);
   fxPanel.update();

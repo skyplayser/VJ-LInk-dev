@@ -63,6 +63,8 @@ export interface VjBridge {
   onDisplays(cb: (d: DisplayInfo[]) => void): void;
   /** Größe der Oberfläche: „auto“ passt sie dem Fenster an, sonst fester Faktor (1 = 100 %). */
   setUiScale(v: "auto" | number): void;
+  /** Mikrofon-Zugriff beim System anfragen (macOS). */
+  askMicrophone(): Promise<boolean>;
   loadProject(): Promise<ProjectLoad>;
   platform: string;
 }

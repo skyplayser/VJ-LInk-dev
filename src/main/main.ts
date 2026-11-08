@@ -1,4 +1,4 @@
-import { BrowserWindow, app, ipcMain, nativeImage, screen, session, type Display } from "electron";
+import { BrowserWindow, app, ipcMain, nativeImage, screen, session, systemPreferences, type Display } from "electron";
 import path from "node:path";
 import { Network } from "./network";
 import { Storage } from "./storage";
@@ -94,9 +94,14 @@ function toggleOutput(id: number): DisplayInfo[] {
 }
 
 app.whenReady().then(async () => {
-  // MIDI-Controller: nur das Hauptfenster darf MIDI lesen, SysEx bleibt gesperrt.
-  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(perm === "midi" && wc === control?.webContents));
-  session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === "midi" && wc === control?.webContents);
+  // Nur das Hauptfenster: MIDI (ohne SysEx) und Audio-Eingang (Mikrofon/Line-In, keine Kamera).
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
+    if (wc !== control?.webContents) return cb(false);
+    if (perm === "midi") return cb(true);
+    const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
+    cb(perm === "media" && types.length > 0 && types.every(t => t === "audio"));
+  });
+  session.defaultSession.setPermissionCheckHandler((wc, perm) => wc === control?.webContents && (perm === "midi" || perm === "media"));
   storage = new Storage(app.getPath("userData"));
   await storage.init();
   if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(ICON));
@@ -107,6 +112,13 @@ app.whenReady().then(async () => {
   link.start();
 
   ipcMain.handle("displays:list", () => listDisplays());
+  // macOS fragt beim ersten Mal nach dem Mikrofon (Systemeinstellungen → Datenschutz)
+  ipcMain.handle("audio:ask", async e => {
+    if (e.sender !== control?.webContents) return false;
+    if (process.platform !== "darwin") return true;
+    if (systemPreferences.getMediaAccessStatus("microphone") === "granted") return true;
+    return systemPreferences.askForMediaAccess("microphone");
+  });
   ipcMain.on("ui:scale", (e, v: unknown) => {
     if (e.sender !== control?.webContents) return;
     uiScale = v === "auto" ? "auto" : typeof v === "number" && v >= 0.5 && v <= 3 ? v : "auto";

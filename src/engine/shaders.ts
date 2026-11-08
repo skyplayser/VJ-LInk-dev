@@ -26,6 +26,8 @@ uniform int   uColorMode; // 0 original, 1 Slot, 2 Verlauf A→B, 3 Regenbogen
 uniform vec3  uColA;
 uniform vec3  uColB;
 uniform float uBands[8];
+uniform float uWave[64];   // Wellenform vom Audio-Eingang (-1 … 1)
+uniform int   uHasWave;
 
 const float PI = 3.14159265;
 
@@ -64,9 +66,16 @@ vec3 radialEq(vec2 uv){
   return hsv(m * 0.8 + uTime * 0.05, 0.85, 1.0) * ray + vec3(1.0) * ring * 0.7;
 }
 
+float wave(float x){ // Wellenform interpoliert, x 0–1
+  float f = clamp(x, 0.0, 1.0) * 63.0; int i = int(floor(f)); int j = min(i + 1, 63);
+  return mix(uWave[i], uWave[j], f - float(i));
+}
+
 vec3 oscilloscope(vec2 uv){
   float x = uv.x;
-  float y = 0.5 + 0.18 * (sin(x * 9.0 + uTime * 3.0) * uBands[0] + sin(x * 23.0 - uTime * 5.0) * uBands[3]
+  float y = uHasWave == 1
+    ? 0.5 + 0.4 * wave(x)
+    : 0.5 + 0.18 * (sin(x * 9.0 + uTime * 3.0) * uBands[0] + sin(x * 23.0 - uTime * 5.0) * uBands[3]
                          + sin(x * 47.0 + uTime * 9.0) * uBands[6] * 0.6);
   float d = abs(uv.y - y);
   float core = smoothstep(0.006, 0.0, d);

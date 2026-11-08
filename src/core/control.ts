@@ -147,7 +147,7 @@ export function handleLj(c: ControlContext, m: LjMessage, nowMs: number): RuleAc
   reduceLj(c.lj, m);
   if (m.t === "tempo") c.tempo.update("ljlink", m.bpm, nowMs, m.beat);
   if (m.t === "wave" && (c.lj.masterDeck === null || m.deck === c.lj.masterDeck)) {
-    c.show.audio = { bass: clamp01(m.bass), mid: clamp01(m.mid), high: clamp01(m.high) };
+    Object.assign(c.show.audio, { bass: clamp01(m.bass), mid: clamp01(m.mid), high: clamp01(m.high) });
   }
   // Hält die Verbindung am Leben, auch wenn nur Deck-Daten kommen.
   if (m.t === "deck" && m.deck.master) c.tempo.update("ljlink", m.deck.bpm, nowMs);

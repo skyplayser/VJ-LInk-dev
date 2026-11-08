@@ -2,7 +2,7 @@
 // Ablauf pro Bild: jede Ebene → Generator in eine Textur → Effekt-Stapel (Ping-Pong)
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
-import { bandsFrom, beatPulse, strobeGain, strobeGate, strobeWhite } from "../core/audio";
+import { WAVE_POINTS, bandsFrom, beatPulse, micDrives, strobeGain, strobeGate, strobeWhite } from "../core/audio";
 import {
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
@@ -181,7 +181,11 @@ export class Engine {
     gl.uniform1i(this.loc(g, "uColorMode"), COLOR_MODE[l.colorSource]);
     gl.uniform3f(this.loc(g, "uColA"), ca[0], ca[1], ca[2]);
     gl.uniform3f(this.loc(g, "uColB"), cb[0], cb[1], cb[2]);
-    gl.uniform1fv(this.loc(g, "uBands"), bands);
+    // Audio-Eingang nur dort, wo er wirken soll (sonst LJ-Link oder Demo im Takt)
+    const mic = micDrives(show.audio, l.clip) ? show.audio.mic! : null;
+    gl.uniform1fv(this.loc(g, "uBands"), mic ? new Float32Array(mic.bands) : bands);
+    gl.uniform1i(this.loc(g, "uHasWave"), mic && mic.wave.length === WAVE_POINTS ? 1 : 0);
+    if (mic && mic.wave.length === WAVE_POINTS) gl.uniform1fv(this.loc(g, "uWave"), new Float32Array(mic.wave));
     this.bindTarget(this.work[0]);
     this.draw();
     return this.applyEffects(l, fbKey, time, w, h, show, pulse, ca, cb);

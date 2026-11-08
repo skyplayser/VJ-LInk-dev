@@ -14,6 +14,7 @@ const bridge: VjBridge = {
   saveProject: json => { ipcRenderer.send("project:save", json); },
   onDisplays: cb => { ipcRenderer.on("displays", (_e, d) => cb(d)); },
   setUiScale: v => { ipcRenderer.send("ui:scale", v); },
+  askMicrophone: () => ipcRenderer.invoke("audio:ask"),
   loadProject: () => ipcRenderer.invoke("project:load"),
   platform: process.platform,
 };

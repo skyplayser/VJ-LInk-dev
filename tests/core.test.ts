@@ -656,3 +656,34 @@ describe("Strobe White", () => {
     expect(strobeGain(s, 0.6, 0)).toBe(1); // normales Strobe bleibt aus
   });
 });
+
+import { analyzeSpectrum, bandsFor, micDrives, sampleWave, AUDIO_CLIPS } from "../src/core/audio";
+describe("Audio-Eingang", () => {
+  it("wirkt im Modus Audio-Visuals nur auf EQ, Oszilloskop & Co.", () => {
+    const a = { bass: 0, mid: 0, high: 0, mic: { bands: [1, 1, 1, 1, 1, 1, 1, 1], wave: new Array(64).fill(0), scope: "audio" as const } };
+    expect(AUDIO_CLIPS.has("oscilloscope") && AUDIO_CLIPS.has("bar-spectrum")).toBe(true);
+    expect(micDrives(a, "oscilloscope")).toBe(true);
+    expect(micDrives(a, "tunnel")).toBe(false);
+    expect(bandsFor(a, "tunnel", 0.5, 0)).not.toEqual(a.mic.bands);
+    a.mic.scope = "all" as never;
+    expect(micDrives(a, "tunnel")).toBe(true);
+    expect(micDrives({ bass: 0, mid: 0, high: 0 }, "oscilloscope")).toBe(false);
+  });
+  it("Spektrum: lauter Bass ergibt hohes erstes Band, Pegel wirkt", () => {
+    const db = new Float32Array(1024).fill(-100);
+    for (let i = 1; i < 4; i++) db[i] = -25; // ~ 20–90 Hz bei 48 kHz
+    const b = analyzeSpectrum(db, 48000, 1);
+    expect(b.length).toBe(8);
+    expect(b[0]).toBeGreaterThan(0.5);
+    expect(b[7]).toBe(0);
+    expect(analyzeSpectrum(db, 48000, 0.3)[0]).toBeLessThan(b[0]!);
+  });
+  it("Wellenform: 64 Punkte ab Nulldurchgang, begrenzt", () => {
+    const t = Float32Array.from({ length: 2048 }, (_, i) => Math.sin(i / 20 + 1));
+    const w = sampleWave(t, 3);
+    expect(w.length).toBe(64);
+    expect(Math.max(...w)).toBeLessThanOrEqual(1);
+    expect(w[0]!).toBeGreaterThanOrEqual(0);
+    expect(w[0]!).toBeLessThan(0.2);
+  });
+});

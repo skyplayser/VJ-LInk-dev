@@ -1,5 +1,18 @@
 // Audio-Bänder und Strobe-Takt. Reine Funktionen, damit jeder Ausgang dasselbe Bild rechnet.
-import type { ShowState, StrobeState } from "./show";
+import type { AudioState, StrobeState } from "./show";
+import { EFFECTS } from "./effects";
+
+/** Visuals, die ein Audio-Eingang antreibt, wenn er auf „Audio-Visuals“ steht: die Kategorie Audio (EQ, Oszilloskop …). */
+export const AUDIO_CLIPS: ReadonlySet<string> = new Set(EFFECTS.filter(e => e.category === "audio").map(e => e.id));
+
+/** Wirkt der Audio-Eingang auf diesen Clip? */
+export const micDrives = (audio: AudioState, clip: string | null): boolean =>
+  !!audio.mic && !!clip && (audio.mic.scope === "all" || AUDIO_CLIPS.has(clip));
+
+/** Bänder für einen Clip: Live-Audio, wenn der Eingang auf ihn wirkt, sonst LJ-Link oder Demo im Takt. */
+export function bandsFor(audio: AudioState, clip: string | null, beat: number, tSec: number): number[] {
+  return micDrives(audio, clip) ? audio.mic!.bands : bandsFrom(audio, beat, tSec);
+}
 
 export const BAND_COUNT = 8;
 
@@ -7,7 +20,7 @@ export const BAND_COUNT = 8;
  * Acht Bänder aus Bass/Mitten/Höhen. Ohne Audio-Daten (alle null) entsteht eine Demo-Bewegung
  * aus dem Takt, damit die Visuals auch ohne Eingang lebendig wirken.
  */
-export function bandsFrom(audio: ShowState["audio"], beat: number, tSec: number): number[] {
+export function bandsFrom(audio: AudioState, beat: number, tSec: number): number[] {
   const live = audio.bass + audio.mid + audio.high > 0.001;
   const pulse = Math.pow(1 - (beat - Math.floor(beat)), 3);
   const bass = live ? audio.bass : 0.25 + 0.75 * pulse;
@@ -75,4 +88,45 @@ export function strobeGain(s: StrobeState, beat: number, tSec: number, bpm = 120
     : tSec * strobeHz(s, bpm);
   const on = phase - Math.floor(phase) < STROBE_DUTY;
   return on ? 1 : 1 - s.intensity;
+}
+
+// ---- Analyse eines Audio-Eingangs ------------------------------------------------------
+
+export const WAVE_POINTS = 64;
+const BAND_EDGES = [30, 80, 160, 320, 640, 1300, 2600, 5200, 12000]; // Hz, 8 Bänder
+
+/**
+ * Spektrum (dB je FFT-Bin) in 8 Bänder 0–1 umrechnen. `gain` 1 = normal.
+ * Schnelles Ansteigen, langsames Abfallen (wie ein Pegelmesser), damit nichts flackert.
+ */
+export function analyzeSpectrum(db: ArrayLike<number>, sampleRate: number, gain: number, prev: number[] = []): number[] {
+  const binHz = sampleRate / 2 / db.length;
+  const out: number[] = [];
+  for (let b = 0; b < BAND_COUNT; b++) {
+    const lo = Math.max(1, Math.floor(BAND_EDGES[b]! / binHz)), hi = Math.max(lo + 1, Math.ceil(BAND_EDGES[b + 1]! / binHz));
+    let sum = 0, n = 0;
+    for (let i = lo; i < hi && i < db.length; i++) { sum += Math.pow(10, (db[i] ?? -100) / 20); n++; }
+    const amp = n ? sum / n : 0;
+    const dbAvg = amp > 0 ? 20 * Math.log10(amp) : -100;
+    // -80 dB … -20 dB auf 0 … 1, höhere Bänder leicht anheben (Musik hat dort weniger Energie)
+    let v = ((dbAvg + 80) / 60) * gain * (1 + b * 0.06);
+    v = v < 0 ? 0 : v > 1 ? 1 : v;
+    const p = prev[b] ?? 0;
+    out.push(v >= p ? v : p * 0.86 + v * 0.14);
+  }
+  return out;
+}
+
+/** 64 Punkte der Wellenform, ab einem Nulldurchgang (steht dann ruhig wie bei einem echten Oszilloskop). */
+export function sampleWave(time: ArrayLike<number>, gain: number): number[] {
+  const n = time.length;
+  let start = 0;
+  for (let i = 1; i < n / 2; i++) if ((time[i - 1] ?? 0) < 0 && (time[i] ?? 0) >= 0) { start = i; break; }
+  const span = Math.floor(n / 2);
+  const out: number[] = [];
+  for (let k = 0; k < WAVE_POINTS; k++) {
+    const v = (time[start + Math.floor((k / (WAVE_POINTS - 1)) * (span - 1))] ?? 0) * gain;
+    out.push(v < -1 ? -1 : v > 1 ? 1 : Math.round(v * 1000) / 1000);
+  }
+  return out;
 }

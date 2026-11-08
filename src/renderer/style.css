@@ -268,3 +268,26 @@ body.mapping main,body.mapping .deck{cursor:not-allowed}
 .pad-white{border-color:#d8dbe2}
 .pad-white.on{background:#fff;border-color:#fff;color:#000}
 .mrow2.one{grid-template-columns:1fr}
+
+/* ---- Audio-Eingang ---- */
+.audio-pill{border:0;cursor:pointer;gap:7px;padding:4px 8px}
+.audio-pill .meter{display:inline-flex;gap:1.5px;align-items:flex-end;height:12px;width:22px}
+.audio-pill .meter i{display:block;width:2px;background:currentColor;min-height:1px;border-radius:1px}
+.audio-menu{width:280px;padding:10px;gap:8px;left:auto;right:0}
+.am-title{font-size:12.5px}
+.am-list{display:grid;gap:2px;max-height:180px;overflow:auto}
+.am-item{text-align:left;background:none;border:0;border-radius:4px;padding:7px 9px;cursor:pointer;font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.am-item:hover{background:var(--panel)}
+.am-item[aria-checked="true"]{background:var(--ok);color:#000}
+.am-row{display:grid;grid-template-columns:44px 1fr 46px;gap:6px;align-items:center;font-size:11.5px}
+.am-row input{width:100%}
+.am-row span{font:10.5px var(--mono);color:var(--dim);text-align:right}
+.am-meter{height:5px;background:var(--bg);border-radius:3px;overflow:hidden}
+.am-meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s linear}
+.am-meter i.hot{background:var(--live)}
+.am-cap{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.am-seg{display:grid;grid-template-columns:1fr 1fr}
+.am-seg button{border:0;cursor:pointer;font-family:inherit;font-weight:600}
+.am-hint{margin:0;font-size:11px;color:var(--dim);line-height:1.4}
+/* Zelle wird vom Audio-Eingang gesteuert */
+.cell[data-audio="1"]::after{content:"LIVE";position:absolute;top:4px;right:4px;font:700 8.5px var(--mono);letter-spacing:.06em;background:var(--ok);color:#000;padding:1px 4px;border-radius:3px}
