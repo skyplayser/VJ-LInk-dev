@@ -1,0 +1,602 @@
+<title>VJ-Link Video und Ablauf</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: wie das erste Konzept. Inhaltsleiste links, Lesespalte rechts, Skizzen als dunkle App-Fenster */
+:root{
+  --bg:#F3F4F7; --surface:#FFFFFF; --ink:#141720; --muted:#596073; --line:#D9DCE4;
+  --accent:#C2185B; --accent-soft:#FBE3ED; --ok-ink:#0B7A4A; --warn-ink:#9A5800;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  /* App-Skizzen: immer dunkel wie VJ-Link */
+  --app-bg:#0C0E13; --app-panel:#151821; --app-raise:#1E222E; --app-line:#2A2F3D;
+  --app-text:#DCE1EA; --app-dim:#7E879A; --app-accent:#FF5C93; --app-live:#FF3B3B; --app-ok:#3DDC84; --app-warn:#FFB020; --app-map:#8B5CF6;
+  --sA:#FF3B3B; --sB:#FFB020; --sC:#3DDC84; --sD:#22C8F0; --sE:#B45CFF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1117; --surface:#171A22; --ink:#E6E9F0; --muted:#9AA2B4; --line:#2A2F3B;
+    --accent:#FF6FA0; --accent-soft:#3A1D2A; --ok-ink:#4FD69C; --warn-ink:#F2B45A; --app-bg:#07080B; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1117; --surface:#171A22; --ink:#E6E9F0; --muted:#9AA2B4; --line:#2A2F3B;
+  --accent:#FF6FA0; --accent-soft:#3A1D2A; --ok-ink:#4FD69C; --warn-ink:#F2B45A; --app-bg:#07080B; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6}
+.wrap{max-width:1340px;margin:0 auto;padding-block:40px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:210px minmax(0,1fr);gap:56px}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px);align-self:start;font-size:14px}
+nav.toc .brand{font-family:var(--f-display);font-weight:800;font-size:18px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+nav.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 8px;border-radius:4px}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--ink);background:var(--accent-soft);outline:none}
+.slots{display:inline-flex;gap:3px}.slots i{width:8px;height:8px;border-radius:2px;display:block}
+.slots i:nth-child(1){background:var(--sA)}.slots i:nth-child(2){background:var(--sB)}.slots i:nth-child(3){background:var(--sC)}.slots i:nth-child(4){background:var(--sD)}.slots i:nth-child(5){background:var(--sE)}
+main{min-width:0;display:grid;gap:72px}
+section{display:grid;gap:20px;min-width:0}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(38px,5.6vw,64px);font-weight:800;letter-spacing:-.02em}
+h2{font-size:clamp(25px,3vw,33px);font-weight:700;letter-spacing:-.01em}
+h3{font-size:19px;font-weight:700}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.lead{font-size:20px;line-height:1.5;max-width:60ch}
+.muted{color:var(--muted)}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+.hero{display:grid;gap:20px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.hero .meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+.hero h1 span{color:var(--accent)}
+.ways{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.way{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:20px 22px;display:grid;gap:10px;align-content:start}
+.way .tag{font-family:var(--f-mono);font-size:11.5px;font-weight:600;letter-spacing:.08em;color:var(--accent)}
+.way ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:15px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}
+.cols > div{display:grid;gap:8px;align-content:start;min-width:0}
+ul.plain{margin:0;padding-left:20px;display:grid;gap:6px;max-width:68ch}
+ul.plain li::marker{color:var(--accent)}
+.note{border-left:3px solid var(--accent);padding:4px 0 4px 16px;max-width:70ch}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.k{font-family:var(--f-display);font-weight:700;white-space:nowrap}
+.st{font-family:var(--f-mono);font-size:11px;font-weight:600;padding:2px 7px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.st.v1{color:var(--ok-ink)}.st.v2{color:var(--warn-ink)}.st.v3{color:var(--muted)}
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.phase{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;display:grid;gap:8px;align-content:start}
+.phase .num{font-family:var(--f-mono);font-size:12px;color:var(--accent);font-weight:600;letter-spacing:.08em}
+.phase ul{margin:0;padding-left:18px;font-size:14.5px;display:grid;gap:3px}
+
+/* ---------- Skizzen ---------- */
+figure{margin:0;display:grid;gap:12px;min-width:0}
+figcaption{font-size:14px;color:var(--muted);max-width:80ch}
+figcaption b{color:var(--ink)}
+.mock-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--line)}
+.mock{min-width:1040px;background:var(--app-bg);color:var(--app-text);font-family:var(--f-body);font-size:12px;line-height:1.35;display:grid}
+.m-top{display:flex;align-items:center;gap:16px;padding:10px 14px;border-bottom:1px solid var(--app-line);background:var(--app-panel)}
+.m-logo{font-family:var(--f-display);font-weight:800;font-size:14px;display:flex;align-items:center;gap:7px;white-space:nowrap;flex:none}
+.m-tabs{display:flex;gap:2px;background:var(--app-bg);padding:3px;border-radius:6px}
+.m-tabs span{padding:5px 11px;border-radius:4px;color:var(--app-dim);font-weight:600;font-size:11px;letter-spacing:.06em}
+.m-tabs span.on{background:var(--app-raise);color:var(--app-text)}
+.m-tabs span.new{position:relative}
+.m-tabs span.new::after{content:"NEU";position:absolute;top:-7px;right:-6px;font:700 8px var(--f-mono);background:var(--app-accent);color:#fff;padding:1px 3px;border-radius:2px}
+.pill{font-family:var(--f-mono);font-size:10.5px;padding:3px 7px;border-radius:3px;background:var(--app-raise);color:var(--app-dim);white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.pill.ok{color:var(--app-ok)}.pill.warn{color:var(--app-warn)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+.m-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.tc{font-family:var(--f-mono);font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.m-body{display:grid;gap:1px;background:var(--app-line)}
+.m-body > *{background:var(--app-bg);padding:12px;min-width:0}
+.m-h{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--app-dim);font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pin{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--app-accent);color:#fff;font-family:var(--f-mono);font-size:10px;font-weight:700;flex:none}
+.btn{background:var(--app-raise);border:1px solid var(--app-line);border-radius:5px;padding:7px 11px;font-weight:700;font-size:11px;letter-spacing:.04em;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.on{background:var(--app-text);color:var(--app-bg);border-color:var(--app-text)}
+.btn.danger{background:#5a1818;border-color:#7a2323;color:#fff}
+
+/* Vorschaubilder */
+.v1{background:linear-gradient(135deg,#0f2a4a,#1d6fa5 45%,#f0b35a)}
+.v2{background:radial-gradient(circle at 60% 40%,#ffcf5a,#d2412f 45%,#2a0b14 80%)}
+.v3{background:linear-gradient(160deg,#16051f,#5b1a7a 50%,#ff5c93)}
+.v4{background:linear-gradient(90deg,#0a0a0a,#2b2b2b 50%,#0a0a0a)}
+.v5{background:repeating-linear-gradient(90deg,#123 0 12px,#1a3a5a 12px 24px)}
+.v6{background:conic-gradient(from 20deg,var(--sB),var(--sE),var(--sD),var(--sB))}
+.vblack{background:#000;border:1px dashed var(--app-line)}
+
+/* Ablauf-Liste */
+.ab-body{grid-template-columns:minmax(0,1fr) 330px}
+.cue{display:grid;grid-template-columns:28px 64px minmax(0,1fr) 140px 74px 120px;gap:10px;align-items:center;padding:7px 10px;border-radius:6px;background:var(--app-panel);border:1px solid var(--app-line);margin-bottom:5px;position:relative;overflow:hidden}
+.cue .no{font-family:var(--f-mono);color:var(--app-dim);font-weight:600}
+.cue .th{height:36px;border-radius:3px}
+.cue b{font-size:12.5px;display:block}
+.cue small{color:var(--app-dim);font-size:10.5px}
+.cue .dur{font-family:var(--f-mono);color:var(--app-dim);font-variant-numeric:tabular-nums}
+.chip{font-family:var(--f-mono);font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid var(--app-line);color:var(--app-dim);white-space:nowrap;justify-self:start}
+.chip.go{color:var(--app-text)}
+.chip.tc{color:var(--app-warn);border-color:#5a4313}
+.chip.loop{color:var(--app-ok);border-color:#1d4d33}
+.chip.with{color:#8fb7ff;border-color:#2c3e66}
+.cue.live{border-color:var(--app-ok);background:#10251b}
+.cue.live::before{content:"";position:absolute;left:0;bottom:0;height:3px;width:62%;background:var(--app-ok)}
+.cue.next{border-color:var(--app-text);border-style:dashed}
+.cue .state{position:absolute;right:8px;top:6px;font:700 9px var(--f-mono);letter-spacing:.08em}
+.cue.live .state{color:var(--app-ok)}.cue.next .state{color:var(--app-text)}
+.cue.sub{margin-left:28px}
+.drop{border:1px dashed var(--app-line);border-radius:6px;padding:10px;text-align:center;color:var(--app-dim)}
+.monis{display:grid;gap:8px}
+.moni .lbl{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.1em;color:var(--app-dim);font-weight:600;margin-bottom:4px}
+.moni .scr{aspect-ratio:16/9;border-radius:4px;border:2px solid var(--app-line)}
+.moni.live .scr{border-color:var(--app-ok)}
+.moni.live .lbl b{color:var(--app-ok)}
+.gobox{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.gobig{grid-column:1/-1;background:var(--app-ok);color:#04130b;border-radius:8px;padding:16px;text-align:center;font:800 20px var(--f-display);letter-spacing:.04em}
+.gobig small{display:block;font:600 11px var(--f-body);letter-spacing:0;opacity:.8}
+.fader{height:8px;background:var(--app-raise);border-radius:4px;position:relative;flex:1}
+.fader i{position:absolute;inset:0 auto 0 0;background:var(--app-text);border-radius:4px;display:block}
+.row{display:flex;align-items:center;gap:8px}
+
+/* Details */
+.det-body{grid-template-columns:minmax(0,1fr) 300px}
+.strip{display:grid;grid-template-columns:repeat(14,1fr);gap:2px;height:58px;border-radius:4px;overflow:hidden;position:relative}
+.strip i{display:block}
+.trim{position:absolute;top:-4px;bottom:-4px;width:8px;background:var(--app-warn);border-radius:2px}
+.loopband{position:absolute;bottom:-12px;height:6px;background:var(--app-ok);border-radius:3px}
+.playh{position:absolute;top:-6px;bottom:-6px;width:2px;background:#fff}
+.dim{position:absolute;top:0;bottom:0;background:rgba(0,0,0,.6)}
+.tline{display:flex;justify-content:space-between;font:10px var(--f-mono);color:var(--app-dim);margin-top:18px}
+.field{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--app-line)}
+.field span{color:var(--app-dim)}
+.seg{display:flex;gap:2px;flex-wrap:wrap}
+.seg b{padding:4px 8px;background:var(--app-raise);border-radius:3px;color:var(--app-dim);font-family:var(--f-mono);font-size:10.5px;font-weight:600}
+.seg b.on{background:var(--app-text);color:var(--app-bg)}
+.inp{background:var(--app-panel);border:1px solid var(--app-line);border-radius:3px;padding:4px 7px;font-family:var(--f-mono);font-size:11px}
+.tabs2{display:flex;gap:2px;margin-bottom:10px}
+.tabs2 b{padding:5px 10px;border-radius:4px;color:var(--app-dim);font-size:11px}
+.tabs2 b.on{background:var(--app-raise);color:var(--app-text)}
+
+/* Show mit Video */
+.vs-body{grid-template-columns:minmax(0,1fr) 280px}
+.lrow{display:grid;grid-template-columns:130px repeat(6,minmax(0,1fr));gap:6px;margin-bottom:6px}
+.lname{background:var(--app-panel);border-radius:4px;padding:6px 8px;font-weight:700;font-size:11px;display:grid;align-content:center}
+.lname em{font-style:normal;color:var(--app-dim);font-weight:500;font-size:10px}
+.cell{border-radius:4px;min-height:58px;position:relative;overflow:hidden;border:1px solid var(--app-line)}
+.cell span{position:absolute;left:4px;bottom:3px;font-size:10px;color:#fff;text-shadow:0 1px 2px #000}
+.cell .badge{position:absolute;top:4px;right:4px;font:700 8px var(--f-mono);padding:1px 4px;border-radius:2px;background:#22c8f0;color:#00131a}
+.cell .prog{position:absolute;left:0;bottom:0;height:3px;background:#22c8f0}
+.cell.on{outline:2px solid var(--app-ok);outline-offset:1px}
+
+/* Timecode */
+.tcpop{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1px;background:var(--app-line)}
+.tcpop > div{background:var(--app-bg);padding:14px}
+.bigtc{font:600 34px var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.bigtc small{font-size:12px;color:var(--app-dim);margin-left:8px}
+.tcbar{display:grid;grid-template-columns:repeat(25,1fr);gap:2px;margin-top:10px}
+.tcbar i{height:8px;border-radius:1px;background:var(--app-raise);display:block}
+.tcbar i.on{background:var(--app-warn)}
+
+/* Schnellstart */
+.wiz{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.wstep{background:var(--app-panel);border:1px solid var(--app-line);border-radius:6px;padding:10px;display:grid;gap:6px}
+.wstep .th{height:54px;border-radius:4px}
+.wstep b{font-size:12px}
+.wstep small{color:var(--app-dim);font-size:10.5px;line-height:1.35}
+
+ol.legend{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 24px;font-size:14px}
+ol.legend li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:start}
+ol.legend .pin{margin-top:2px}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns:minmax(0,1fr);gap:32px}
+  nav.toc{position:static}
+  nav.toc ol{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Inhalt">
+  <div class="brand"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+  <ol>
+    <li><a href="#idee">Idee</a></li>
+    <li><a href="#zwei-wege">Zwei Wege</a></li>
+    <li><a href="#show-video">Video in der Show</a></li>
+    <li><a href="#ablauf">Ablauf-Ansicht</a></li>
+    <li><a href="#details">Cue-Details</a></li>
+    <li><a href="#start-ende">Start und Ende</a></li>
+    <li><a href="#timecode">Timecode</a></li>
+    <li><a href="#schnellstart">Schnellstart</a></li>
+    <li><a href="#technik">Technik und Formate</a></li>
+    <li><a href="#eigenes">Eigener Entwurf</a></li>
+    <li><a href="#stufen">Umsetzung</a></li>
+    <li><a href="#offen">Offene Fragen</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="hero" id="idee">
+  <div class="eyebrow">Konzept · Video und Ablauf · Entwurf 1 · 8. November 2026</div>
+  <h1>Videos, die laufen, wenn sie sollen<span>.</span></h1>
+  <p class="lead">VJ-Link bekommt Videos auf zwei Arten: als Clip im Show-Raster, der im Takt loopt, und in einer neuen Ansicht <b>ABLAUF</b>, die einen Abend Punkt für Punkt abspielt. Ein Knopf startet den nächsten Punkt. Wer will, lässt ein Lichtpult per Timecode führen.</p>
+  <div class="meta"><span>Zielgruppe: Veranstalter, LJs, Techniker ohne Video-Ausbildung</span><span>macOS · Windows</span></div>
+  <p>Die Vorlage zeigt, was Profis von einem Wiedergabe-Programm erwarten: Kürzen, Loopen, Timecode, Ausgänge. VJ-Link übernimmt davon die Aufgaben, nicht die Bedienung. Alles hier ist eigenständig gedacht, mit eigenen Begriffen und einer Oberfläche, die zur restlichen App passt. Der Maßstab: Jemand, der zum ersten Mal einen Firmenabend fährt, schafft den Ablauf in zehn Minuten.</p>
+</header>
+
+<section id="zwei-wege">
+  <div class="eyebrow">Zwei Wege</div>
+  <h2>Ein Video ist entweder Stimmung oder Programmpunkt</h2>
+  <div class="ways">
+    <div class="way">
+      <span class="tag">SHOW · WIE DAS LOGO</span>
+      <h3>Video als Clip</h3>
+      <p class="muted">Für Loops und Atmosphäre im Club. Liegt im Clip-Raster einer Ebene, läuft endlos und reagiert auf alles, was die Show kann.</p>
+      <ul>
+        <li>Effekte, Farbüberlagerung, Strobe, Überblendung</li>
+        <li><b>Takt-Loop:</b> dehnt den Loop auf 4, 8, 16 oder 32 Beats</li>
+        <li>Per Pult, MIDI, Szene oder Tastatur starten</li>
+      </ul>
+    </div>
+    <div class="way">
+      <span class="tag">NEU · TAB „ABLAUF“</span>
+      <h3>Video als Programmpunkt</h3>
+      <p class="muted">Für feste Momente: Einlass, Intro, Rede, Preisverleihung, Pause, Abspann. Eine Liste von Cues, die nacheinander laufen.</p>
+      <ul>
+        <li>Ein großer Knopf <b>WEITER</b> (Leertaste)</li>
+        <li>Start von Hand, nach dem vorigen Punkt oder per Timecode</li>
+        <li>Video mit Ton, Ausblenden, Loop bis zum nächsten Punkt</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">Beide Wege nutzen dieselbe Bibliothek. Ein Ablauf-Punkt kann auch eine <b>VJ-Szene</b> abrufen. So läuft nach dem Intro-Video automatisch die Show mit Visuals weiter.</p>
+</section>
+
+<section id="show-video">
+  <div class="eyebrow">Skizze 1 · Show</div>
+  <h2>Video im Clip-Raster</h2>
+  <p>Ein Video kommt wie ein Logo über „+ Clips“ oder per Ziehen in eine Ebene. Rechts erscheint statt „Grafik“ der Bereich <b>Video</b>.</p>
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze: Video im Clip-Raster mit Video-Bereich">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span class="on">SHOW</span><span class="new">ABLAUF</span><span>BAUEN</span><span>AUSGABE</span><span>VERBINDEN</span></div>
+        <div class="m-right"><span class="tc">128.00</span><span class="pill ok"><span class="dot"></span>LJ-LINK</span></div>
+      </div>
+      <div class="m-body vs-body">
+        <div>
+          <div class="m-h"><span>Clip-Raster</span><span class="pin">1</span></div>
+          <div class="lrow"><div class="lname">E2 · Overlay<em>Addieren</em></div>
+            <div class="cell v6"><span>Plasma</span></div><div class="cell v3"><span>Tunnel</span></div>
+            <div class="cell v2 on"><span>flames_loop.mp4</span><b class="badge">VIDEO</b><i class="prog" style="width:40%"></i></div>
+            <div class="cell v4"><span>Logo</span></div><div class="cell vblack"><span style="color:#7E879A;text-shadow:none">+ Clips</span></div><div></div></div>
+          <div class="lrow"><div class="lname">E1 · Basis<em>Normal</em></div>
+            <div class="cell v1 on"><span>city_drone.mp4</span><b class="badge">VIDEO</b><i class="prog" style="width:72%"></i></div>
+            <div class="cell v5"><span>Synthwave</span></div><div class="cell v3"><span>Sternenfeld</span></div>
+            <div class="cell vblack"><span style="color:#7E879A;text-shadow:none">+ Clips</span></div><div></div><div></div></div>
+          <p style="color:var(--app-dim);margin-top:8px;max-width:none">Der blaue Balken unten in der Zelle zeigt, wo das Video gerade steht.</p>
+        </div>
+        <div>
+          <div class="m-h"><span>Video · Ebene 1</span><span class="pin">2</span></div>
+          <div class="strip" style="height:40px">
+            <i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i><i class="v1"></i>
+            <span class="dim" style="left:0;width:14%"></span><span class="dim" style="right:0;width:10%"></span>
+            <span class="trim" style="left:13%"></span><span class="trim" style="right:9%"></span>
+            <span class="playh" style="left:55%"></span>
+          </div>
+          <div class="tline"><span>Loop 0:04,2</span><span>bis 0:21,8</span></div>
+          <div class="field" style="margin-top:6px"><span>Im Takt</span><div class="seg"><b>aus</b><b>4</b><b class="on">8</b><b>16</b><b>32</b></div></div>
+          <div class="field"><span>Abspielen</span><div class="seg"><b class="on">vorwärts</b><b>rückwärts</b><b>hin und her</b></div></div>
+          <div class="field"><span>Ton</span><div class="seg"><b class="on">stumm</b><b>an</b></div></div>
+          <div class="field"><span>Größe</span><div class="seg"><b class="on">füllen</b><b>einpassen</b><b>original</b></div></div>
+          <p style="color:var(--app-dim);margin-top:8px;max-width:none">„Im Takt 8“: Der Loop-Bereich (17,6 s) wird auf 8 Beats gestreckt, bei 128 BPM also auf 3,75 s. Das Video läuft dann 4,7-mal so schnell und beginnt immer auf dem Einser.</p>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>Video in der Show.</b> Ein Video ist ein Clip wie jeder andere. Neu sind nur der Loop-Bereich und „Im Takt“.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Video-Zelle</b> mit Vorschau, Schild „VIDEO“ und Fortschritt. Antippen startet, nochmal antippen stoppt.</span></li>
+    <li><span class="pin">2</span><span><b>Video-Bereich:</b> Loop-Bereich mit zwei gelben Griffen, Takt-Loop, Richtung, Ton und Größe. Mehr nicht.</span></li>
+  </ol>
+</section>
+
+<section id="ablauf">
+  <div class="eyebrow">Skizze 2 · Ablauf</div>
+  <h2>Die Ablauf-Ansicht: eine Liste und ein großer Knopf</h2>
+  <p>Links steht der Abend als Liste. Rechts sieht man, was gerade läuft und was als Nächstes kommt. Der grüne Knopf startet den nächsten Punkt. Mehr braucht der Veranstalter während der Show nicht.</p>
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze: Ablauf-Ansicht mit Cue-Liste, Vorschau und Weiter-Knopf">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span>SHOW</span><span class="on">ABLAUF</span><span>BAUEN</span><span>AUSGABE</span><span>VERBINDEN</span></div>
+        <span class="pin">1</span><span style="color:var(--app-dim)">Ablauf „Firmenfeier Müller“ · 9 Cues · 1:42:10</span>
+        <div class="m-right"><span class="pill warn"><span class="dot"></span>TC EMPFANG · ART-NET</span><span class="tc">00:12:04:17</span></div>
+      </div>
+      <div class="m-body ab-body">
+        <div>
+          <div class="m-h"><span>Ablauf</span><span class="pin">2</span></div>
+          <div class="cue"><span class="no">1</span><span class="th v5"></span><span><b>Einlass-Loop</b><small>einlass_loop.mp4</small></span><span class="chip go">von Hand</span><span class="dur">0:45</span><span class="chip loop">Loop ∞</span></div>
+          <div class="cue live"><span class="state">LÄUFT · 0:38 übrig</span><span class="no">2</span><span class="th v1"></span><span><b>Intro-Film</b><small>intro_2026.mp4 · Ton an</small></span><span class="chip go">von Hand</span><span class="dur">1:52</span><span class="chip">dann weiter</span></div>
+          <div class="cue sub"><span class="no">2.1</span><span class="th vblack"></span><span><b>Licht: Bühne an</b><small>Szene „Bühne“ (VJ-Link)</small></span><span class="chip with">mit vorigem +1:40</span><span class="dur">–</span><span class="chip">sofort</span></div>
+          <div class="cue next"><span class="state">ALS NÄCHSTES</span><span class="no">3</span><span class="th v4"></span><span><b>Begrüßung</b><small>logo_firma.png · Standbild</small></span><span class="chip go">nach vorigem</span><span class="dur">–</span><span class="chip">stehen bleiben</span></div>
+          <div class="cue"><span class="no">4</span><span class="th v2"></span><span><b>Award-Opener</b><small>award_open.mov</small></span><span class="chip tc">TC 00:20:00:00</span><span class="dur">0:24</span><span class="chip">ausblenden 2 s</span></div>
+          <div class="cue"><span class="no">5</span><span class="th v6"></span><span><b>Party: Visuals</b><small>VJ-Szene „Drop“ · Auto an</small></span><span class="chip go">von Hand</span><span class="dur">–</span><span class="chip">bis WEITER</span></div>
+          <div class="drop">Videos, Bilder oder Szenen hierher ziehen. Jede Datei wird ein Cue.</div>
+        </div>
+        <div>
+          <div class="m-h"><span>Vorschau</span><span class="pin">3</span></div>
+          <div class="monis">
+            <div class="moni live"><div class="lbl"><b>● JETZT · INTRO-FILM</b><span>1:14 / 1:52</span></div><div class="scr v1"></div></div>
+            <div class="moni"><div class="lbl"><span>ALS NÄCHSTES · BEGRÜSSUNG</span><span>bereit</span></div><div class="scr v4" style="aspect-ratio:16/6"></div></div>
+          </div>
+          <div class="gobox">
+            <div class="gobig">WEITER ▶<small>startet Cue 3 „Begrüßung“ · Leertaste</small></div>
+            <span class="btn">◀ Zurück</span><span class="btn danger">Alles stoppen</span>
+          </div>
+          <div class="row" style="margin-top:12px"><span style="color:var(--app-dim);width:66px">Ausblenden</span><div class="fader"><i style="width:30%"></i></div><span class="mono" style="color:var(--app-dim)">2 s</span></div>
+          <div class="row" style="margin-top:8px"><span style="color:var(--app-dim);width:66px">Lautstärke</span><div class="fader"><i style="width:80%"></i></div><span class="mono" style="color:var(--app-dim)">80 %</span></div>
+          <div class="m-h" style="margin-top:14px"><span>Sicherheit</span><span class="pin">4</span></div>
+          <div class="row" style="flex-wrap:wrap"><span class="pill ok"><span class="dot"></span>alle Dateien da</span><span class="pill ok"><span class="dot"></span>nächster Cue geladen</span><span class="pill">gesperrt: aus</span></div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>Ablauf.</b> Grün läuft, gestrichelt kommt als Nächstes. Die Schilder sagen in Worten, wann ein Cue startet und was am Ende passiert.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Name und Gesamtdauer</b> des Ablaufs. Mehrere Abläufe pro Projekt, z. B. „Probe“ und „Abend“.</span></li>
+    <li><span class="pin">2</span><span><b>Liste:</b> Nummer, Vorschaubild, Name, Start, Dauer, Ende. Eingerückte Cues laufen mit dem vorigen zusammen (mit Wartezeit).</span></li>
+    <li><span class="pin">3</span><span><b>Jetzt und Als nächstes</b> mit Restzeit. Darunter WEITER, Zurück und „Alles stoppen“ (blendet in 1 s aus).</span></li>
+    <li><span class="pin">4</span><span><b>Sicherheit auf einen Blick:</b> fehlen Dateien, ist der nächste Cue geladen, ist die Liste gesperrt.</span></li>
+  </ol>
+</section>
+
+<section id="details">
+  <div class="eyebrow">Skizze 3 · Cue-Details</div>
+  <h2>Ein Cue einstellen, ohne lange zu suchen</h2>
+  <p>Doppelklick auf einen Cue öffnet rechts die Details. Vier Reiter, jeder passt auf einen Bildschirm: <b>Video</b> (Kürzen und Loop), <b>Start und Ende</b>, <b>Bild</b> (Ausgang, Größe, Deckkraft), <b>Ton</b>.</p>
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze: Cue-Details mit Filmstreifen, Kürzen und Loop-Bereich">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span>SHOW</span><span class="on">ABLAUF</span><span>BAUEN</span><span>AUSGABE</span><span>VERBINDEN</span></div>
+        <span style="color:var(--app-dim)">Cue 4 · Award-Opener · award_open.mov · 1920 × 1080 · 25 fps · 0:31</span>
+      </div>
+      <div class="m-body det-body">
+        <div>
+          <div class="tabs2"><b class="on">Video</b><b>Start und Ende</b><b>Bild</b><b>Ton</b></div>
+          <div class="m-h"><span>Kürzen und Loop</span><span class="pin">1</span></div>
+          <div class="strip">
+            <i class="v2"></i><i class="v2"></i><i class="v2"></i><i class="v3"></i><i class="v3"></i><i class="v3"></i><i class="v6"></i><i class="v6"></i><i class="v6"></i><i class="v6"></i><i class="v1"></i><i class="v1"></i><i class="v4"></i><i class="v4"></i>
+            <span class="dim" style="left:0;width:9%"></span><span class="dim" style="right:0;width:13%"></span>
+            <span class="trim" style="left:8.5%"></span><span class="trim" style="right:12.5%"></span>
+            <span class="loopband" style="left:48%;width:22%"></span>
+            <span class="playh" style="left:30%"></span>
+          </div>
+          <div class="tline"><span>0:00</span><span>Start 0:02,8</span><span>Loop 0:15,0 – 0:21,6</span><span>Ende 0:27,0</span><span>0:31</span></div>
+          <div class="row" style="margin-top:14px;flex-wrap:wrap">
+            <span class="btn">▶ Probehören</span><span class="btn">Start hier setzen</span><span class="btn">Ende hier setzen</span><span class="btn">Loop-Bereich hier</span>
+            <span style="color:var(--app-dim)">Tasten: I = Start · O = Ende · L = Loop</span>
+          </div>
+          <div class="field" style="margin-top:12px"><span>Wiederholen</span><div class="seg"><b>aus</b><b>2×</b><b>3×</b><b class="on">bis WEITER</b><b>endlos</b></div></div>
+          <div class="field"><span>Was loopt</span><div class="seg"><b>ganzes Video</b><b class="on">nur grünen Bereich</b></div></div>
+          <p style="color:var(--app-dim);margin-top:10px;max-width:none">Typischer Fall: Ein Opener spielt einmal an, bleibt im grünen Bereich hängen, bis der Moderator fertig ist, und läuft nach WEITER bis zum Ende aus.</p>
+        </div>
+        <div>
+          <div class="m-h"><span>Start und Ende</span><span class="pin">2</span></div>
+          <div class="field"><span>Start</span><div class="seg"><b>von Hand</b><b>nach vorigem</b><b>mit vorigem</b><b class="on">Timecode</b><b>Uhrzeit</b></div></div>
+          <div class="field"><span>Timecode</span><span class="inp">00:20:00:00</span></div>
+          <div class="field"><span>Wartezeit</span><span class="inp">0,0 s</span></div>
+          <div class="field"><span>Am Ende</span><div class="seg"><b>stehen bleiben</b><b class="on">ausblenden</b><b>weiter</b></div></div>
+          <div class="field"><span>Ausblenden</span><span class="inp">2,0 s</span></div>
+          <div class="m-h" style="margin-top:14px"><span>Bild</span><span class="pin">3</span></div>
+          <div class="field"><span>Ausgang</span><div class="seg"><b class="on">alle</b><b>LED-Wand</b><b>Beamer</b></div></div>
+          <div class="field"><span>Größe</span><div class="seg"><b class="on">füllen</b><b>einpassen</b><b>original</b></div></div>
+          <div class="field"><span>Über Show</span><div class="seg"><b class="on">Visuals aus</b><b>darüber legen</b></div></div>
+          <div class="m-h" style="margin-top:14px"><span>Ton</span><span class="pin">4</span></div>
+          <div class="field"><span>Lautstärke</span><div class="row"><div class="fader"><i style="width:80%"></i></div><span class="mono">−2 dB</span></div></div>
+          <div class="field"><span>Ausgabe</span><span class="inp">Focusrite 1–2</span></div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>Cue-Details.</b> Gelb kürzt, grün loopt, weiß ist der Abspielkopf. Alles wird in Worten eingestellt, nicht über Zahlenfelder.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Filmstreifen</b> mit Griffen für Start, Ende und Loop-Bereich. Probehören direkt im Cue.</span></li>
+    <li><span class="pin">2</span><span><b>Start und Ende</b> als Wahl aus wenigen Möglichkeiten, siehe nächster Abschnitt.</span></li>
+    <li><span class="pin">3</span><span><b>Bild:</b> welcher Ausgang, wie groß, und ob die Visuals darunter weiterlaufen.</span></li>
+    <li><span class="pin">4</span><span><b>Ton:</b> Lautstärke und Ausgabegerät, für Videos mit eigener Tonspur.</span></li>
+  </ol>
+</section>
+
+<section id="start-ende">
+  <div class="eyebrow">Start und Ende</div>
+  <h2>Fünf Arten zu starten, drei Arten zu enden</h2>
+  <p>Mehr Möglichkeiten gibt es bewusst nicht. Fast jeder Abend lässt sich damit bauen. Auf dem Cue steht immer ein kurzer Satz, z. B. „nach vorigem“ oder „TC 00:20:00:00“.</p>
+  <div class="cols">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Start</th><th>Bedeutet</th></tr></thead>
+      <tbody>
+        <tr><td class="k">von Hand</td><td>Startet mit WEITER, Pult, MIDI oder OSC.</td></tr>
+        <tr><td class="k">nach vorigem</td><td>Startet, sobald der vorige Cue zu Ende ist.</td></tr>
+        <tr><td class="k">mit vorigem</td><td>Startet zusammen mit dem vorigen, optional mit Wartezeit (z. B. +1:40). Wird eingerückt angezeigt.</td></tr>
+        <tr><td class="k">Timecode</td><td>Startet, wenn der Timecode die Zeit erreicht.</td></tr>
+        <tr><td class="k">Uhrzeit</td><td>Startet um eine Uhrzeit, z. B. Einlass-Loop um 18:30.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Am Ende</th><th>Bedeutet</th></tr></thead>
+      <tbody>
+        <tr><td class="k">stehen bleiben</td><td>Letztes Bild bleibt, bis WEITER kommt.</td></tr>
+        <tr><td class="k">ausblenden</td><td>Blendet in der eingestellten Zeit auf Schwarz bzw. auf die Show.</td></tr>
+        <tr><td class="k">weiter</td><td>Startet sofort den nächsten Cue.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <p class="muted">Loops gehören zum Video, nicht zum Ende: „Wiederholen bis WEITER“ hält den Cue im Loop, und WEITER lässt ihn dann sauber auslaufen.</p>
+  <h3>Cue-Arten</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Art</th><th>Wofür</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Video</td><td>Filme, Opener, Loops; mit oder ohne Ton</td></tr>
+      <tr><td class="k">Bild</td><td>Logos, Sponsorenfolien, Standbilder, Agenda</td></tr>
+      <tr><td class="k">VJ-Szene</td><td>Ruft eine Szene aus der Show ab (Visuals, Farben, Strobe), verbindet beide Welten</td></tr>
+      <tr><td class="k">Schwarz</td><td>Bild aus, z. B. vor einer Rede. Mit Blendzeit</td></tr>
+      <tr><td class="k">Signal</td><td>Sendet etwas nach außen: OSC-Befehl, MIDI-Note, Timecode starten. Für das Lichtpult</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="timecode">
+  <div class="eyebrow">Skizze 4 · Timecode</div>
+  <h2>Timecode: das Pult führt, oder VJ-Link führt</h2>
+  <p>Oben rechts sitzt eine Timecode-Anzeige. Ein Klick öffnet die Einstellung mit genau einer Frage zuerst: <b>Wer ist die Uhr?</b></p>
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze: Timecode-Einstellung mit Empfangen und Senden">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <div class="m-tabs"><span>SHOW</span><span class="on">ABLAUF</span><span>BAUEN</span><span>AUSGABE</span><span>VERBINDEN</span></div>
+        <div class="m-right"><span class="pill warn"><span class="dot"></span>TC EMPFANG</span><span class="tc">00:19:58:12</span></div>
+      </div>
+      <div class="tcpop">
+        <div>
+          <div class="m-h"><span>Wer ist die Uhr?</span><span class="pin">1</span></div>
+          <div class="seg" style="margin-bottom:12px"><b>Kein Timecode</b><b class="on">Pult / anderes Programm</b><b>VJ-Link</b></div>
+          <div class="field"><span>Quelle</span><div class="seg"><b class="on">Art-Net</b><b>MIDI (MTC)</b><b>Audio (LTC)</b></div></div>
+          <div class="field"><span>Bildrate</span><div class="seg"><b>24</b><b class="on">25</b><b>29,97</b><b>30</b><b>automatisch</b></div></div>
+          <div class="field"><span>Videos</span><div class="seg"><b class="on">folgen dem Timecode</b><b>werden nur gestartet</b></div></div>
+          <div class="field"><span>Versatz</span><span class="inp">+00:00:00:00</span></div>
+          <div class="field"><span>Bei Aussetzer</span><div class="seg"><b class="on">2 s weiterlaufen</b><b>sofort anhalten</b></div></div>
+        </div>
+        <div>
+          <div class="m-h"><span>Empfang</span><span class="pin">2</span></div>
+          <div class="bigtc">00:19:58:12<small>25 fps</small></div>
+          <div class="tcbar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <p style="color:var(--app-dim);margin-top:10px;max-width:none">Von grandMA3 · 192.168.1.20 · Art-Net · stabil seit 4 min</p>
+          <div class="m-h" style="margin-top:16px"><span>Nächste Timecode-Cues</span><span class="pin">3</span></div>
+          <div class="cue" style="grid-template-columns:28px minmax(0,1fr) 120px"><span class="no">4</span><span><b>Award-Opener</b></span><span class="chip tc">in 0:01,5</span></div>
+          <div class="cue" style="grid-template-columns:28px minmax(0,1fr) 120px"><span class="no">7</span><span><b>Gewinner-Film</b></span><span class="chip tc">00:34:10:00</span></div>
+          <div class="row" style="margin-top:10px"><span class="btn">Timecode hier lernen</span><span style="color:var(--app-dim)">übernimmt den aktuellen Wert in den gewählten Cue</span></div>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>Timecode.</b> Erst die Rolle wählen, dann die Quelle. Status, Absender und die nächsten Cues stehen daneben.</figcaption>
+  </figure>
+  <ol class="legend">
+    <li><span class="pin">1</span><span><b>Rolle:</b> Bei „Pult“ hört VJ-Link zu. Bei „VJ-Link“ sendet es selbst Timecode, und das Pult folgt.</span></li>
+    <li><span class="pin">2</span><span><b>Live-Anzeige</b> mit Bildrate, Absender und einem Balken, der jede Sekunde durchläuft. Bleibt er stehen, kommt nichts an.</span></li>
+    <li><span class="pin">3</span><span><b>Nächste Cues</b> mit Countdown. „Timecode hier lernen“ übernimmt den aktuellen Wert, ohne Zahlen abzutippen.</span></li>
+  </ol>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Weg</th><th>Empfangen</th><th>Senden</th><th>Aufwand</th><th>Wann</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Art-Net Timecode</td><td>ja</td><td>ja</td><td>klein: VJ-Link hört Art-Net schon</td><td><span class="st v1">Stufe 3</span></td></tr>
+      <tr><td class="k">MIDI Timecode (MTC)</td><td>ja</td><td>ja</td><td>mittel: Quarter-Frames und Vollbild-Meldung</td><td><span class="st v1">Stufe 3</span></td></tr>
+      <tr><td class="k">LTC (Audio)</td><td>ja, über den Audio-Eingang</td><td>später</td><td>größer: Signal muss dekodiert werden</td><td><span class="st v2">Stufe 4</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note"><b>Folgen statt nur starten:</b> Bei „Videos folgen dem Timecode“ springt ein laufendes Video mit, wenn das Pult zurückspult, und hält an, wenn der Timecode stoppt. So bleibt eine Probe synchron, auch wenn mittendrin geprobt wird. Welche Pulte welche Art senden, prüfen wir am Gerät. Für grandMA2/3 und andere Pulte mit Art-Net-Timecode sollte der Netzwerk-Weg reichen.</p>
+</section>
+
+<section id="schnellstart">
+  <div class="eyebrow">Skizze 5 · Schnellstart</div>
+  <h2>Ein Abend in zehn Minuten</h2>
+  <p>Wer zum ersten Mal einen Ablauf baut, wählt eine Vorlage und zieht seine Dateien in die Platzhalter. Alles Weitere ist schon richtig eingestellt.</p>
+  <figure>
+    <div class="mock-wrap"><div class="mock" role="img" aria-label="Skizze: Vorlage Abendveranstaltung mit fünf Platzhaltern">
+      <div class="m-top">
+        <div class="m-logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+        <span style="font-weight:700">Neuer Ablauf · Vorlage „Abendveranstaltung“</span>
+        <div class="m-right"><span class="seg"><b class="on">Abendveranstaltung</b><b>Club-Nacht</b><b>Konferenz</b><b>Leer</b></span></div>
+      </div>
+      <div style="padding:14px">
+        <div class="wiz">
+          <div class="wstep"><span class="th v5"></span><b>1 · Einlass</b><small>Loop bis WEITER · ohne Ton · startet um 18:30</small></div>
+          <div class="wstep"><span class="th v1"></span><b>2 · Intro</b><small>einmal mit Ton · danach weiter</small></div>
+          <div class="wstep"><span class="th v4"></span><b>3 · Begrüßung</b><small>Logo, stehen bleiben</small></div>
+          <div class="wstep"><span class="th vblack" style="display:grid;place-items:center;color:#7E879A;font-size:10.5px">Datei hierher ziehen</span><b>4 · Pause</b><small>Loop bis WEITER · Musik aus anderer Quelle</small></div>
+          <div class="wstep"><span class="th v6"></span><b>5 · Party</b><small>VJ-Szene „Drop“ · Auto an</small></div>
+        </div>
+        <div class="row" style="margin-top:12px;justify-content:space-between"><span style="color:var(--app-dim)">4 von 5 belegt. Fehlende Punkte lassen sich auch später füllen.</span><span class="btn on">Ablauf anlegen</span></div>
+      </div>
+    </div></div>
+    <figcaption><b>Schnellstart.</b> Vorlagen für typische Abende. Jede ist danach eine normale Liste und lässt sich frei ändern.</figcaption>
+  </figure>
+</section>
+
+<section id="technik">
+  <div class="eyebrow">Technik und Formate</div>
+  <h2>Was unter der Haube passieren muss</h2>
+  <div class="cols">
+    <div><h3>Nahtlos loopen</h3>
+      <ul class="plain">
+        <li>Zwei Abspieler pro Video. Kurz vor dem Loop-Ende steht der zweite schon am Loop-Anfang und übernimmt im selben Bild.</li>
+        <li>Der Loop-Bereich wird bildgenau geprüft, nicht über einen Zeitgeber, der nachläuft.</li>
+        <li>„Im Takt“ rechnet die Geschwindigkeit aus Loop-Länge und BPM und setzt den Start auf den Einser.</li>
+      </ul>
+    </div>
+    <div><h3>Bereit sein, bevor es zählt</h3>
+      <ul class="plain">
+        <li>Der nächste Cue wird vorgeladen („bereit“). WEITER startet ohne Nachladen.</li>
+        <li>Fehlende oder kaputte Dateien sind schon beim Öffnen rot markiert, nicht erst in der Show.</li>
+        <li>Probe-Modus: Ablauf nur in der Vorschau, Ausgänge bleiben auf der Show.</li>
+        <li>Sperre während der Show: Liste nicht versehentlich ändern, WEITER geht weiter.</li>
+      </ul>
+    </div>
+    <div><h3>Formate</h3>
+      <ul class="plain">
+        <li><b>Geht sicher:</b> MP4 und MOV mit H.264, WebM (VP9, AV1), Bilder wie bisher.</li>
+        <li><b>Je nach System:</b> H.265/HEVC (meist auf neueren Macs und Windows-Rechnern mit Hardware).</li>
+        <li><b>Nicht direkt:</b> ProRes, HAP. Dafür später „Für die Show umwandeln“ (wandelt in ein abspielbares Format).</li>
+        <li>Ton über ein wählbares Ausgabegerät pro Cue.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">VJ-Link nutzt die Video-Decoder, die in Electron und im Betriebssystem stecken. H.264 und H.265 sind patentbelastete Formate. Bevor VJ-Link verkauft oder öffentlich verteilt wird, klären wir, ob die Lizenz über System und Electron abgedeckt ist. VP9 und AV1 sind lizenzfrei. Einen eigenen Umwandler würden wir nur mit Bausteinen unter freizügiger Lizenz bauen.</p>
+</section>
+
+<section id="eigenes">
+  <div class="eyebrow">Eigener Entwurf</div>
+  <h2>Gleiche Aufgaben, eigene Lösung</h2>
+  <p>Ein Wiedergabe-Programm für Veranstaltungen muss bestimmte Dinge können: abspielen, kürzen, loopen, Timecode. Das sind allgemeine Aufgaben der Branche. Wie VJ-Link sie löst, ist eigenständig:</p>
+  <ul class="plain">
+    <li><b>Eigene Struktur:</b> eine Liste plus ein Knopf, eingebettet in VJ-Link. Kein Nachbau fremder Fenster, Arbeitsbereiche oder Menüs.</li>
+    <li><b>Eigene Begriffe</b> in Alltagssprache: Ablauf, WEITER, „nach vorigem“, „mit vorigem“, „bis WEITER“, Loop-Bereich, Details.</li>
+    <li><b>Eigene Gestaltung:</b> Farben, Schilder und Symbole aus VJ-Link (grün läuft, gestrichelt kommt, gelb kürzt).</li>
+    <li><b>Eigene Funktionen</b>, die es dort so nicht gibt: Takt-Loop, VJ-Szene als Cue, Vorlagen für typische Abende, „Timecode hier lernen“.</li>
+    <li><b>Eigenes Dateiformat:</b> Abläufe liegen im VJ-Link-Projekt. Kein Import oder Export fremder Projektdateien.</li>
+  </ul>
+  <p class="muted">Eine rechtliche Prüfung ersetzt das nicht. Es hält aber den Abstand klar, schon beim Entwurf.</p>
+</section>
+
+<section id="stufen">
+  <div class="eyebrow">Umsetzung</div>
+  <h2>In fünf Stufen, jede für sich nutzbar</h2>
+  <div class="phases">
+    <div class="phase"><div class="num">STUFE 1</div><h3>Video als Clip</h3><ul><li>Video laden und hineinziehen</li><li>Loop-Bereich, Richtung, Größe</li><li>Takt-Loop</li><li>Effekte wie bei allen Clips</li><li>Auch auf allen Ausgängen</li></ul></div>
+    <div class="phase"><div class="num">STUFE 2</div><h3>Ablauf-Ansicht</h3><ul><li>Liste, WEITER, Zurück, Alles stoppen</li><li>Video, Bild, Schwarz, VJ-Szene</li><li>Start von Hand, nach und mit vorigem</li><li>Kürzen, Loop bis WEITER, Ausblenden</li><li>Ton mit Lautstärke</li></ul></div>
+    <div class="phase"><div class="num">STUFE 3</div><h3>Timecode</h3><ul><li>Empfangen: Art-Net, MTC</li><li>Senden: Art-Net, MTC</li><li>Videos folgen dem Timecode</li><li>„Timecode hier lernen“</li></ul></div>
+    <div class="phase"><div class="num">STUFE 4</div><h3>Für den Abend</h3><ul><li>Vorlagen und Schnellstart</li><li>Uhrzeit als Start, Signal-Cues</li><li>LTC über Audio</li><li>Probe-Modus, Sperre</li></ul></div>
+    <div class="phase"><div class="num">STUFE 5</div><h3>Ausgänge</h3><ul><li>Ausgang pro Cue</li><li>Hängt an Mapping (Roadmap 4.1–4.3)</li><li>Für die Show umwandeln</li></ul></div>
+  </div>
+</section>
+
+<section id="offen">
+  <div class="eyebrow">Offene Fragen</div>
+  <h2>Was du vor dem Bauen entscheiden solltest</h2>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Frage</th><th>Vorschlag</th></tr></thead>
+    <tbody>
+      <tr><td>Name der Ansicht</td><td>„ABLAUF“. Andere Möglichkeiten: „PROGRAMM“, „REGIE“</td></tr>
+      <tr><td>Videos über oder statt der Show?</td><td>Standard: Ablauf-Videos ersetzen die Visuals (Visuals aus). Pro Cue umstellbar auf „darüber legen“</td></tr>
+      <tr><td>Wer bedient WEITER?</td><td>Leertaste, Knopf, Pult-Kanal, MIDI-Taste, OSC. Alles über das bestehende Mapping</td></tr>
+      <tr><td>Ton</td><td>Pro Cue Lautstärke und Ausgabegerät. Kein eigenes Mischpult in VJ-Link</td></tr>
+      <tr><td>Reihenfolge</td><td>Stufe 1 und 2 zuerst. Timecode danach, weil er an echten Pulten getestet werden muss</td></tr>
+      <tr><td>Silhouette</td><td>Danach, zusammen mit einem Kamera-Eingang. Der passt technisch zu Video</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</main>
+</div>
