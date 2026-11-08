@@ -7,7 +7,7 @@ import {
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
-import { clipVideoTime, isVideoClip, videoIdOf, type CueRender, type Fit } from "../core/video";
+import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
 import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
@@ -26,7 +26,7 @@ export interface ThumbCell { layer: number; col: number; clip: string; x: number
 export interface EngineOptions { transparent?: boolean }
 
 /** Liefert das aktuelle Videobild für einen Abspieler (Schlüssel) an Stelle t mit Geschwindigkeit rate. */
-export type VideoProvider = (key: string, id: string, t: number, rate: number, opts: { sound: boolean; volume: number }) => { el: TexImageSource; w: number; h: number } | null;
+export type VideoProvider = (key: string, id: string, t: number, rate: number, opts: { sound: boolean; volume: number; loop?: [number, number] }) => { el: TexImageSource; w: number; h: number } | null;
 
 /** Größe der Bildfläche (in Bildhöhen) für füllen, einpassen oder Originalgröße. */
 export function fitScale(fit: Fit, canvasAspect: number, mediaAspect: number, mediaH: number, canvasH: number): number {
@@ -165,8 +165,9 @@ export class Engine {
     let isVideo = false;
     if (isVideoClip(l.clip)) {
       const id = videoIdOf(l.clip);
-      const vt = clipVideoTime(l.video, l.videoStart, this.videoDuration(id), beat, this.nowMs, this.bpm);
-      const src = this.videoSource?.(fbKey, id, vt.t, vt.rate, { sound: l.video.sound, volume: 1 }) ?? null;
+      const dur = this.videoDuration(id);
+      const vt = clipVideoTime(l.video, l.videoStart, dur, beat, this.nowMs, this.bpm);
+      const src = this.videoSource?.(fbKey, id, vt.t, vt.rate, { sound: l.video.sound, volume: 1, ...(dur > 0 ? { loop: loopRange(l.video, dur) } : {}) }) ?? null;
       if (!src) return null;
       media = this.uploadVideo(fbKey, src);
       isVideo = true;
@@ -436,7 +437,7 @@ export class Engine {
         if (m) this.drawFlat(m.tex, m.w, m.h, c.fit, c.opacity, w, h);
       } else if (c.kind === "video" && isVideoClip(c.media)) {
         const t = c.t + (c.rate > 0 ? ((nowMs - c.atMs) / 1000) * c.rate : 0);
-        const src = this.videoSource?.("cue:" + c.key, videoIdOf(c.media), t, c.rate, { sound: true, volume: c.volume }) ?? null;
+        const src = this.videoSource?.("cue:" + c.key, videoIdOf(c.media), t, c.rate, { sound: true, volume: c.volume, ...(c.loop ? { loop: c.loop } : {}) }) ?? null;
         if (!src) continue;
         const v = this.uploadVideo("cue:" + c.key, src);
         this.drawFlat(v.tex, v.w, v.h, c.fit, c.opacity, w, h);

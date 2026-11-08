@@ -830,7 +830,7 @@ requestAnimationFrame(frame);
 
 // Entwicklungshilfe: im Browser-Modus Zustand von außen setzen.
 (window as unknown as { __vj: unknown }).__vj = {
-  ctx, onControl, select: (l: number) => fxPanel.select(l),
+  ctx, onControl, select: (l: number) => fxPanel.select(l), videoStats: () => previewPool.stats,
   loadMedia: async (p: { id: string; name: string; dataUrl: string }) => { await library.load(p); rebuildGrid(); },
   addVideo: async (v: { id: string; name: string; ext: string }) => { await videoLib.add({ ...v, duration: 0, width: 0, height: 0 }); rebuildGrid(); },
   importFiles: (f: File[]) => importToLibrary(f),

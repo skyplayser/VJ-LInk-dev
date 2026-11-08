@@ -144,6 +144,35 @@ export interface CueRender {
   fit: Fit;
   over: CueOver;
   volume: number;
+  /** Loop-Bereich, solange der Cue wiederholt (für den nahtlosen Wechsel der Abspieler). */
+  loop?: [number, number];
+}
+
+/** Loop-Bereich eines Cues in der Datei. */
+export function cueLoopRange(c: Cue, duration: number): [number, number] {
+  const [a, b] = trimmed(c, duration);
+  const la = c.loopRange ? clampNum(c.loopIn || a, a, b - 0.05) : a;
+  const lb = c.loopRange ? clampNum(c.loopOut || b, la + 0.05, b) : b;
+  return [la, lb];
+}
+
+/**
+ * Nahtloser Loop mit zwei Abspielern: Der zweite wartet schon am Loop-Anfang.
+ * „swap“ = jetzt umschalten, „seek“ = Abspieler neu positionieren (zu weit weg), „ok“ = weiterlaufen lassen.
+ */
+export function planLoop(p: { active: number; target: number; rate: number; loop?: [number, number]; standbyReady: boolean }): "swap" | "seek" | "ok" {
+  const r = Math.max(1, p.rate);
+  let drift = p.target - p.active;
+  if (p.loop) {
+    const [a, b] = p.loop;
+    const span = Math.max(0.05, b - a);
+    // Im Loop zählt der Abstand im Kreis: kurz vor dem Ende und kurz nach dem Anfang liegen nah beieinander
+    if (p.active >= a - 0.05 && p.active <= b + 0.05) drift = ((((drift + span / 2) % span) + span) % span) - span / 2;
+    const nearEnd = p.active >= b - 0.06 * r && p.active <= b + 0.5;
+    if (nearEnd && p.standbyReady) return "swap";
+    if (p.active >= b) return "seek"; // zweiter Abspieler noch nicht bereit: springen
+  }
+  return Math.abs(drift) > 0.25 * r ? "seek" : "ok";
 }
 
 /** Länge des gekürzten Films. */
@@ -312,9 +341,11 @@ export function cueRenders(s: CueState, nowMs: number, env: CueEnv): CueRender[]
     if (opacity <= 0.001) continue;
     const tm = cueTime(c, ac, nowMs, env.duration(c.media));
     const held = c.kind === "video" && tm.ended;
+    const loops = c.kind === "video" && c.loop !== "off" && !(c.loop === "untilGo" && ac.releasedMs !== null) && tm.looping;
     out.push({
       key: ac.cueId + ":" + ac.startMs, kind: c.kind, media: c.media, t: tm.t, rate: held || c.kind !== "video" ? 0 : 1, atMs: nowMs,
       opacity, fit: c.fit, over: c.over, volume: c.volume,
+      ...(loops ? { loop: cueLoopRange(c, env.duration(c.media)) } : {}),
     });
   }
   return out;

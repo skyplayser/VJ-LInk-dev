@@ -800,3 +800,17 @@ describe("SHOW-Ablauf", () => {
     expect(p.videos[0]!.duration).toBe(10);
   });
 });
+
+import { planLoop } from "../src/core/video";
+describe("Nahtloser Loop", () => {
+  it("schaltet kurz vor dem Loop-Ende auf den bereiten zweiten Abspieler um", () => {
+    expect(planLoop({ active: 3.0, target: 3.0, rate: 1, loop: [1, 5], standbyReady: true })).toBe("ok");
+    expect(planLoop({ active: 4.96, target: 4.97, rate: 1, loop: [1, 5], standbyReady: true })).toBe("swap");
+    expect(planLoop({ active: 4.9, target: 1.05, rate: 1, loop: [1, 5], standbyReady: true })).toBe("ok"); // im Kreis nur 0,15 s Abstand
+    expect(planLoop({ active: 1.02, target: 4.98, rate: 1, loop: [1, 5], standbyReady: false })).toBe("ok"); // gerade umgeschaltet
+    expect(planLoop({ active: 4.96, target: 4.97, rate: 1, loop: [1, 5], standbyReady: false })).toBe("ok");
+    expect(planLoop({ active: 5.0, target: 1.0, rate: 1, loop: [1, 5], standbyReady: false })).toBe("seek");
+    expect(planLoop({ active: 2.0, target: 3.0, rate: 1, standbyReady: false })).toBe("seek");
+    expect(planLoop({ active: 2.0, target: 2.1, rate: 1, standbyReady: false })).toBe("ok");
+  });
+});
