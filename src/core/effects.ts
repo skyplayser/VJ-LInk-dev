@@ -62,8 +62,6 @@ export const EFFECTS: readonly EffectDef[] = [
   e(33, "flower", "Blumen-Strahlen", "optical", "generator", "ready", "Gegenläufig drehende Strahlenkränze.", ["beat"]),
   e(34, "co2-jet", "CO2-Stoß", "optical", "generator", "ready", "Weiße Vertikal-Stöße, die sofort verfliegen.", ["beat"]),
   e(35, "silhouette", "Silhouette", "optical", "post", "planned", "Gegenlicht: Personen als schwarze Umrisse."),
-  // Werkzeuge
-  e(36, "testcard", "Testbild", "tools", "generator", "ready", "Farbbalken, Raster, Kreis und Ränder zum Ausrichten von Beamern und LED-Wänden.", []),
 ];
 
 export const EFFECT_BY_ID: ReadonlyMap<string, EffectDef> = new Map(EFFECTS.map(x => [x.id, x]));

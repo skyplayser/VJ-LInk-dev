@@ -3,7 +3,7 @@
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
 import { STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
-import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, SLOT_NAMES, clamp01, type Rgb } from "./show";
+import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, SLOT_NAMES, clamp01, stepTestPattern, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
@@ -124,6 +124,10 @@ export function buildControls(): ControlDef[] {
       get: () => 0, set: (c, v) => { if (on(v)) c.tc?.locate(0, Date.now()); } },
     { id: "test.toggle", label: "Testbild", group: "Master", kind: "toggle", quick: false,
       get: c => (c.show.testCard ? 1 : 0), set: (c, v) => { c.show.testCard = on(v); } },
+    { id: "test.next", label: "Nächstes Testbild", group: "Master", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (!on(v)) return; if (c.show.testCard) c.show.testPattern = stepTestPattern(c.show.testPattern, 1); else c.show.testCard = true; } },
+    { id: "test.prev", label: "Voriges Testbild", group: "Master", kind: "trigger", quick: false,
+      get: () => 0, set: (c, v) => { if (!on(v)) return; if (c.show.testCard) c.show.testPattern = stepTestPattern(c.show.testPattern, -1); else c.show.testCard = true; } },
   );
   list.push(
     { id: "scene.next", label: "Weiter", group: "Szenen", kind: "trigger", quick: false,

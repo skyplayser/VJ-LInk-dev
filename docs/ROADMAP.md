@@ -42,7 +42,7 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
-| 4.1 | Ausgänge | Freie Auflösung pro Ausgang, Ausschnitt aus der Leinwand | M |
+| 4.1 | Ausgänge | Freie Auflösung pro Ausgang, Ausschnitt aus der Leinwand (erledigt: Leinwand mit frei angeordneten Bildschirmen, Testbilder zum Ausrichten) | M |
 | 4.2 | Eckpunkte | Vier Ecken ziehen, Beamer-Trapez ausgleichen | M |
 | 4.3 | Raster und Masken | 3×3 und 5×5 Punkte, Masken, Bühnenfoto als Hilfe | L |
 | 4.4 | Syphon und Spout | Bild an andere Programme weitergeben | M |
@@ -85,6 +85,6 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 |---|---|---|
 | 1 | Video als Clip (Loop-Bereich, Takt-Loop, Größe, Ton) | erledigt |
 | 2 | Ablauf-Ansicht SHOW: Cues, WEITER, Start/Ende, Kürzen, Loops, Blenden | erledigt |
-| 3 | Timecode empfangen und senden (Art-Net, MTC), Videos folgen dem Timecode | erledigt (an Pulten noch zu testen) |
+| 3 | Timecode empfangen und senden, auch gleichzeitig (Art-Net, MTC), Videos folgen dem Timecode, Timecode-Cues steuern die eigene Uhr (z. B. für eine MA) | erledigt (an Pulten noch zu testen) |
 | 4 | Vorlagen, Uhrzeit-Start, Signal-Cues, LTC, Probe-Modus, Sperre | offen |
 | 5 | Ausgang pro Cue (hängt an Mapping 4.1–4.3), Umwandeln | offen |

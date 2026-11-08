@@ -11,7 +11,9 @@ import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, par
 import { MapMode } from "./mapmode";
 import { LibraryPanel } from "./librarypanel";
 import { AudioIn } from "./audioin";
-import { TimecodeClock, MtcDecoder, formatFrames } from "../core/timecode";
+import { OutputTab } from "./outputtab";
+import { canvasBounds, defaultLayout, type OutputLayout } from "../core/layout";
+import { TimecodeClock, MtcDecoder, formatFrames, parseTc, tcToFrames } from "../core/timecode";
 import { TcPanel, defaultTcSettings, type TcSettings } from "./tcpanel";
 import { cueRenders, cueTick, isVideoClip, newCueState, videoClip, videoIdOf, type CueEnv } from "../core/video";
 import { VideoLibrary, isVideoFile } from "./videolib";
@@ -33,7 +35,7 @@ import { mediaClip } from "../core/media";
 import { applyProject, parseProject, serializeProject } from "../core/project";
 import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
-import { transitionProgress } from "../core/show";
+import { TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] => {
@@ -156,7 +158,7 @@ bridge?.onControl(onControl);
 document.querySelectorAll<HTMLButtonElement>(".tabs button").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.id === `tab-${b.dataset.tab}`));
-  if (b.dataset.tab === "output") refreshDisplays();
+  if (b.dataset.tab === "output") void refreshDisplays().then(() => outputTab.render());
   // Die Ausgangs-Vorschau wandert mit: in SHOW sitzt sie neben dem Ablauf
   const box = $("mon-box");
   if (b.dataset.tab === "show") $("sh-mon-slot").append(box);
@@ -192,6 +194,12 @@ const cueEnv: CueEnv = {
   duration: m => (m && isVideoClip(m) ? videoLib.duration(videoIdOf(m)) : 0),
   recallScene: i => { recallScene(ctx, i); },
   timecode: () => tcClock.now(Date.now()),
+  tcCommand: (action, target) => {
+    const now = Date.now(), t = parseTc(target, tcClock.sendFps);
+    if (!tcClock.sendOn) toast("Timecode-Cue: Senden ist aus (Einstellungen → Timecode).");
+    if (action === "stop") tcClock.stop(now);
+    else { if (t) tcClock.locate(tcToFrames(t, tcClock.sendFps), now); if (action === "start") tcClock.start(now); }
+  },
   get chase() { return tcClock.chase; },
 };
 ctx.cueEnv = cueEnv;
@@ -480,13 +488,15 @@ if (settings.audioDevice) void chooseAudio(settings.audioDevice);
 
 // ---- Einstellungen ---------------------------------------------------------------------
 function updateTcUi(): void {
-  const now = tcClock.now(Date.now());
+  const t = Date.now();
+  const i = tcClock.incoming(t), o = tcClock.outgoing(t);
   const b = $("tc-btn");
-  b.hidden = tcClock.mode === "off";
-  $("tc-val").textContent = now ? formatFrames(Math.floor(now.frames), now.fps) : "--:--:--:--";
-  b.classList.toggle("ok", !!now?.running && tcClock.mode === "send");
-  b.classList.toggle("warn", !!now?.running && tcClock.mode === "receive");
-  b.title = tcClock.mode === "receive" ? `Timecode empfangen (${tcClock.source === "artnet" ? "Art-Net" : "MIDI"})` : "Timecode senden";
+  b.hidden = !tcClock.receiveOn && !tcClock.sendOn;
+  const f = (x: typeof i) => (x ? formatFrames(Math.floor(x.frames), x.fps) : "--:--:--:--");
+  $("tc-val").textContent = tcClock.receiveOn && tcClock.sendOn ? `▼ ${f(i)}  ▲ ${f(o)}` : tcClock.receiveOn ? f(i) : f(o);
+  b.classList.toggle("ok", !!o?.running && !tcClock.receiveOn);
+  b.classList.toggle("warn", !!i?.running);
+  b.title = [tcClock.receiveOn ? `Empfang (${tcClock.source === "artnet" ? "Art-Net" : "MIDI"})` : "", tcClock.sendOn ? "Senden" : ""].filter(Boolean).join(" · ");
   if (!setBox.hidden) tcPanel.update();
 }
 const tcPanel = new TcPanel(tcClock, settings.tc, saveSettings, {
@@ -497,7 +507,7 @@ const tcPanel = new TcPanel(tcClock, settings.tc, saveSettings, {
 });
 ctx.tc = tcClock;
 const setBox = $("settings");
-const SEC_TITLE: Record<string, string> = { audio: "Audio", timecode: "Timecode", midi: "MIDI", dmx: "DMX und Netzwerk", outputs: "Ausgänge und Testbild", ui: "Oberfläche" };
+const SEC_TITLE: Record<string, string> = { audio: "Audio", timecode: "Timecode", midi: "MIDI", dmx: "DMX und Netzwerk", ui: "Oberfläche" };
 function openSettings(sec = "audio"): void {
   setBox.hidden = false;
   setBox.querySelectorAll<HTMLButtonElement>(".set-nav [data-sec]").forEach(b => b.classList.toggle("on", b.dataset.sec === sec));
@@ -506,7 +516,6 @@ function openSettings(sec = "audio"): void {
   if (sec === "audio") { void fillAudioDevices(); void fillAudioOuts(); }
   if (sec === "timecode") tcPanel.build($("set-tc"));
   if (sec === "midi") buildMidiSection();
-  if (sec === "outputs") void refreshDisplays().then(() => renderSetOutputs());
 }
 const closeSettings = () => { setBox.hidden = true; };
 setBox.querySelectorAll<HTMLButtonElement>(".set-nav [data-sec]").forEach(b => b.addEventListener("click", () => openSettings(b.dataset.sec)));
@@ -536,30 +545,6 @@ function buildMidiSection(): void {
 $("set-dmx").append(...Array.from(document.querySelectorAll("#tab-connect .form")));
 $("set-dmx").append(el("p", "am-hint", "Live-Werte und Status der Eingänge: Tab VERBINDEN."));
 document.querySelectorAll("#tab-connect h2").forEach(h => { if (h.textContent === "DMX-Einstellungen") h.remove(); });
-{
-  const ui = $("ui-scale").closest("label")!;
-  $("set-ui").append(el("h3", "", "Größe"), ui, el("p", "am-hint", "Automatisch passt alles dem Fenster an, auch auf großen Bildschirmen."));
-  document.querySelectorAll("#tab-output h2").forEach(h => { if (h.textContent === "Oberfläche") h.remove(); });
-}
-function renderSetOutputs(): void {
-  const box = $("set-outputs"); box.replaceChildren();
-  box.append(el("h3", "", "Testbild"));
-  const t = el("button", `btn${ctx.show.testCard ? " on-test" : ""}`, ctx.show.testCard ? "Testbild aus" : "Testbild an");
-  t.dataset.ctl = "test.toggle";
-  t.addEventListener("click", () => { ctx.show.testCard = !ctx.show.testCard; syncTestUi(); renderSetOutputs(); });
-  box.append(t, el("p", "am-hint", "Zeigt auf jedem Ausgang Raster, Farbbalken, Kreis und die genaue Auflösung. Zum Ausrichten von Beamer und LED-Wand."));
-  box.append(el("h3", "", "Bildschirme"));
-  const l = el("div", "am-list");
-  for (const d of displays) {
-    const b = el("button", "am-item", `${d.label} · ${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)}${d.primary ? " · Hauptbildschirm" : ""}`);
-    b.setAttribute("aria-checked", String(d.open));
-    b.addEventListener("click", async () => { if (!bridge) return; displays = await bridge.toggleOutput(d.id); renderDisplays(); renderOutputStrip(); fitPreview(); renderSetOutputs(); });
-    l.append(b);
-  }
-  if (!displays.length) l.append(el("p", "am-hint", bridge ? "Keine Bildschirme gefunden." : "Mehrere Ausgänge gibt es nur in der App."));
-  box.append(l, el("p", "am-hint", "Grün = als Ausgang geöffnet. Esc auf einem Ausgang schließt ihn."));
-}
-
 // Ebenen hinzufügen
 $("layer-add").addEventListener("click", () => {
   const i = addLayer(ctx.show);
@@ -639,6 +624,8 @@ function buildCatalog(): void {
 }
 
 // ---- Ausgabe --------------------------------------------------------------------------
+let outLayout: OutputLayout = defaultLayout();
+const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => displays, () => fitPreview());
 async function refreshDisplays(): Promise<void> {
   const list = $("displays");
   if (!bridge) {
@@ -648,33 +635,7 @@ async function refreshDisplays(): Promise<void> {
   displays = await bridge.listDisplays();
   renderDisplays();
 }
-bridge?.onDisplays(d => { displays = d; renderDisplays(); renderOutputStrip(); fitPreview(); });
-
-/** Neben der Vorschau: welche Ausgänge offen sind, mit Auflösung. */
-function renderOutputStrip(): void {
-  const box = $("outs-strip");
-  box.replaceChildren();
-  const open = displays.filter(d => d.open);
-  if (!bridge) { const c = el("div", "ochip none"); c.append(el("b", "", "Browser-Vorschau"), el("em", "", "Ausgänge nur in der App")); box.append(c); return; }
-  for (const d of open) {
-    const c = el("div", "ochip");
-    c.append(el("b", "", d.label), el("em", "", `${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)}`));
-    box.append(c);
-  }
-  const free = displays.filter(d => !d.open && !d.primary);
-  if (!open.length) {
-    const c = el("div", "ochip none");
-    c.append(el("b", "", "Kein Ausgang offen"), el("em", "", free.length ? `${free.length} weitere${free.length === 1 ? "r" : ""} Bildschirm${free.length === 1 ? "" : "e"} frei` : "Nur dieser Bildschirm"));
-    box.append(c);
-  }
-  for (const d of free) {
-    const c = el("div", "ochip none");
-    const b = el("button", "btn small-btn", "Als Ausgang öffnen");
-    b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); renderOutputStrip(); fitPreview(); });
-    c.append(el("b", "", d.label), el("em", "", `${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)}`), b);
-    box.append(c);
-  }
-}
+bridge?.onDisplays(d => { displays = d; renderDisplays(); outputTab.render(); fitPreview(); });
 
 function renderDisplays(): void {
   const list = $("displays");
@@ -684,7 +645,7 @@ function renderDisplays(): void {
     const info = el("div"); info.append(el("b", "", `${d.label}${d.primary ? " (Hauptbildschirm)" : ""}`));
     info.append(el("small", "", `${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)} Pixel`));
     const b = el("button", "btn", d.open ? "SCHLIESSEN" : "ALS AUSGANG ÖFFNEN");
-    b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); renderOutputStrip(); fitPreview(); });
+    b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); outputTab.render(); fitPreview(); });
     row.append(info, b); list.append(row);
   }
   $("output-note").textContent = displays.length > 1 ? "" : "Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darüber verdeckt diese Oberfläche; Taste Esc oder Schließen im Hauptfenster beendet ihn.";
@@ -692,12 +653,39 @@ function renderDisplays(): void {
 $<HTMLInputElement>("testpattern").addEventListener("change", e => { ctx.show.testCard = (e.target as HTMLInputElement).checked; syncTestUi(); });
 /** Testbild-Knöpfe und Häkchen auf den aktuellen Stand bringen. */
 function syncTestUi(): void {
-  const on = ctx.show.testCard;
+  const on = ctx.show.testCard, cur = ctx.show.testPattern;
+  const pats = $("test-pats");
+  if (!pats.childElementCount) {
+    for (const p of TEST_PATTERNS) {
+      const b = el("button", "test-pat", p.label); b.dataset.pat = p.id; b.setAttribute("role", "radio"); b.title = p.hint;
+      b.addEventListener("click", () => {
+        // Gewähltes Muster nochmal anklicken schaltet das Testbild aus
+        if (ctx.show.testCard && ctx.show.testPattern === p.id) ctx.show.testCard = false;
+        else { ctx.show.testPattern = p.id; ctx.show.testCard = true; }
+        syncTestUi();
+      });
+      pats.append(b);
+    }
+  }
+  pats.querySelectorAll<HTMLButtonElement>("[data-pat]").forEach(b => {
+    const sel = b.dataset.pat === cur; b.classList.toggle("sel", sel); b.classList.toggle("live", sel && on);
+    b.setAttribute("aria-checked", String(sel));
+  });
+  const info = TEST_PATTERNS.find(p => p.id === cur)!;
+  $("test-name").textContent = `${TEST_IDS.indexOf(cur) + 1} / ${TEST_IDS.length} · ${info.label}`;
+  $("test-hint").textContent = info.hint;
+  testUiKey = `${on}|${cur}`;
   $<HTMLInputElement>("testpattern").checked = on;
   $("test-quick").classList.toggle("on-test", on);
+  $("test-quick").textContent = on ? "Testbild aus" : "Testbild auf allen Ausgängen";
   $("test-quick").setAttribute("aria-pressed", String(on));
 }
 $("test-quick").addEventListener("click", () => { ctx.show.testCard = !ctx.show.testCard; syncTestUi(); });
+for (const [id, dir] of [["test-prev", -1], ["test-next", 1]] as const) $(id).addEventListener("click", () => {
+  ctx.show.testPattern = stepTestPattern(ctx.show.testPattern, dir); ctx.show.testCard = true; syncTestUi();
+});
+let testUiKey = "";
+syncTestUi();
 
 // ---- Verbinden ------------------------------------------------------------------------
 function card(title: string, state: "ok" | "off" | "err", lines: string[], live = false): HTMLElement {
@@ -761,6 +749,10 @@ const preview = $<HTMLCanvasElement>("preview");
 
 /** Seitenverhältnis wie der erste offene Ausgang (z. B. LED-Wand 6:1), sonst 16:9. */
 function previewAspect(): number {
+  if (outLayout.mode === "canvas") {
+    const open = outLayout.screens.filter(sc => displays.some(d => d.open && d.id === sc.id));
+    if (open.length) { const b = canvasBounds(open); return b.w / b.h; }
+  }
   const d = displays.find(x => x.open);
   return d && d.height > 0 ? d.width / d.height : 16 / 9;
 }
@@ -803,6 +795,8 @@ function frame(): void {
   cueTick(ctx.cues, now, cueEnv);
   ctx.show.cues = cueRenders(ctx.cues, now, cueEnv);
   if (now - lastSweep > 1000) { lastSweep = now; previewPool.sweep(); }
+  // Testbild per Mapping umgeschaltet: Knöpfe nachziehen
+  if (`${ctx.show.testCard}|${ctx.show.testPattern}` !== testUiKey) syncTestUi();
   // Audio-Eingang: Spektrum und Wellenform in den Show-Zustand (gehen so auch an die Ausgänge)
   const mic = audioIn.sample();
   if (mic) ctx.show.audio.mic = mic; else delete ctx.show.audio.mic;
@@ -816,6 +810,7 @@ function frame(): void {
     const f: Frame = {
       show: ctx.show, bpm: ctx.tempo.bpm, originMs: t.originMs, beatAtOrigin: t.beatAtOrigin, testPattern: ctx.show.testCard,
       videoDurations: Object.fromEntries(videoLib.items.map(v => [v.id, v.duration])),
+      layout: outLayout, openOutputs: displays.filter(d => d.open).map(d => d.id),
     };
     bridge.publishFrame(JSON.parse(JSON.stringify(f)) as Frame);
   }
@@ -901,7 +896,7 @@ let lastSaved = "", lastSaveCheck = 0, loaded = false;
 function autosave(now: number): void {
   if (!loaded || now - lastSaveCheck < 2000) return;
   lastSaveCheck = now;
-  const json = serializeProject(ctx, library.items, mappings.list, videoLib.items);
+  const json = serializeProject(ctx, library.items, mappings.list, videoLib.items, outLayout);
   if (json === lastSaved) return;
   lastSaved = json;
   if (bridge) bridge.saveProject(json);
@@ -926,6 +921,7 @@ async function loadProject(): Promise<void> {
     const p = json ? parseProject(json) : null;
     if (p) {
       applyProject(ctx, p);
+      outLayout = p.outputs;
       if (p.mappings) mappings.replace(p.mappings);
       // Grafiken, deren Datei fehlt, nicht als Clip stehen lassen
       const known = new Set([...library.items.map(i => mediaClip(i.id)), ...videoLib.items.map(v => videoClip(v.id))]);
@@ -940,7 +936,7 @@ async function loadProject(): Promise<void> {
     scenePanel.update(true);
   }
 }
-void (async () => { if (bridge) displays = await bridge.listDisplays(); renderOutputStrip(); fitPreview(); })();
+void (async () => { if (bridge) displays = await bridge.listDisplays(); renderDisplays(); outputTab.render(); fitPreview(); })();
 let updateDeck = buildDeck(ctx, $("deck"));
 function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck")); }
 // Erst laden, wenn alle Teile der Oberfläche stehen (im Browser läuft das Laden ohne Wartezeit durch).

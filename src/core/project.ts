@@ -4,6 +4,7 @@ import { POST_BY_ID } from "./effects";
 import { isValidMediaId, type MediaItem } from "./media";
 import { parseMappings, type Mapping } from "./mapping";
 import { FITS, newCue, type Cue, type VideoItem, type VideoSettings } from "./video";
+import { defaultLayout, type OutputLayout } from "./layout";
 import {
   BLEND_MODES, COLOR_SOURCES, KEY_MODES, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
@@ -23,11 +24,13 @@ export interface ProjectFile {
   videos: VideoItem[];
   /** SHOW-Ablauf */
   cues: Cue[];
+  /** Anordnung der Ausgänge */
+  outputs: OutputLayout;
   /** Fehlt in alten Dateien: dann gilt die Standard-Tastenbelegung. */
   mappings?: Mapping[];
 }
 
-export function serializeProject(c: ControlContext, media: readonly MediaItem[], mappings: readonly Mapping[] = [], videos: readonly VideoItem[] = []): string {
+export function serializeProject(c: ControlContext, media: readonly MediaItem[], mappings: readonly Mapping[] = [], videos: readonly VideoItem[] = [], outputs: OutputLayout = defaultLayout()): string {
   const s = c.show;
   const p: ProjectFile = {
     version: PROJECT_VERSION,
@@ -36,6 +39,7 @@ export function serializeProject(c: ControlContext, media: readonly MediaItem[],
     media: [...media],
     videos: [...videos],
     cues: c.cues.list,
+    outputs,
     mappings: [...mappings],
   };
   return JSON.stringify(p);
@@ -83,7 +87,7 @@ function video(v: unknown): VideoSettings | undefined {
 
 function cue(v: unknown): Cue | null {
   if (!isObj(v) || typeof v.id !== "string" || !/^[a-z0-9]{3,24}$/.test(v.id)) return null;
-  const kind = oneOf(v.kind, ["video", "image", "black", "scene"] as const, "black");
+  const kind = oneOf(v.kind, ["video", "image", "black", "scene", "tcsignal"] as const, "black");
   const c = newCue(kind, str(v.name, "Cue", 60) || "Cue", clip(v.media), v.id);
   c.scene = num(v.scene, 1, 1, 999);
   c.start = oneOf(v.start, ["manual", "after", "with", "timecode"] as const, "manual");
@@ -99,8 +103,19 @@ function cue(v: unknown): Cue | null {
   c.volume = clamp01(num(v.volume, 1));
   c.fit = oneOf(v.fit, FITS, "fill");
   c.over = oneOf(v.over, ["replace", "over"] as const, "replace");
+  c.tcAction = oneOf(v.tcAction, ["start", "stop", "locate"] as const, "start");
+  c.tcTarget = typeof v.tcTarget === "string" && /^\d{2}:\d{2}:\d{2}[:;]\d{2}$/.test(v.tcTarget) ? v.tcTarget : "00:00:00:00";
   c.tc = typeof v.tc === "string" && /^\d{2}:\d{2}:\d{2}[:;]\d{2}$/.test(v.tc) ? v.tc : "00:00:00:00";
   return c;
+}
+
+function layout(v: unknown): OutputLayout {
+  if (!isObj(v)) return defaultLayout();
+  const screens = (Array.isArray(v.screens) ? v.screens : []).filter(isObj).slice(0, 16).map(s => ({
+    id: num(s.id, 0, -1e12, 1e12), label: str(s.label, "Bildschirm", 60),
+    x: num(s.x, 0, -32768, 32768), y: num(s.y, 0, -32768, 32768), w: num(s.w, 1920, 16, 16384), h: num(s.h, 1080, 16, 16384),
+  }));
+  return { mode: oneOf(v.mode, ["mirror", "canvas"] as const, "mirror"), screens };
 }
 
 /** Teil-Ebene (für Szenen): nur Felder übernehmen, die gültig vorhanden sind. */
@@ -174,6 +189,7 @@ export function parseProject(json: string): ProjectFile | null {
       duration: num(m.duration, 0, 0, 86400), width: num(m.width, 0, 0, 16384), height: num(m.height, 0, 0, 16384),
     })),
     cues: (Array.isArray(raw.cues) ? raw.cues : []).map(cue).filter((x): x is Cue => !!x).slice(0, 500),
+    outputs: layout(raw.outputs),
   };
 }
 

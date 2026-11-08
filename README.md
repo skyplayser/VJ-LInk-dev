@@ -24,7 +24,7 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Pult | Art-Net und sACN als Eingang, DMX-Belegung „Standard“ (70 Kanäle), nur geänderte Kanäle wirken, Kanalliste als CSV |
 | OSC | Eingang auf Port 8000, Adressen `/vjlink/…` |
 | LJ-Link | WebSocket-Eingang auf Port 9099, Deck-Zustand, Regeln „Wenn … dann …“, Privatsphäre-Modus |
-| Ausgänge | Ein Vollbild-Fenster pro Bildschirm, gemeinsame Takt-Uhr, Testbild |
+| Ausgänge | Tab AUSGABE: ein Vollbild-Fenster pro Bildschirm, gemeinsame Takt-Uhr. Anordnung „Gleiches Bild auf allen“ oder „Leinwand“: Bildschirme frei anordnen (ziehen, einrasten, Werte eintippen, nebeneinander/untereinander), jeder Ausgang zeigt seinen Ausschnitt, Visuals, Videos und Cues laufen nahtlos über alle |
 | Mapping | Wie Daslight: MAPPING → Tastatur, MIDI, DMX/Art-Net oder OSC (⇧⌘K/M/D/O). Alle zuweisbaren Elemente leuchten lila, anklicken, Eingang bewegen. Liste der Zuweisungen je Art, wird mit dem Projekt gespeichert. Clips, Szenen, Fader, Effekte, BPM |
 | MIDI | Controller per Web MIDI, Hot-Plug, Noten und CCs, LED-Rückmeldung, Vorlagen (APC mini mk2, APC mini, nanoKONTROL2), Export/Import der Zuweisungen, MIDI-Clock als Tempo-Quelle |
 | Ebenen | 1 bis 8 Ebenen, hinzufügen und entfernen (Pult-Profil steuert Ebene 1–4). Jede Ebene hat ihre eigene Clip-Zeile, zusammengestellt aus der Bibliothek („+ Clips“), Clips per × aus der Zeile nehmen |
@@ -33,10 +33,10 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Bedienung | Fader-Leiste (Master, Ebenen, Effekt, Strobe mit Speed und Intensität, Strobe White, Szenen, Tap, Blackout), jedes Element auch per OSC (`/vjlink/ctl/<id>`) |
 | Oberfläche | VISUALS, SHOW, Bauen (Katalog), Ausgabe, Verbinden; Logo als App-Icon |
 | Videos | MP4, MOV, M4V, WebM in die Bibliothek (Kopie im App-Ordner, gestreamt über vjmedia://). Nahtloser Loop mit zwei Abspielern. Als Clip mit Loop-Bereich, Takt-Loop (4–32 Beats), Größe, Ton. Läuft auf allen Ausgängen synchron |
-| Timecode | Empfangen (Art-Net, MIDI-Timecode) oder senden (Art-Net, MTC), 24/25/29,97 DF/30 fps; Cues starten per Timecode, Videos folgen (Spulen, Anhalten), Versatz, „Hier lernen“ |
-| Einstellungen | Zahnrad oben rechts: Audio-Eingang und -Ausgang, Timecode, MIDI-Geräte, DMX und Netzwerk, Ausgänge und Testbild, Oberfläche |
-| Testbild | Farbbalken, Raster, Kreis, Ränder, laufender Zeiger; Schnellknopf bei den Ausgängen, auf jedem Ausgang mit Auflösung; auch als Visual in der Bibliothek |
-| SHOW | Ablauf mit Cues (Video, Bild, Schwarz, VJ-Szene): WEITER (Leertaste), Zurück, Alles stoppen; Start von Hand / nach vorigem / mit vorigem + Wartezeit; Kürzen; Wiederholen aus / x-mal / bis WEITER / endlos, auch nur einen Bereich; Ende stehen bleiben / ausblenden / weiter; Einblenden, Lautstärke, Größe, Visuals aus oder darüber |
+| Timecode | Empfangen und Senden getrennt einschaltbar, auch gleichzeitig (Art-Net, MIDI-Timecode), 24/25/29,97 DF/30 fps. Empfangen: Cues starten per Timecode, Videos folgen (Spulen, Anhalten), Versatz. Senden: eigene Uhr oder Empfangenen weitergeben, z. B. an eine MA; Timecode-Cues im SHOW-Ablauf (Start ab Zeit, Stopp, Springen) und Mapping steuern die Uhr |
+| Einstellungen | Zahnrad oben rechts: Audio-Eingang und -Ausgang, Timecode, MIDI-Geräte, DMX und Netzwerk, Oberfläche |
+| Testbild | Im Tab AUSGABE, 9 Testbilder zum Durchschalten: Farbbalken, Raster, Raster über alle (eine Leinwand über alle Bildschirme), Nummern, Graustufen, Weiß, Rot, Grün, Blau. Mit Auflösung, Name und Lage je Ausgang. Per Mapping: Testbild, Nächstes, Voriges |
+| SHOW | Ablauf mit Cues (Video, Bild, Schwarz, VJ-Szene, Timecode): WEITER (Leertaste), Zurück, Alles stoppen; Start von Hand / nach vorigem / mit vorigem + Wartezeit; Kürzen; Wiederholen aus / x-mal / bis WEITER / endlos, auch nur einen Bereich; Ende stehen bleiben / ausblenden / weiter; Einblenden, Lautstärke, Größe, Visuals aus oder darüber |
 
 ## Noch offen
 

@@ -2,6 +2,7 @@
 import type { ShowState } from "./show";
 import type { MediaPayload } from "./media";
 import type { Tc, TcFps } from "./timecode";
+import type { OutputLayout } from "./layout";
 
 export interface Frame {
   show: ShowState;
@@ -11,6 +12,9 @@ export interface Frame {
   testPattern: boolean;
   /** Länge der Videos (Sekunden), damit Ausgänge Loops gleich rechnen. */
   videoDurations?: Record<string, number>;
+  /** Anordnung der Ausgänge (Gleiches Bild oder Leinwand) und welche Bildschirme offen sind. */
+  layout?: OutputLayout;
+  openOutputs?: number[];
 }
 
 export const frameBeat = (f: Frame, nowMs: number): number =>

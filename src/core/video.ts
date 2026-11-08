@@ -68,7 +68,8 @@ export function clipVideoTime(v: VideoSettings, start: PlayStart, duration: numb
 
 // ---- SHOW-Ablauf ---------------------------------------------------------------------
 
-export type CueKind = "video" | "image" | "black" | "scene";
+export type CueKind = "video" | "image" | "black" | "scene" | "tcsignal";
+export type TcAction = "start" | "stop" | "locate";
 export type CueStart = "manual" | "after" | "with" | "timecode";
 export type CueEnd = "hold" | "fade" | "next";
 export type CueLoop = "off" | "count" | "untilGo" | "forever";
@@ -105,13 +106,16 @@ export interface Cue {
   over: CueOver;
   /** Start per Timecode, z. B. „00:20:00:00“. */
   tc: string;
+  /** Timecode-Befehl: eigene Uhr starten (ab Zeit), anhalten oder auf eine Zeit springen. */
+  tcAction: TcAction;
+  tcTarget: string;
 }
 
 export function newCue(kind: CueKind, name: string, media: string | null = null, id = newCueId()): Cue {
   return {
     id, name, kind, media, scene: 1, start: "manual", wait: 0,
     trimIn: 0, trimOut: 0, loop: kind === "video" ? "off" : "off", loopCount: 2, loopRange: false, loopIn: 0, loopOut: 0,
-    end: kind === "video" ? "hold" : "hold", fadeIn: 0.5, fadeOut: 1, hold: 0, volume: 1, fit: "fill", over: "replace", tc: "00:00:00:00",
+    end: kind === "video" ? "hold" : "hold", fadeIn: 0.5, fadeOut: 1, hold: 0, volume: 1, fit: "fill", over: "replace", tc: "00:00:00:00", tcAction: "start", tcTarget: "00:00:00:00",
   };
 }
 export function newCueId(): string { return "c" + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3); }
@@ -252,6 +256,8 @@ export interface CueEnv {
   duration(media: string | null): number;
   /** VJ-Szene abrufen (Index 0…). */
   recallScene(index: number): void;
+  /** Timecode-Befehl für die eigene Uhr (Start ab Zeit, Stopp, Springen). */
+  tcCommand?(action: TcAction, target: string): void;
   /** Aktueller Timecode, falls einer läuft. */
   timecode?(): TcNow | null;
   /** Videos folgen dem Timecode (sonst nur Start). */
@@ -266,7 +272,9 @@ function startAt(s: CueState, index: number, nowMs: number): void {
   if (!first) return;
   // Neuer Programmpunkt: Bisheriges blendet über die Einblendzeit des neuen aus
   const xf = Math.max(0.05, first.fadeIn);
-  for (const ac of s.run.active) if (ac.fadeOutMs === null) { ac.fadeOutMs = nowMs; ac.fadeOutDur = xf; }
+  // Szenen und Timecode-Befehle sind unsichtbar: Sie blenden nichts aus
+  if (first.kind !== "scene" && first.kind !== "tcsignal")
+    for (const ac of s.run.active) if (ac.fadeOutMs === null) { ac.fadeOutMs = nowMs; ac.fadeOutDur = xf; }
   let i = index;
   do {
     const c = s.list[i]!;
@@ -346,7 +354,7 @@ function tickTimecode(s: CueState, nowMs: number, env: CueEnv): void {
     const startF = tcToFrames(t, tc.fps);
     const into = (tc.frames - startF) / tc.fps; // Sekunden seit Cue-Start
     const ac = s.run.active.find(a => a.cueId === c.id && a.fadeOutMs === null);
-    if (env.chase && c.kind !== "scene") {
+    if (env.chase && c.kind !== "scene" && c.kind !== "tcsignal") {
       const len = cueLength(c, env.duration(c.media));
       const inside = into >= 0 && into < len + 0.05;
       if (inside && !ac) {
@@ -370,8 +378,11 @@ export function cueTick(s: CueState, nowMs: number, env: CueEnv): void {
   for (const ac of [...s.run.active]) {
     const c = byId(s, ac.cueId);
     if (!c) { s.run.active = s.run.active.filter(x => x !== ac); continue; }
-    if (c.kind === "scene") {
-      if (!ac.fired && nowMs >= ac.startMs) { ac.fired = true; env.recallScene(c.scene - 1); }
+    if (c.kind === "scene" || c.kind === "tcsignal") {
+      if (!ac.fired && nowMs >= ac.startMs) {
+        ac.fired = true;
+        if (c.kind === "scene") env.recallScene(c.scene - 1); else env.tcCommand?.(c.tcAction, c.tcTarget);
+      }
       if (ac.fired) { ac.endHandled = true; ac.fadeOutMs ??= nowMs; ac.fadeOutDur = 0; }
     } else if (!ac.endHandled && nowMs >= ac.startMs) {
       const tm = cueTime(c, ac, nowMs, env.duration(c.media));
@@ -394,7 +405,7 @@ export function cueRenders(s: CueState, nowMs: number, env: CueEnv): CueRender[]
   const out: CueRender[] = [];
   for (const ac of s.run.active) {
     const c = byId(s, ac.cueId);
-    if (!c || c.kind === "scene" || nowMs < ac.startMs) continue;
+    if (!c || c.kind === "scene" || c.kind === "tcsignal" || nowMs < ac.startMs) continue;
     const opacity = cueOpacity(c, ac, nowMs);
     if (opacity <= 0.001) continue;
     const tm = cueTime(c, ac, nowMs, env.duration(c.media));

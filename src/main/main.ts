@@ -83,7 +83,7 @@ function toggleOutput(id: number): DisplayInfo[] {
   win.setMenuBarVisibility(false);
   // Esc schließt den Ausgang, auch wenn er das Hauptfenster verdeckt.
   win.webContents.on("before-input-event", (e, input) => { if (input.type === "keyDown" && input.key === "Escape") { e.preventDefault(); win.close(); } });
-  win.loadFile(rendererFile("output.html"));
+  win.loadFile(rendererFile("output.html"), { query: { display: String(id) } });
   win.once("ready-to-show", async () => {
     win.show();
     // Grafiken zuerst, damit das erste Bild vollständig ist.

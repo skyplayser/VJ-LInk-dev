@@ -3,10 +3,11 @@
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
 import { WAVE_POINTS, bandsFrom, beatPulse, micDrives, strobeGain, strobeGate, strobeWhite } from "../core/audio";
-import {
+import { TEST_IDS,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
+import type { View } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
 import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT } from "./shaders";
 
@@ -55,6 +56,7 @@ export class Engine {
   private work: [Target | null, Target | null] = [null, null];
   private compTo: Target | null = null;
   private compFrom: Target | null = null;
+  private canvasT: Target | null = null;
   /** Feedback braucht das letzte Bild: pro Ebene (bzw. Vorschauzelle) zwei Texturen im Wechsel. */
   private feedback = new Map<string, { t: [Target, Target]; cur: 0 | 1; used: number }>();
   private layerTime = new Array<number>(MAX_LAYERS).fill(0);
@@ -287,6 +289,7 @@ export class Engine {
       gl.useProgram(this.comp.p);
       gl.uniform1i(this.loc(this.comp, "uTex"), 0);
       gl.uniform1f(this.loc(this.comp, "uOpacity"), op);
+      gl.uniform4f(this.loc(this.comp, "uRegion"), 0, 0, 1, 1);
       this.bindTex(0, img);
       this.bindTarget(out);
       gl.enable(gl.BLEND);
@@ -301,7 +304,11 @@ export class Engine {
    * Ein Bild rechnen. `nowMs` ist Epoch-Zeit, `beat` die Beat-Position der gemeinsamen Takt-Uhr:
    * alle Ausgänge bekommen dieselben Werte und zeigen deshalb dasselbe Bild.
    */
-  render(show: ShowState, beat: number, nowMs: number, bpm = 120): void {
+  /**
+   * `view`: Dieses Fenster zeigt nur einen Ausschnitt einer größeren Leinwand (Bildschirme nebeneinander).
+   * Dann wird die ganze Leinwand gerechnet und der eigene Teil ausgegeben, damit alles nahtlos passt.
+   */
+  render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null): void {
     const t0 = performance.now();
     const gl = this.gl;
     const sec = nowMs / 1000;
@@ -312,7 +319,11 @@ export class Engine {
     gl.bindVertexArray(this.vao);
 
     this.nowMs = nowMs; this.bpm = bpm;
-    const w = this.canvas.width, h = this.canvas.height;
+    const outW = this.canvas.width, outH = this.canvas.height;
+    // Leinwand: in Leinwand-Pixeln rechnen (Obergrenze ca. 8K × 4K), sonst direkt in Fenstergröße
+    const k = view ? Math.min(1, 8192 / Math.max(view.cw, view.ch), Math.sqrt(33e6 / (view.cw * view.ch))) : 1;
+    const w = view ? Math.max(1, Math.round(view.cw * k)) : outW, h = view ? Math.max(1, Math.round(view.ch * k)) : outH;
+    const dest = view ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
     if (show.blackout) {
       this.bindTarget(null); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
     } else {
@@ -336,11 +347,26 @@ export class Engine {
       // Strobe White wirkt auch bei Master 0, aber nicht bei Blackout
       gl.uniform1f(this.loc(this.fin, "uWhite"), strobeWhite(show.strobe, beat, sec, bpm));
       this.bindTex(0, from); this.bindTex(1, this.compTo);
-      this.bindTarget(null, 0, 0, w, h);
+      this.bindTarget(dest, 0, 0, w, h);
       this.draw();
     }
-    if (!show.blackout && show.cues.length) this.drawCues(show.cues, nowMs, w, h);
-    if (show.testCard) this.drawTestCard(show, beat, nowMs, w, h);
+    if (dest && show.blackout) { this.bindTarget(dest); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+    if (!show.blackout && show.cues.length) this.drawCues(show.cues, nowMs, w, h, dest);
+    // „Raster über alle“: auf der ganzen Leinwand rechnen, jeder Ausgang zeigt seinen Teil wie bei den Visuals
+    const spanTest = show.testCard && show.testPattern === "span" && !!dest;
+    if (spanTest) this.drawTestCard(show, beat, nowMs, w, h, dest);
+    if (dest && view) {
+      // Eigenen Ausschnitt der Leinwand ausgeben (GL-Ursprung unten links)
+      gl.useProgram(this.comp.p);
+      gl.uniform1i(this.loc(this.comp, "uTex"), 0);
+      gl.uniform1f(this.loc(this.comp, "uOpacity"), 1);
+      gl.uniform4f(this.loc(this.comp, "uRegion"), view.x / view.cw, 1 - (view.y + view.h) / view.ch, view.w / view.cw, view.h / view.ch);
+      this.bindTex(0, dest);
+      this.bindTarget(null, 0, 0, outW, outH);
+      gl.disable(gl.BLEND);
+      this.draw();
+    }
+    if (show.testCard && !spanTest) this.drawTestCard(show, beat, nowMs, outW, outH, null);
     this.dropStaleFeedback();
 
     const ms = performance.now() - t0;
@@ -372,6 +398,7 @@ export class Engine {
       gl.useProgram(this.comp.p);
       gl.uniform1i(this.loc(this.comp, "uTex"), 0);
       gl.uniform1f(this.loc(this.comp, "uOpacity"), 1);
+      gl.uniform4f(this.loc(this.comp, "uRegion"), 0, 0, 1, 1);
       this.bindTex(0, img);
       this.bindTarget(null, c.x, H - c.y - c.h, c.w, c.h);
       this.draw();
@@ -409,7 +436,7 @@ export class Engine {
   }
 
   /** Eine Fläche (Bild, Video, Schwarz) über das fertige Bild legen. */
-  private drawFlat(tex: WebGLTexture, mw: number, mh: number, fit: Fit, opacity: number, w: number, h: number): void {
+  private drawFlat(tex: WebGLTexture, mw: number, mh: number, fit: Fit, opacity: number, w: number, h: number, dest: Target | null = null): void {
     const gl = this.gl, im = this.img;
     gl.useProgram(im.p);
     gl.uniform1i(this.loc(im, "uImg"), 0);
@@ -421,34 +448,37 @@ export class Engine {
     gl.uniform1i(this.loc(im, "uKeyMode"), 0);
     gl.uniform1f(this.loc(im, "uOpacity"), opacity);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
-    this.bindTarget(null, 0, 0, w, h);
+    this.bindTarget(dest, 0, 0, w, h);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     this.draw();
     gl.disable(gl.BLEND);
   }
 
   /** Testbild als oberste Fläche (in voller Auflösung des Fensters). */
-  private drawTestCard(show: ShowState, beat: number, nowMs: number, w: number, h: number): void {
+  private drawTestCard(show: ShowState, beat: number, nowMs: number, w: number, h: number, dest: Target | null): void {
+    const gl = this.gl, g = this.gen;
+    gl.useProgram(g.p);
+    gl.uniform1i(this.loc(g, "uTest"), Math.max(0, TEST_IDS.indexOf(show.testPattern ?? "bars")));
     const l: LayerState = { ...show.layers[0]!, clip: "testcard", effects: [], colorSource: "original", opacity: 1, strobe: 0 };
     const img = this.renderLayer(l, "testcard", nowMs / 1000, w, h, show, beat, 0, new Float32Array(8), false);
-    if (img) this.drawFlat(img.tex, w, h, "fill", 1, w, h);
+    if (img) this.drawFlat(img.tex, w, h, "fill", 1, w, h, dest);
   }
 
   /** SHOW-Ablauf: Cues über bzw. statt der Visuals. */
-  private drawCues(cues: readonly CueRender[], nowMs: number, w: number, h: number): void {
+  private drawCues(cues: readonly CueRender[], nowMs: number, w: number, h: number, dest: Target | null = null): void {
     for (const c of cues) {
       // „statt Visuals“: erst die Visuals mit der Deckkraft des Cues abdunkeln
-      if (c.over === "replace" || c.kind === "black") this.drawFlat(this.blackTex(), w, h, "fill", c.opacity, w, h);
+      if (c.over === "replace" || c.kind === "black") this.drawFlat(this.blackTex(), w, h, "fill", c.opacity, w, h, dest);
       if (c.kind === "black" || !c.media) continue;
       if (c.kind === "image" && isMediaClip(c.media)) {
         const m = this.media.get(mediaIdOf(c.media));
-        if (m) this.drawFlat(m.tex, m.w, m.h, c.fit, c.opacity, w, h);
+        if (m) this.drawFlat(m.tex, m.w, m.h, c.fit, c.opacity, w, h, dest);
       } else if (c.kind === "video" && isVideoClip(c.media)) {
         const t = c.t + (c.rate > 0 ? ((nowMs - c.atMs) / 1000) * c.rate : 0);
         const src = this.videoSource?.("cue:" + c.key, videoIdOf(c.media), t, c.rate, { sound: true, volume: c.volume, ...(c.loop ? { loop: c.loop } : {}) }) ?? null;
         if (!src) continue;
         const v = this.uploadVideo("cue:" + c.key, src);
-        this.drawFlat(v.tex, v.w, v.h, c.fit, c.opacity, w, h);
+        this.drawFlat(v.tex, v.w, v.h, c.fit, c.opacity, w, h, dest);
       }
     }
   }

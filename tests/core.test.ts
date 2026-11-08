@@ -156,9 +156,9 @@ describe("Steuerung", () => {
 
 describe("Effekt-Katalog", () => {
   it("enthält die 35 Visuals mit eindeutigen IDs", () => {
-    expect(EFFECTS.length).toBe(36); // 35 aus der Wunschliste + Testbild
-    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(36);
-    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 36 }, (_, i) => i + 1));
+    expect(EFFECTS.length).toBe(35);
+    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(35);
+    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 35 }, (_, i) => i + 1));
   });
 });
 
@@ -726,7 +726,7 @@ describe("Bibliothek der Visuals", () => {
   it("jeder fertige Generator existiert im Shader, Start-Clips stehen vorn", () => {
     for (const g of READY_GENERATORS) expect(GEN_IDS as readonly string[]).toContain(g.id);
     expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
-    expect(READY_GENERATORS.length).toBe(28);
+    expect(READY_GENERATORS.length).toBe(27);
     expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual(["silhouette"]);
   });
 });
@@ -844,7 +844,7 @@ describe("Timecode", () => {
   it("Uhr: empfangen, weiterzählen, Aussetzer, Senden", () => {
     const c = new TimecodeClock();
     expect(c.receive({ h: 0, m: 0, s: 1, f: 0 }, 25, "artnet", 0)).toBe(false); // aus
-    c.mode = "receive";
+    c.receiveOn = true;
     expect(c.receive({ h: 0, m: 0, s: 1, f: 0 }, 25, "mtc", 0)).toBe(false); // andere Quelle
     c.receive({ h: 0, m: 0, s: 1, f: 0 }, 25, "artnet", 0);
     c.receive({ h: 0, m: 0, s: 1, f: 1 }, 25, "artnet", 40);
@@ -854,7 +854,7 @@ describe("Timecode", () => {
     expect(c.now(3000)!.running).toBe(false);
     c.offset = 25; c.receive({ h: 0, m: 0, s: 2, f: 0 }, 25, "artnet", 4000);
     expect(c.now(4000)!.frames).toBe(75);
-    const s = new TimecodeClock(); s.mode = "send"; s.fps = 25;
+    const s = new TimecodeClock(); s.sendOn = true; s.sendFps = 25;
     s.locate(100, 0); s.start(0);
     expect(s.now(1000)!.frames).toBeCloseTo(125);
     s.stop(1000);
@@ -885,5 +885,37 @@ describe("Timecode", () => {
     st.list.push(q);
     cueTick(st, 0, env); expect(st.run.active.length).toBe(0);
     f = 52; cueTick(st, 500, env); expect(st.run.active.length).toBe(1);
+  });
+});
+
+describe("Timecode ein und aus gleichzeitig", () => {
+  it("empfängt vom Pult und gibt die eigene Uhr oder den Eingang weiter", () => {
+    const c = new TimecodeClock();
+    c.receiveOn = true; c.sendOn = true; c.sendFps = 25;
+    c.receive({ h: 0, m: 0, s: 10, f: 0 }, 25, "artnet", 0);
+    c.locate(500, 0); c.start(0);
+    expect(c.now(0)!.frames).toBe(250);         // Cues folgen dem Eingang
+    expect(c.outgoing(1000)!.frames).toBeCloseTo(525); // gesendet wird die eigene Uhr
+    c.sendFrom = "thru";
+    expect(c.outgoing(0)!.frames).toBe(250);    // oder der Eingang wird weitergereicht
+  });
+  it("Timecode-Cue startet die eigene Uhr ab einer Zeit", () => {
+    const st = ncs(); const calls: string[] = [];
+    const env: CueEnv = { duration: () => 0, recallScene: () => {}, tcCommand: (a, t) => calls.push(`${a} ${t}`) };
+    const v = newCue("video", "Intro", "vid:aaaaaa");
+    const q = newCue("tcsignal", "MA-Show starten"); q.start = "with"; q.tcAction = "start"; q.tcTarget = "01:00:00:00";
+    st.list.push(v, q);
+    cueGo(st, 0, env); cueTick(st, 10, env); cueTick(st, 20, env);
+    expect(calls).toEqual(["start 01:00:00:00"]);
+    expect(cueRenders(st, 30, env).map(r => r.kind)).toEqual(["video"]); // Signal blendet nichts aus
+  });
+});
+
+describe("Testbilder", () => {
+  it("schaltet rundum durch", async () => {
+    const { stepTestPattern, TEST_IDS } = await import("../src/core/show");
+    expect(stepTestPattern("bars", 1)).toBe("grid");
+    expect(stepTestPattern("bars", -1)).toBe(TEST_IDS[TEST_IDS.length - 1]);
+    expect(stepTestPattern(TEST_IDS[TEST_IDS.length - 1]!, 1)).toBe("bars");
   });
 });

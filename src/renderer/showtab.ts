@@ -54,6 +54,10 @@ export class ShowTab {
       const c = newCue("scene", `VJ-Szene: ${d.ctx.scenes[0]?.name ?? "1"}`);
       this.insert(c);
     });
+    $("cue-add-tc").addEventListener("click", () => {
+      const c = newCue("tcsignal", "Timecode starten"); c.start = this.list.length ? "with" : "manual";
+      this.insert(c);
+    });
     const drop = $("tab-show");
     drop.addEventListener("dragover", e => { if (e.dataTransfer?.types.includes("Files")) { e.preventDefault(); $("cue-drop").classList.add("hot"); } });
     drop.addEventListener("dragleave", () => $("cue-drop").classList.remove("hot"));
@@ -95,7 +99,7 @@ export class ShowTab {
       if (p) { const cv = el("canvas"); cv.width = p.width; cv.height = p.height; cv.getContext("2d")!.drawImage(p, 0, 0); box.append(cv); }
     } else if (c.media?.startsWith("img:")) {
       box.textContent = "BILD";
-    } else box.textContent = c.kind === "scene" ? "VJ" : c.kind === "black" ? "" : "";
+    } else box.textContent = c.kind === "scene" ? "VJ" : c.kind === "tcsignal" ? "TC" : "";
     return box;
   }
 
@@ -111,7 +115,7 @@ export class ShowTab {
   }
 
   private endChip(c: Cue): string {
-    if (c.kind === "scene") return "sofort";
+    if (c.kind === "scene" || c.kind === "tcsignal") return "sofort";
     if (c.kind === "video" && c.loop === "untilGo") return "Loop bis WEITER";
     if (c.kind === "video" && c.loop === "forever") return "Loop ∞";
     if (c.kind === "video" && c.loop === "count") return `${c.loopCount}× · ${END_LABEL[c.end]}`;
@@ -132,7 +136,8 @@ export class ShowTab {
       const nm = el("span", "cname"); nm.append(el("b", "", c.name));
       const sub = c.kind === "video" ? (this.d.videos.find(videoIdOf(c.media ?? "vid:"))?.name ?? "Datei fehlt")
         : c.kind === "image" ? (this.d.images.items.find(m => `img:${m.id}` === c.media)?.name ?? "Datei fehlt")
-        : c.kind === "scene" ? `Szene ${c.scene} „${this.d.ctx.scenes[c.scene - 1]?.name ?? "?"}“` : "Bild aus";
+        : c.kind === "scene" ? `Szene ${c.scene} „${this.d.ctx.scenes[c.scene - 1]?.name ?? "?"}“`
+        : c.kind === "tcsignal" ? (c.tcAction === "stop" ? "Timecode anhalten" : `Timecode ${c.tcAction === "start" ? "starten ab" : "springen auf"} ${c.tcTarget}`) : "Bild aus";
       nm.append(el("small", (sub === "Datei fehlt" ? "missing" : ""), sub + (c.kind === "video" && c.volume > 0 ? " · Ton" : "")));
       const start = el("span", `chip${c.start === "with" ? " with" : c.start === "timecode" ? " tc" : ""}`,
         c.start === "timecode" ? `TC ${c.tc}` : START_LABEL[c.start] + (c.wait > 0 ? ` +${c.wait} s` : ""));
@@ -237,8 +242,20 @@ export class ShowTab {
         }
       }
     }
+    if (c.kind === "tcsignal") {
+      seg("Befehl", { start: "Start ab", stop: "Stopp", locate: "Springen auf" } as Record<"start" | "stop" | "locate", string>, () => c.tcAction, v => {
+        c.tcAction = v; c.name = v === "start" ? "Timecode starten" : v === "stop" ? "Timecode anhalten" : "Timecode springen";
+      });
+      if (c.tcAction !== "stop") {
+        const r = el("div", "cd-row"); r.append(el("span", "", "Zeit"));
+        const i = el("input", "tc-in"); i.value = c.tcTarget; i.setAttribute("aria-label", "Timecode-Zeit");
+        i.addEventListener("change", () => { const t = parseTc(i.value, 30); if (t) c.tcTarget = formatTc(t, 25); else this.d.toast("Zeit als hh:mm:ss:ff eingeben."); this.update(true); });
+        r.append(i); box.append(r);
+      }
+      box.append(el("p", "muted small", "Steuert die eigene Timecode-Uhr von VJ-Link. Ist unter Einstellungen → Timecode „Senden“ an, bekommt z. B. eine MA den Timecode und ihre Timecode-Show löst Befehle aus."));
+    }
     if (c.kind === "image" || c.kind === "black") num("Dauer", () => c.hold, v => { c.hold = v; }, "s · 0 = bis WEITER");
-    if (c.kind !== "scene") {
+    if (c.kind !== "scene" && c.kind !== "tcsignal") {
       box.append(el("h4", "", "Ende und Blenden"));
       seg("Am Ende", END_LABEL, () => c.end, v => { c.end = v; });
       num("Einblenden", () => c.fadeIn, v => { c.fadeIn = v; }, "s", 0.1, 60);

@@ -23,6 +23,7 @@ uniform float uBeat;      // fortlaufender Beat
 uniform float uPulse;     // 1 auf dem Beat, fällt ab
 uniform float uKey;       // 1 = Helligkeit bestimmt die Deckkraft (Overlay-Ebenen)
 uniform int   uGen;
+uniform int   uTest;      // Testbild-Muster
 uniform int   uColorMode; // 0 original, 1 Slot, 2 Verlauf A→B, 3 Regenbogen
 uniform vec3  uColA;
 uniform vec3  uColB;
@@ -450,8 +451,47 @@ vec3 co2Jet(vec2 uv){
 }
 
 // 36 Testbild: Farbbalken, Graustufen, Raster, Kreis, Ränder, laufender Zeiger (zeigt, dass das Bild lebt)
+/** Raster mit Kreisen und Diagonalen. q: Pixel (y nach unten) in einer Fläche der Größe sz, k: Fläche-Pixel pro Bildschirm-Pixel. */
+vec3 alignGrid(vec2 q, vec2 sz, float k){
+  float m = min(sz.x, sz.y), cell = m / 12.0, lw = 0.75 * k;
+  vec3 c = vec3(0.0);
+  vec2 g = abs(fract((q - sz * 0.5) / cell + 0.5) - 0.5) * cell;
+  c = max(c, vec3(0.45) * step(min(g.x, g.y), lw));
+  vec2 g4 = abs(fract((q - sz * 0.5) / (cell * 4.0) + 0.5) - 0.5) * cell * 4.0;
+  c = max(c, vec3(0.8) * step(min(g4.x, g4.y), lw * 1.6));
+  vec2 d = abs(q - sz * 0.5);
+  c = max(c, vec3(1.0, 0.25, 0.3) * step(min(d.x, d.y), lw * 2.2));
+  float diag = length(sz);
+  float d1 = abs(q.x * sz.y - q.y * sz.x) / diag, d2 = abs(q.x * sz.y + q.y * sz.x - sz.x * sz.y) / diag;
+  c = max(c, vec3(0.3, 0.8, 1.0) * step(min(d1, d2), lw * 1.4));
+  float r = length(q - sz * 0.5);
+  c = max(c, vec3(1.0) * step(abs(r - m * 0.45), lw * 1.6));
+  // Kreise in den Ecken (rund = keine Verzerrung)
+  vec2 cq = min(q, sz - q);
+  c = max(c, vec3(1.0, 0.85, 0.2) * step(abs(length(cq - cell * 1.5) - cell), lw * 1.4));
+  vec2 e = min(q, sz - q);
+  c = max(c, vec3(1.0) * step(min(e.x, e.y), lw * 3.0));
+  return c;
+}
+
 vec3 testcard(vec2 uv){
   vec2 px = uv * uRes;
+  // 1 Raster pro Ausgang, 2 Raster über alle (wird auf der ganzen Leinwand gerechnet und dann aufgeteilt)
+  if (uTest == 1 || uTest == 2) return alignGrid(px, uRes, 1.0);
+  if (uTest == 3) {
+    vec2 e = min(px, uRes - px);
+    return mix(vec3(0.06, 0.07, 0.1), vec3(1.0), step(min(e.x, e.y), 6.0));
+  }
+  if (uTest == 4) {
+    if (uv.y > 0.5) return vec3(uv.x);
+    if (uv.y > 0.06) return vec3(floor(uv.x * 16.0) / 15.0);
+    // Schwarz-Stufen nahe 0: sind 1–5 % noch unterscheidbar?
+    return vec3(floor(uv.x * 6.0) * 0.01);
+  }
+  if (uTest == 5) return vec3(1.0);
+  if (uTest == 6) return vec3(1.0, 0.0, 0.0);
+  if (uTest == 7) return vec3(0.0, 1.0, 0.0);
+  if (uTest == 8) return vec3(0.0, 0.0, 1.0);
   vec3 c;
   if (uv.y > 0.34) {
     int bar = int(floor(uv.x * 7.0));
@@ -466,10 +506,12 @@ vec3 testcard(vec2 uv){
   vec2 g = abs(fract(px / cell + 0.5) - 0.5) * cell;
   float grid = step(min(g.x, g.y), 0.75);
   c = mix(c, vec3(0.92), grid * 0.65);
-  vec2 p = cp(uv);
+  // Kreis nach der kürzeren Seite, damit er auch hochkant ganz drauf ist
+  float m = min(uRes.x, uRes.y);
+  vec2 p = (uv - 0.5) * uRes / m;
   float r = length(p);
-  c = mix(c, vec3(1.0), smoothstep(1.6 / uRes.y, 0.0, abs(r - 0.42)));
-  c = mix(c, vec3(1.0), step(abs(p.x), 1.0 / uRes.y) * step(r, 0.42) + step(abs(p.y), 1.0 / uRes.y) * step(r, 0.42));
+  c = mix(c, vec3(1.0), smoothstep(1.6 / m, 0.0, abs(r - 0.42)));
+  c = mix(c, vec3(1.0), step(abs(p.x), 1.0 / m) * step(r, 0.42) + step(abs(p.y), 1.0 / m) * step(r, 0.42));
   float a = atan(p.y, p.x), sweep = mod(-uTime * 3.1416, 6.2832) - 3.1416;
   c = mix(c, vec3(1.0, 0.2, 0.4), smoothstep(0.05, 0.0, abs(a - sweep)) * step(r, 0.4) * step(0.05, r));
   vec2 e = min(px, uRes - px);
@@ -662,7 +704,8 @@ in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uTex;
 uniform float uOpacity;
-void main(){ outColor = texture(uTex, vUv) * uOpacity; }`;
+uniform vec4 uRegion;  // Ausschnitt (x, y, Breite, Höhe) in 0–1; (0,0,1,1) = ganzes Bild
+void main(){ outColor = texture(uTex, uRegion.xy + vUv * uRegion.zw) * uOpacity; }`;
 
 /** Letzter Schritt: Überblendung alt → neu, Master und Strobe. */
 export const FINAL_FRAG = `#version 300 es

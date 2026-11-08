@@ -146,6 +146,8 @@ export interface ShowState {
   cues: CueRender[];
   /** Testbild auf Vorschau und allen Ausgängen. */
   testCard: boolean;
+  /** Welches Testbild (zum Ausrichten durchschaltbar). */
+  testPattern: TestPattern;
   slots: Rgb[];
   /** Audio-Analyse 0–1, vom Audio-Eingang oder aus LJ-Link-Wellenform. */
   audio: AudioState;
@@ -209,6 +211,7 @@ export function defaultShow(): ShowState {
     layers,
     cues: [],
     testCard: false,
+    testPattern: "bars",
     slots: [[1, 0.1, 0.35], [1, 0.7, 0.1], [0.2, 0.9, 0.5], [0.1, 0.8, 1], [0.7, 0.35, 1]],
     audio: { bass: 0, mid: 0, high: 0 },
   };
@@ -280,4 +283,27 @@ export function removeLayer(state: ShowState, i: number): boolean {
   state.layers.splice(i, 1);
   state.transition = null;
   return true;
+}
+
+// ---- Testbilder ----------------------------------------------------------------------------
+
+/** Testbilder zum Ausrichten von Beamern, LED-Wänden und mehreren Bildschirmen. */
+export const TEST_PATTERNS = [
+  { id: "bars", label: "Farbbalken", hint: "Farben, Graustufen, Kreis und die Auflösung jedes Ausgangs." },
+  { id: "grid", label: "Raster", hint: "Linien, Kreise und Diagonalen auf jedem Ausgang: Schärfe, Trapez und Ränder einstellen." },
+  { id: "span", label: "Raster über alle", hint: "Ein Raster über die ganze Leinwand. An den Übergängen müssen Linien und Kreis nahtlos weiterlaufen." },
+  { id: "ident", label: "Nummern", hint: "Jeder Ausgang zeigt groß seine Nummer, seinen Namen und seine Lage auf der Leinwand." },
+  { id: "ramp", label: "Graustufen", hint: "Verlauf und Stufen von Schwarz bis Weiß: Helligkeit, Kontrast und Gamma angleichen." },
+  { id: "white", label: "Weiß", hint: "Volle Fläche Weiß: Helligkeit und Farbtemperatur mehrerer Beamer angleichen." },
+  { id: "red", label: "Rot", hint: "Volle Fläche Rot: tote Pixel und LED-Module prüfen." },
+  { id: "green", label: "Grün", hint: "Volle Fläche Grün: tote Pixel und LED-Module prüfen." },
+  { id: "blue", label: "Blau", hint: "Volle Fläche Blau: tote Pixel und LED-Module prüfen." },
+] as const;
+export type TestPattern = typeof TEST_PATTERNS[number]["id"];
+export const TEST_IDS: readonly TestPattern[] = TEST_PATTERNS.map(p => p.id);
+
+/** Nächstes bzw. vorheriges Testbild (rundum). */
+export function stepTestPattern(p: TestPattern, dir: 1 | -1 = 1): TestPattern {
+  const i = Math.max(0, TEST_IDS.indexOf(p));
+  return TEST_IDS[(i + dir + TEST_IDS.length) % TEST_IDS.length]!;
 }

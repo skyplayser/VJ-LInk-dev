@@ -100,15 +100,24 @@ export function mtcQuarterFrames(tc: Tc, fps: TcFps): number[] {
 
 // ---- Uhr ----------------------------------------------------------------------------------
 
-export type TcMode = "off" | "receive" | "send";
 export type TcSource = "artnet" | "mtc";
+/** Was gesendet wird: die eigene Uhr von VJ-Link oder der empfangene Timecode (Weitergabe). */
+export type TcSendFrom = "own" | "thru";
 
 export interface TcNow { frames: number; fps: TcFps; running: boolean; stale: boolean }
 
+/**
+ * Empfangen und Senden sind unabhängig: VJ-Link kann einem Pult folgen und gleichzeitig Timecode an eine MA
+ * schicken (eigene Uhr, gesteuert von Cues oder Tasten, oder der empfangene Timecode weitergereicht).
+ */
 export class TimecodeClock {
-  mode: TcMode = "off";
+  receiveOn = false;
+  sendOn = false;
+  sendFrom: TcSendFrom = "own";
   source: TcSource = "artnet";
+  /** Bildrate: beim Empfang aus dem Signal, beim Senden eingestellt. */
   fps: TcFps = 25;
+  sendFps: TcFps = 25;
   /** Versatz in Bildern (wird auf den empfangenen Wert addiert). */
   offset = 0;
   /** Videos folgen dem Timecode (sonst werden sie nur gestartet). */
@@ -120,11 +129,11 @@ export class TimecodeClock {
 
   private last: { frames: number; at: number } | null = null;
   private advancing = false;
-  private send: { frames: number; at: number; running: boolean } = { frames: 0, at: 0, running: false };
+  private own: { frames: number; at: number; running: boolean } = { frames: 0, at: 0, running: false };
 
   /** Empfangenen Timecode übernehmen (nur von der gewählten Quelle). */
   receive(tc: Tc, fps: TcFps, src: TcSource, nowMs: number, from = ""): boolean {
-    if (this.mode !== "receive" || src !== this.source) return false;
+    if (!this.receiveOn || src !== this.source) return false;
     const frames = tcToFrames(tc, fps);
     const prev = this.last;
     this.advancing = !!prev && frames > prev.frames && frames - prev.frames <= nominal(fps) * 2 && nowMs - prev.at < 1000;
@@ -134,27 +143,38 @@ export class TimecodeClock {
     return true;
   }
 
-  /** Aktuelle Zeit (in Bildern, inkl. Versatz) oder null, wenn kein Timecode aktiv ist. */
+  /** Empfangener Timecode (inkl. Versatz) oder null. */
+  incoming(nowMs: number): TcNow | null {
+    if (!this.receiveOn || !this.last) return null;
+    const age = (nowMs - this.last.at) / 1000;
+    if (age > this.freewheel) return { frames: this.last.frames + this.offset, fps: this.fps, running: false, stale: true };
+    const frames = this.last.frames + (this.advancing ? age * realFps(this.fps) : 0);
+    return { frames: frames + this.offset, fps: this.fps, running: this.advancing, stale: age > 0.5 };
+  }
+
+  /** Eigene Uhr (zum Senden). */
+  ownNow(nowMs: number): TcNow {
+    const s = this.own;
+    return { frames: s.frames + (s.running ? ((nowMs - s.at) / 1000) * realFps(this.sendFps) : 0), fps: this.sendFps, running: s.running, stale: false };
+  }
+
+  /** Was gesendet wird, oder null wenn Senden aus ist. */
+  outgoing(nowMs: number): TcNow | null {
+    if (!this.sendOn) return null;
+    if (this.sendFrom === "thru") { const i = this.incoming(nowMs); return i ? { ...i, fps: this.fps } : null; }
+    return this.ownNow(nowMs);
+  }
+
+  /** Zeit für Cues: empfangener Timecode, sonst die eigene (gesendete) Uhr. */
   now(nowMs: number): TcNow | null {
-    if (this.mode === "receive") {
-      if (!this.last) return null;
-      const age = (nowMs - this.last.at) / 1000;
-      if (age > this.freewheel) return { frames: this.last.frames + this.offset, fps: this.fps, running: false, stale: true };
-      // Zwischen zwei Meldungen weiterzählen, wenn der Timecode läuft
-      const frames = this.last.frames + (this.advancing ? age * realFps(this.fps) : 0);
-      return { frames: frames + this.offset, fps: this.fps, running: this.advancing, stale: age > 0.5 };
-    }
-    if (this.mode === "send") {
-      const s = this.send;
-      const frames = s.frames + (s.running ? ((nowMs - s.at) / 1000) * realFps(this.fps) : 0);
-      return { frames, fps: this.fps, running: s.running, stale: false };
-    }
+    if (this.receiveOn) return this.incoming(nowMs);
+    if (this.sendOn) return this.ownNow(nowMs);
     return null;
   }
 
-  // Senden: VJ-Link ist die Uhr
-  start(nowMs: number): void { if (!this.send.running) this.send = { frames: this.now(nowMs)?.frames ?? this.send.frames, at: nowMs, running: true }; }
-  stop(nowMs: number): void { const f = this.now(nowMs)?.frames ?? this.send.frames; this.send = { frames: f, at: nowMs, running: false }; }
-  locate(frames: number, nowMs: number): void { this.send = { frames: Math.max(0, frames), at: nowMs, running: this.send.running }; }
-  get sending(): boolean { return this.mode === "send" && this.send.running; }
+  // Eigene Uhr steuern (Tasten, Cues, Einstellungen)
+  start(nowMs: number): void { if (!this.own.running) this.own = { frames: this.ownNow(nowMs).frames, at: nowMs, running: true }; }
+  stop(nowMs: number): void { this.own = { frames: this.ownNow(nowMs).frames, at: nowMs, running: false }; }
+  locate(frames: number, nowMs: number): void { this.own = { frames: Math.max(0, frames), at: nowMs, running: this.own.running }; }
+  get sending(): boolean { return this.sendOn && (this.sendFrom === "thru" ? !!this.incoming(Date.now())?.running : this.own.running); }
 }

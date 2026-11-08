@@ -72,10 +72,6 @@
           <div class="lbl"><b>● AUSGANG</b><span id="mon-info">–</span></div>
           <div class="mon-box" id="mon-box"><canvas id="preview" width="640" height="360" aria-label="Vorschau des Ausgangs"></canvas></div>
         </div>
-        <aside class="outs-strip" aria-label="Geöffnete Ausgänge">
-          <div class="h2row" style="margin:0 0 8px"><h2 style="margin:0">Ausgänge</h2><button class="btn small-btn" id="test-quick" data-ctl="test.toggle" aria-pressed="false" title="Testbild auf Vorschau und allen Ausgängen">Testbild</button></div>
-          <div id="outs-strip"></div>
-        </aside>
       </div>
       <div class="h2row grid-head"><h2>Clip-Raster <span class="muted">· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2><button class="btn small-btn" id="layer-add">+ Ebene</button></div>
       <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" multiple hidden>
@@ -100,7 +96,7 @@
   <div class="sh-grid">
     <div class="sh-left">
       <div class="h2row"><h2>Ablauf <span class="muted" id="cue-sum"></span></h2>
-        <span class="inline"><button class="btn small-btn" id="cue-add-media">+ Video / Bild</button><button class="btn small-btn" id="cue-add-black">+ Schwarz</button><button class="btn small-btn" id="cue-add-scene">+ VJ-Szene</button></span></div>
+        <span class="inline"><button class="btn small-btn" id="cue-add-media">+ Video / Bild</button><button class="btn small-btn" id="cue-add-black">+ Schwarz</button><button class="btn small-btn" id="cue-add-scene">+ VJ-Szene</button><button class="btn small-btn" id="cue-add-tc" title="Timecode starten, stoppen oder springen (z. B. für eine MA)">+ Timecode</button></span></div>
       <div id="cue-list" class="cue-list"></div>
       <div class="cue-drop" id="cue-drop">Videos oder Bilder hierher ziehen. Jede Datei wird ein Cue.</div>
     </div>
@@ -123,19 +119,31 @@
 </section>
 
 <section id="tab-output" class="tab">
-  <h2>Ausgänge</h2>
-  <p class="muted">Jeder angeschlossene Bildschirm kann als Ausgang dienen. Er zeigt das Bild in seiner eigenen Auflösung im Vollbild.</p>
-  <div id="displays" class="display-list"></div>
-  <label class="row inline"><input type="checkbox" id="testpattern"> Testbild auf allen Ausgängen</label>
-  <h2>Oberfläche</h2>
-  <label class="row inline">Größe
-    <select id="ui-scale">
-      <option value="auto">Automatisch (passt sich dem Fenster an)</option>
-      <option value="0.8">80 %</option><option value="0.9">90 %</option><option value="1">100 %</option>
-      <option value="1.1">110 %</option><option value="1.25">125 %</option><option value="1.5">150 %</option><option value="1.75">175 %</option><option value="2">200 %</option>
-    </select>
-  </label>
-  <p class="muted" id="output-note"></p>
+  <div class="out-grid">
+    <div class="out-left">
+      <h2>Bildschirme</h2>
+      <p class="muted small">Jeder angeschlossene Bildschirm, Beamer oder LED-Prozessor kann ein Ausgang sein.</p>
+      <div id="displays" class="display-list"></div>
+      <p class="muted small" id="output-note"></p>
+      <h2>Testbild</h2>
+      <button class="btn" id="test-quick" data-ctl="test.toggle" aria-pressed="false">Testbild auf allen Ausgängen</button>
+      <div class="test-pats" id="test-pats" role="radiogroup" aria-label="Testbild"></div>
+      <div class="test-step"><button class="btn small-btn" id="test-prev" data-ctl="test.prev" title="Voriges Testbild">‹ Voriges</button><span id="test-name" class="muted small"></span><button class="btn small-btn" id="test-next" data-ctl="test.next" title="Nächstes Testbild">Nächstes ›</button></div>
+      <p class="muted small" id="test-hint"></p>
+      <p class="muted small">Tipp: „Testbild“, „Nächstes Testbild“ und „Voriges Testbild“ lassen sich per Mapping auf Tasten am Pult legen.</p>
+      <input type="checkbox" id="testpattern" hidden>
+    </div>
+    <div class="out-right">
+      <h2>Anordnung</h2>
+      <div class="seg2 out-mode" id="out-mode" role="radiogroup" aria-label="Anordnung">
+        <button data-mode="mirror" role="radio">Gleiches Bild auf allen</button>
+        <button data-mode="canvas" role="radio">Leinwand: Bildschirme anordnen</button>
+      </div>
+      <p class="muted small" id="out-mode-hint"></p>
+      <div class="cv-stage" id="cv-stage"></div>
+      <div class="cv-tools" id="cv-tools"></div>
+    </div>
+  </div>
 </section>
 
 <section id="tab-connect" class="tab">
@@ -162,7 +170,6 @@
       <button data-sec="timecode">Timecode</button>
       <button data-sec="midi">MIDI</button>
       <button data-sec="dmx">DMX und Netzwerk</button>
-      <button data-sec="outputs">Ausgänge und Testbild</button>
       <button data-sec="ui">Oberfläche</button>
     </nav>
     <div class="set-main">
@@ -186,8 +193,15 @@
       <section class="set-sec" data-sec="timecode" hidden><div id="set-tc"></div></section>
       <section class="set-sec" data-sec="midi" hidden><div id="set-midi"></div></section>
       <section class="set-sec" data-sec="dmx" hidden><div id="set-dmx"></div></section>
-      <section class="set-sec" data-sec="outputs" hidden><div id="set-outputs"></div></section>
-      <section class="set-sec" data-sec="ui" hidden><div id="set-ui"></div></section>
+      <section class="set-sec" data-sec="ui" hidden><div id="set-ui"><h3>Größe</h3>
+        <label class="set-row"><span>Oberfläche</span>
+          <select id="ui-scale">
+            <option value="auto">Automatisch (passt sich dem Fenster an)</option>
+            <option value="0.8">80 %</option><option value="0.9">90 %</option><option value="1">100 %</option>
+            <option value="1.1">110 %</option><option value="1.25">125 %</option><option value="1.5">150 %</option><option value="1.75">175 %</option><option value="2">200 %</option>
+          </select>
+        </label>
+        <p class="am-hint">Automatisch passt alles dem Fenster an, auch auf großen Bildschirmen.</p></div></section>
     </div>
   </div>
 </div>
