@@ -4,7 +4,7 @@ import { POST_BY_ID } from "./effects";
 import { isValidMediaId, type MediaItem } from "./media";
 import { parseMappings, type Mapping } from "./mapping";
 import {
-  BLEND_MODES, COLOR_SOURCES, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
+  BLEND_MODES, COLOR_SOURCES, KEY_MODES, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
 } from "./show";
 
@@ -62,6 +62,7 @@ function media(v: unknown): MediaSettings | undefined {
     scale: num(v.scale, d.scale, 0.02, 4), x: num(v.x, d.x, -2, 2), y: num(v.y, d.y, -2, 2),
     rotation: num(v.rotation, d.rotation, -360, 360), anim: oneOf(v.anim, MEDIA_ANIMS, d.anim),
     animAmount: clamp01(num(v.animAmount, d.animAmount)), animBeats: num(v.animBeats, d.animBeats, 0.25, 16),
+    keyMode: oneOf(v.keyMode, KEY_MODES, d.keyMode), keyTol: clamp01(num(v.keyTol, d.keyTol)),
   };
 }
 

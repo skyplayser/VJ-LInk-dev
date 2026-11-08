@@ -137,6 +137,7 @@ export function defaultKeyMappings(): Mapping[] {
   t.add("blackout", { p: "key", code: "KeyB", label: "B" });
   t.add("strobe.flash", { p: "key", code: "KeyF", label: "F" });
   t.add("strobe.on", { p: "key", code: "KeyS", label: "S" });
+  t.add("strobe.whiteFlash", { p: "key", code: "KeyW", label: "W" });
   t.add("tempo.tap", { p: "key", code: "KeyT", label: "T" });
   return t.list;
 }

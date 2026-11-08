@@ -5,7 +5,23 @@ import { bridge } from "./bridge";
 
 const MAX_SIDE = 2048;
 
-export interface DecodedImage { src: TexImageSource; w: number; h: number }
+export interface DecodedImage { src: TexImageSource; w: number; h: number; /** Hintergrund laut Ecken, wenn das Bild keine Transparenz hat. */ background?: "white" | "black" }
+
+/** Ecken prüfen: ganz deckend und einheitlich hell bzw. dunkel → wahrscheinlich ein Logo auf weißem/schwarzem Grund. */
+function detectBackground(img: CanvasImageSource, w: number, h: number): "white" | "black" | undefined {
+  try {
+    const c = document.createElement("canvas"); c.width = 32; c.height = 32;
+    const g = c.getContext("2d", { willReadFrequently: true })!;
+    g.drawImage(img, 0, 0, w, h, 0, 0, 32, 32);
+    const d = g.getImageData(0, 0, 32, 32).data;
+    const at = (x: number, y: number) => { const i = (y * 32 + x) * 4; return [d[i]!, d[i + 1]!, d[i + 2]!, d[i + 3]!] as const; };
+    const corners = [at(0, 0), at(31, 0), at(0, 31), at(31, 31), at(16, 0), at(0, 16)];
+    if (corners.some(p => p[3] < 250)) return undefined; // hat Transparenz
+    if (corners.every(p => Math.min(p[0], p[1], p[2]) > 225)) return "white";
+    if (corners.every(p => Math.max(p[0], p[1], p[2]) < 30)) return "black";
+  } catch { /* nicht lesbar */ }
+  return undefined;
+}
 
 /** Data-URL in ein Bild umwandeln; sehr große Bilder werden auf 2048 Pixel verkleinert. */
 export async function decodeImage(dataUrl: string): Promise<DecodedImage> {
@@ -14,13 +30,13 @@ export async function decodeImage(dataUrl: string): Promise<DecodedImage> {
   await img.decode();
   let w = img.naturalWidth || 1024, h = img.naturalHeight || 1024; // SVG ohne Größe
   const isSvg = dataUrl.startsWith("data:image/svg+xml");
-  if (Math.max(w, h) <= MAX_SIDE && !isSvg) return { src: img, w, h };
+  if (Math.max(w, h) <= MAX_SIDE && !isSvg) return { src: img, w, h, background: detectBackground(img, w, h) };
   const k = Math.min(1, MAX_SIDE / Math.max(w, h));
   if (isSvg && Math.max(w, h) < 1024) { const up = 1024 / Math.max(w, h); w *= up; h *= up; }
   const c = document.createElement("canvas");
   c.width = Math.round(w * k); c.height = Math.round(h * k);
   c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-  return { src: c, w: c.width, h: c.height };
+  return { src: c, w: c.width, h: c.height, background: detectBackground(c, c.width, c.height) };
 }
 
 function newId(): string {
@@ -37,6 +53,8 @@ function readDataUrl(file: File): Promise<string> {
 
 export class MediaLibrary {
   items: MediaItem[] = [];
+  /** Erkannter Hintergrund je Grafik (für automatisches Freistellen). */
+  background = new Map<string, "white" | "black">();
   private engines: Engine[] = [];
   private images = new Map<string, DecodedImage>();
 
@@ -50,6 +68,7 @@ export class MediaLibrary {
     try {
       const d = await decodeImage(p.dataUrl);
       this.images.set(p.id, d);
+      if (d.background) this.background.set(p.id, d.background);
       for (const e of this.engines) e.setMedia(p.id, d.src, d.w, d.h);
       let item = this.items.find(i => i.id === p.id);
       if (!item) { item = { id: p.id, name: p.name, width: d.w, height: d.h }; this.items.push(item); }

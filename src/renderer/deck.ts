@@ -66,7 +66,8 @@ function pad(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HTML
   const b = el("button", `pad pad-${d.kind}`, d.label);
   b.dataset.ctl = d.id;
   if (d.id === "blackout") b.classList.add("pad-danger");
-  if (d.id.startsWith("strobe")) b.classList.add("pad-strobe");
+  if (d.id.startsWith("strobe.white")) b.classList.add("pad-white");
+  else if (d.id.startsWith("strobe")) b.classList.add("pad-strobe");
   if (d.kind === "hold") {
     b.addEventListener("pointerdown", e => { b.setPointerCapture(e.pointerId); setControl(ctx, d.id, 1); });
     b.addEventListener("pointerup", () => { setControl(ctx, d.id, 0); });

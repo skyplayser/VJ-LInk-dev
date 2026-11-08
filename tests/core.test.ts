@@ -640,3 +640,19 @@ describe("Farbslots per Mapping", () => {
     expect(resolveControl("slot.B.level")).toBeUndefined();
   });
 });
+
+import { strobeWhite } from "../src/core/audio";
+describe("Strobe White", () => {
+  it("blitzt weiß im Strobe-Takt, Intensität = Helligkeit, sonst Bild", () => {
+    const c = ctx(); const s = c.show.strobe;
+    s.speed = 0.2; s.sync = true; s.intensity = 0.8; // 1× pro Beat
+    expect(strobeWhite(s, 0.1, 0)).toBe(0);
+    s.white = true;
+    expect(strobeWhite(s, 0.1, 0)).toBe(0.8);
+    expect(strobeWhite(s, 0.6, 0)).toBe(0);
+    s.white = false;
+    setControl(c, "strobe.whiteFlash", 1); expect(strobeWhite(s, 0.1, 0)).toBe(0.8);
+    setControl(c, "strobe.whiteFlash", 0); expect(strobeWhite(s, 0.1, 0)).toBe(0);
+    expect(strobeGain(s, 0.6, 0)).toBe(1); // normales Strobe bleibt aus
+  });
+});

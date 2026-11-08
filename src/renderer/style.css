@@ -265,3 +265,6 @@ body.mapping main,body.mapping .deck{cursor:not-allowed}
 .tpl-box select{background:var(--raise);border:1px solid var(--line);border-radius:3px;padding:4px 6px;color:var(--text);max-width:150px}
 .tpl-box p{margin:0}
 .map-foot{gap:6px;flex-wrap:wrap}
+.pad-white{border-color:#d8dbe2}
+.pad-white.on{background:#fff;border-color:#fff;color:#000}
+.mrow2.one{grid-template-columns:1fr}

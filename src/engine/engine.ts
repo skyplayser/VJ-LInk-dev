@@ -2,7 +2,7 @@
 // Ablauf pro Bild: jede Ebene → Generator in eine Textur → Effekt-Stapel (Ping-Pong)
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
-import { bandsFrom, beatPulse, strobeGain, strobeGate } from "../core/audio";
+import { bandsFrom, beatPulse, strobeGain, strobeGate, strobeWhite } from "../core/audio";
 import {
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
@@ -161,6 +161,8 @@ export class Engine {
       gl.uniform2f(this.loc(im, "uPos"), tf.x, tf.y);
       gl.uniform1f(this.loc(im, "uScale"), tf.scale);
       gl.uniform1f(this.loc(im, "uRot"), tf.rotation);
+      gl.uniform1i(this.loc(im, "uKeyMode"), l.media.keyMode === "white" ? 1 : l.media.keyMode === "black" ? 2 : 0);
+      gl.uniform1f(this.loc(im, "uKeyTol"), l.media.keyTol ?? 0.25);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, media.tex);
       this.bindTarget(this.work[0]);
       this.draw();
@@ -293,6 +295,8 @@ export class Engine {
       gl.uniform1f(this.loc(this.fin, "uMix"), mix);
       gl.uniform1i(this.loc(this.fin, "uDip"), show.transition?.style === "black" ? 1 : 0);
       gl.uniform1f(this.loc(this.fin, "uGain"), show.master * strobeGain(show.strobe, beat, sec, bpm));
+      // Strobe White wirkt auch bei Master 0, aber nicht bei Blackout
+      gl.uniform1f(this.loc(this.fin, "uWhite"), strobeWhite(show.strobe, beat, sec, bpm));
       this.bindTex(0, from); this.bindTex(1, this.compTo);
       this.bindTarget(null, 0, 0, w, h);
       this.draw();

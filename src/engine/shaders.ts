@@ -164,8 +164,11 @@ void main(){
   else if (uColorMode == 2) c = mix(uColA, uColB, clamp(vUv.y * 0.6 + lum * 0.5, 0.0, 1.0)) * (0.15 + lum * 1.1);
   else if (uColorMode == 3) c = hsv(fract(vUv.x * 0.5 + lum * 0.4 + uTime * 0.08), 0.85, lum * 1.2);
 
-  float key = mix(1.0, smoothstep(0.0, 0.12, max(c.r, max(c.g, c.b))), uKey);
-  outColor = vec4(c * key, key);  // vormultipliziert; Deckkraft kommt beim Mischen
+  // Overlay-Ebenen: Deckkraft = Helligkeit. Dunkle Pixel werden durchsichtig statt den Hintergrund
+  // abzudunkeln (sonst entsteht auf hellem Grund eine schwarze Kontur um Linien und Strahlen).
+  c = clamp(c, 0.0, 1.0);
+  float a = mix(1.0, max(c.r, max(c.g, c.b)), uKey);
+  outColor = vec4(c, a);  // vormultipliziert (rgb ≤ a); Deckkraft der Ebene kommt beim Mischen
 }`;
 
 // ---- Effekt-Stapel ------------------------------------------------------------------
@@ -297,12 +300,13 @@ uniform sampler2D uTo;
 uniform float uMix;
 uniform float uGain;
 uniform int   uDip;   // 1 = über Schwarz
+uniform float uWhite; // Strobe White: Anteil Weiß
 void main(){
   vec3 a = texture(uFrom, vUv).rgb, b = texture(uTo, vUv).rgb;
   vec3 c = uDip == 1
     ? (uMix < 0.5 ? a * (1.0 - uMix * 2.0) : b * (uMix * 2.0 - 1.0))
     : mix(a, b, uMix);
-  outColor = vec4(c * uGain, 1.0);
+  outColor = vec4(mix(c * uGain, vec3(1.0), uWhite), 1.0);
 }`;
 
 /** Grafik (Logo, Bild) mit Lage, Größe und Drehung. Textur ist vormultipliziert. */
@@ -316,6 +320,8 @@ uniform float uImgAspect;
 uniform vec2  uPos;
 uniform float uScale;
 uniform float uRot;
+uniform int   uKeyMode;  // 0 aus, 1 Weiß entfernen, 2 Schwarz entfernen
+uniform float uKeyTol;
 void main(){
   float aspect = uRes.x / uRes.y;
   vec2 p = (vUv - 0.5) * vec2(aspect, 1.0) - uPos;
@@ -323,5 +329,13 @@ void main(){
   p = mat2(cs, sn, -sn, cs) * p;
   vec2 q = p / (max(uScale, 0.001) * vec2(uImgAspect, 1.0)) + 0.5;
   if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) { outColor = vec4(0.0); return; }
-  outColor = texture(uImg, vec2(q.x, 1.0 - q.y));
+  vec4 c = texture(uImg, vec2(q.x, 1.0 - q.y));
+  if (uKeyMode != 0 && c.a > 0.0) {
+    vec3 u = c.rgb / c.a;                                   // Farbe ohne Vormultiplikation
+    float d = uKeyMode == 1 ? 1.0 - min(u.r, min(u.g, u.b)) // Abstand zu Weiß
+                            : max(u.r, max(u.g, u.b));      // Abstand zu Schwarz
+    float t = max(uKeyTol, 0.01);
+    c *= smoothstep(t * 0.4, t, d);                         // weiche Kante, kein harter Rand
+  }
+  outColor = c;
 }`;

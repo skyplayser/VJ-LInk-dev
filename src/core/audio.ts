@@ -53,6 +53,20 @@ export function strobeHz(s: StrobeState, bpm: number): number {
   return STROBE_DIVISIONS[Math.min(STROBE_DIVISIONS.length - 1, Math.floor(s.speed * STROBE_DIVISIONS.length))]! * bpm / 60;
 }
 
+/** Phase des Strobes (gleiche Geschwindigkeit für normales und weißes Strobe): true = Blitz. */
+function strobePhaseOn(s: StrobeState, beat: number, tSec: number, bpm: number): boolean {
+  const phase = s.sync
+    ? beat * STROBE_DIVISIONS[Math.min(STROBE_DIVISIONS.length - 1, Math.floor(s.speed * STROBE_DIVISIONS.length))]!
+    : tSec * strobeHz(s, bpm);
+  return phase - Math.floor(phase) < STROBE_DUTY;
+}
+
+/** Strobe White: Anteil Weiß 0–1, der über das ganze Bild gelegt wird (Intensität = Helligkeit des Blitzes). */
+export function strobeWhite(s: StrobeState, beat: number, tSec: number, bpm = 120): number {
+  if (!s.white && !s.whiteFlash) return 0;
+  return strobePhaseOn(s, beat, tSec, bpm) ? Math.max(0.05, s.intensity) : 0;
+}
+
 /** Helligkeitsfaktor 0–1 für das Master-Strobe. `tSec` nur für die freie Frequenz. */
 export function strobeGain(s: StrobeState, beat: number, tSec: number, bpm = 120): number {
   if (!strobeActive(s, beat)) return 1;

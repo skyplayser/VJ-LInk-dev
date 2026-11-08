@@ -230,6 +230,8 @@ async function importFiles(files: FileList | File[], layer: number): Promise<voi
   if (first) {
     const l = ctx.show.layers[layer]!;
     l.clip = first;
+    const bg = library.background.get(first.slice(4));
+    if (bg) { l.media.keyMode = bg; toast(`Logo auf ${bg === "white" ? "weißem" : "schwarzem"} Grund erkannt: Hintergrund wird ausgeblendet (Grafik → Freistellen).`); }
     if (layer > 0 && l.opacity < 0.05) l.opacity = 1;
     fxPanel.select(layer);
     toast("Grafik geladen. Lage und Animation rechts unter „Grafik“.");

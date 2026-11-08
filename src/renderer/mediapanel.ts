@@ -1,6 +1,6 @@
 // Lage und Animation der Grafik auf der gewählten Ebene.
 import type { ControlContext } from "../core/control";
-import { MEDIA_ANIMS, isMediaClip, mediaIdOf, type MediaAnim, type MediaSettings } from "../core/show";
+import { KEY_MODES, MEDIA_ANIMS, isMediaClip, mediaIdOf, type KeyMode, type MediaAnim, type MediaSettings } from "../core/show";
 import type { MediaLibrary } from "./medialib";
 
 const ANIM_LABEL: Record<MediaAnim, string> = {
@@ -15,12 +15,15 @@ const FIELDS: Field[] = [
   { key: "y", label: "Unten/Oben", min: -100, max: 100, scale: 100, unit: "" },
   { key: "rotation", label: "Drehung", min: -180, max: 180, scale: 1, unit: "°" },
   { key: "animAmount", label: "Stärke", min: 0, max: 100, scale: 100, unit: " %" },
+  { key: "keyTol", label: "Toleranz", min: 2, max: 90, scale: 100, unit: " %" },
 ];
+const KEY_LABEL: Record<KeyMode, string> = { none: "Freistellen: aus", white: "Weiß entfernen", black: "Schwarz entfernen" };
 
 export class MediaPanel {
   private inputs = new Map<keyof MediaSettings, { input: HTMLInputElement; val: HTMLElement }>();
   private anim: HTMLSelectElement;
   private beats: HTMLSelectElement;
+  private keySel: HTMLSelectElement;
   private name: HTMLElement;
   private del: HTMLButtonElement;
   private armed = false;
@@ -40,7 +43,7 @@ export class MediaPanel {
       input.addEventListener("input", () => { const m = this.media(); if (m) (m[f.key] as number) = Number(input.value) / f.scale; });
       input.addEventListener("dblclick", () => {
         const m = this.media(); if (!m) return;
-        (m[f.key] as number) = f.key === "scale" ? 0.6 : f.key === "animAmount" ? 0.4 : 0;
+        (m[f.key] as number) = f.key === "scale" ? 0.6 : f.key === "animAmount" ? 0.4 : f.key === "keyTol" ? 0.25 : 0;
       });
       row.append(lab, input, val); root.append(row);
       this.inputs.set(f.key, { input, val });
@@ -54,6 +57,12 @@ export class MediaPanel {
     this.beats.addEventListener("change", () => { const m = this.media(); if (m) m.animBeats = Number(this.beats.value); });
     arow.append(this.anim, this.beats);
     root.insertBefore(arow, root.querySelectorAll(".mrow")[4] ?? null);
+    // Freistellen für Logos mit weißem oder schwarzem Hintergrund
+    this.keySel = document.createElement("select"); this.keySel.setAttribute("aria-label", "Freistellen");
+    for (const k of KEY_MODES) this.keySel.append(new Option(KEY_LABEL[k], k));
+    this.keySel.addEventListener("change", () => { const m = this.media(); if (m) m.keyMode = this.keySel.value as KeyMode; });
+    const krow = document.createElement("div"); krow.className = "mrow2 one"; krow.append(this.keySel);
+    root.insertBefore(krow, root.querySelectorAll(".mrow")[5] ?? null);
     this.del = document.createElement("button"); this.del.className = "btn small-btn";
     this.del.addEventListener("click", () => {
       const l = this.ctx.show.layers[this.layerOf()];
@@ -91,6 +100,8 @@ export class MediaPanel {
     }
     if (document.activeElement !== this.anim) this.anim.value = m.anim;
     if (document.activeElement !== this.beats) this.beats.value = String(m.animBeats);
+    if (document.activeElement !== this.keySel) this.keySel.value = m.keyMode;
+    (this.inputs.get("keyTol")!.input.closest(".mrow") as HTMLElement).hidden = m.keyMode === "none";
     if (!this.armed) this.del.textContent = "Grafik aus der Bibliothek löschen";
   }
 }

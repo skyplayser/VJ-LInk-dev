@@ -42,10 +42,17 @@ export interface MediaSettings {
   animAmount: number;
   /** Beats pro Durchlauf (½, 1, 2, 4, 8). */
   animBeats: number;
+  /** Freistellen: Hintergrundfarbe entfernen, wenn das Bild keine Transparenz hat. */
+  keyMode: KeyMode;
+  /** Toleranz 0–1 (wie stark auch fast-weiße bzw. fast-schwarze Pixel entfernt werden). */
+  keyTol: number;
 }
 
+export type KeyMode = "none" | "white" | "black";
+export const KEY_MODES: readonly KeyMode[] = ["none", "white", "black"];
+
 export const defaultMedia = (): MediaSettings =>
-  ({ scale: 0.6, x: 0, y: 0, rotation: 0, anim: "pulse", animAmount: 0.4, animBeats: 1 });
+  ({ scale: 0.6, x: 0, y: 0, rotation: 0, anim: "pulse", animAmount: 0.4, animBeats: 1, keyMode: "none", keyTol: 0.25 });
 
 export const isMediaClip = (clip: string | null): clip is string => !!clip && clip.startsWith("img:");
 export const mediaIdOf = (clip: string): string => clip.slice(4);
@@ -88,10 +95,14 @@ export interface StrobeState {
   intensity: number;
   /** true = im Takt, false = freie Frequenz in Hz. */
   sync: boolean;
+  /** Strobe White: ganzer Bildschirm blitzt weiß (Schalter). */
+  white: boolean;
+  /** Strobe White, solange gedrückt. */
+  whiteFlash: boolean;
 }
 
 export const defaultStrobe = (): StrobeState =>
-  ({ on: false, flash: false, untilBeat: 0, speed: 0.5, intensity: 1, sync: true });
+  ({ on: false, flash: false, untilBeat: 0, speed: 0.5, intensity: 1, sync: true, white: false, whiteFlash: false });
 
 export interface ShowState {
   master: number;
