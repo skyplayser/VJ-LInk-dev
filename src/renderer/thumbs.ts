@@ -7,7 +7,7 @@ export class ThumbView {
   private engine: Engine | null = null;
   private frame = 0;
 
-  constructor(private grid: HTMLElement, private layout: () => { cells: HTMLButtonElement[][]; clips: string[] }, private ctx: ControlContext) {
+  constructor(private grid: HTMLElement, private layout: () => { cells: HTMLButtonElement[][]; clips: string[][] }, private ctx: ControlContext) {
     this.canvas.className = "thumbs";
     this.canvas.setAttribute("aria-hidden", "true");
     grid.prepend(this.canvas);
@@ -33,7 +33,7 @@ export class ThumbView {
     const out: ThumbCell[] = [];
     const { cells, clips } = this.layout();
     cells.forEach((row, layer) => row.forEach((cell, col) => {
-      const clip = clips[col];
+      const clip = clips[layer]?.[col];
       if (!clip) return;
       const r = cell.getBoundingClientRect();
       out.push({

@@ -6,9 +6,10 @@ import { DmxDecoder, DMX_MODE_STANDARD_CHANNELS, CH, channelListCsv } from "../c
 import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, type ControlContext } from "../core/control";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
 import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
-import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, addLayer, defaultScenes, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
+import { BLEND_MODES, COLOR_SOURCES, MAX_LAYERS, addClip, addLayer, defaultScenes, removeClip, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
 import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
 import { MapMode } from "./mapmode";
+import { LibraryPanel } from "./librarypanel";
 import { AudioIn } from "./audioin";
 import { AUDIO_CLIPS, micDrives } from "../core/audio";
 import { MidiIn } from "./midi";
@@ -141,26 +142,31 @@ document.querySelectorAll<HTMLButtonElement>(".tabs button").forEach(b => b.addE
 // ---- Show: Clip-Raster ----------------------------------------------------------------
 const library = new MediaLibrary();
 let clipCells: HTMLButtonElement[][] = [];
-let clipIds: string[] = [];
+/** Clip-IDs je Zeile (Index = Ebene). */
+let rowClips: string[][] = [];
 const opSliders: HTMLInputElement[] = [];
 let importTarget = 0;
 
-/** Spalten: alle Generatoren, dann alle Grafiken der Bibliothek, dann „+ Grafik“. */
-function clipList(): { id: string; name: string }[] {
-  return [
-    ...READY_GENERATORS.map(g => ({ id: g.id, name: g.name })),
-    ...library.items.map(m => ({ id: mediaClip(m.id), name: m.name })),
-  ];
+/** Zeile einer Ebene: ihre ausgewählten Clips, soweit es sie gibt (Generator fertig bzw. Grafik vorhanden). */
+function layerClips(l: number): { id: string; name: string }[] {
+  const out: { id: string; name: string }[] = [];
+  for (const id of ctx.show.layers[l]?.clips ?? []) {
+    if (id.startsWith("img:")) { const m = library.items.find(i => mediaClip(i.id) === id); if (m) out.push({ id, name: m.name }); }
+    else { const g = READY_GENERATORS.find(x => x.id === id); if (g) out.push({ id, name: g.name }); }
+  }
+  return out;
 }
+const libraryPanel = new LibraryPanel(ctx, library, () => rebuildGrid(), l => { importTarget = l; $<HTMLInputElement>("file-input").click(); });
 
 function rebuildGrid(): void {
   const grid = $("grid");
   grid.querySelectorAll(".lrow").forEach(r => r.remove());
-  const clips = clipList();
-  clipIds = clips.map(c => c.id);
   clipCells = [];
-  grid.style.setProperty("--cols", String(clips.length + 1));
+  rowClips = [];
   const n = ctx.show.layers.length;
+  let maxCols = 1;
+  for (let l = 0; l < n; l++) maxCols = Math.max(maxCols, layerClips(l).length + 1);
+  grid.style.setProperty("--cols", String(maxCols));
   for (let l = n - 1; l >= 0; l--) {
     const row = el("div", "lrow");
     const name = el("div", "lname");
@@ -198,21 +204,34 @@ function rebuildGrid(): void {
     name.append(op, color, blend);
     row.append(name);
     clipCells[l] = [];
+    const clips = layerClips(l);
+    rowClips[l] = clips.map(c => c.id);
     clips.forEach((clip, c) => {
-      const b = el("button", clip.id.startsWith("img:") ? "cell media" : "cell", clip.name);
+      const b = el("button", clip.id.startsWith("img:") ? "cell media" : "cell");
+      b.append(el("span", "cell-name", clip.name));
       b.dataset.ctl = `clip.${l + 1}.${clip.id}`;
-      b.title = clip.name;
-      b.addEventListener("click", () => {
+      b.title = `${clip.name} · Klick startet/stoppt`;
+      b.addEventListener("click", ev => {
+        if ((ev.target as HTMLElement).closest(".cell-x")) return;
         const layer = ctx.show.layers[l]!;
         layer.clip = layer.clip === clip.id ? null : clip.id;
         if (clip.id.startsWith("img:") && layer.clip) fxPanel.select(l);
       });
+      // × entfernt den Clip nur aus dieser Zeile (die Grafik bleibt in der Bibliothek)
+      const x = el("span", "cell-x", "×");
+      x.setAttribute("role", "button"); x.title = "Aus dieser Ebene entfernen";
+      x.addEventListener("click", ev => { ev.stopPropagation(); removeClip(ctx.show.layers[l]!, clip.id); rebuildGrid(); });
+      b.append(x);
       row.append(b); clipCells[l]![c] = b;
     });
-    const add = el("button", "cell add", "+ Grafik");
-    add.title = "Logo oder Bild laden (PNG, JPG, WebP, GIF, SVG)";
-    add.addEventListener("click", () => { importTarget = l; $<HTMLInputElement>("file-input").click(); });
+    const add = el("button", "cell add", "+ Clips");
+    add.title = "Bibliothek: Visuals und Grafiken für diese Ebene auswählen";
+    add.addEventListener("click", () => {
+      if (libraryPanel.open && libraryPanel.layer === l) { libraryPanel.close(); return; }
+      libraryPanel.show(l, add);
+    });
     row.append(add);
+    for (let k = clips.length + 1; k < maxCols; k++) row.append(el("div", "cell-gap"));
     grid.append(row);
   }
 }
@@ -226,14 +245,18 @@ function toast(msg: string): void {
 /** Dateien laden; die erste Grafik kommt auf die Ziel-Ebene. */
 async function importFiles(files: FileList | File[], layer: number): Promise<void> {
   let first: string | null = null;
+  const imported: string[] = [];
   for (const f of Array.from(files)) {
     const r = await library.importFile(f);
     if (typeof r === "string") { toast(r); continue; }
     first ??= mediaClip(r.id);
+    imported.push(mediaClip(r.id));
   }
-  rebuildGrid();
   if (first) {
     const l = ctx.show.layers[layer]!;
+    for (const id of imported) addClip(l, id);
+    rebuildGrid();
+    libraryPanel.render();
     l.clip = first;
     const bg = library.background.get(first.slice(4));
     if (bg) { l.media.keyMode = bg; toast(`Logo auf ${bg === "white" ? "weißem" : "schwarzem"} Grund erkannt: Hintergrund wird ausgeblendet (Grafik → Freistellen).`); }
@@ -386,7 +409,7 @@ function updateAudioUi(): void {
     : "Alle Visuals reagieren auf den Eingang (Bass, Mitten, Höhen).";
   // Zellen im Clip-Raster markieren, die gerade vom Eingang gesteuert werden
   clipCells.forEach(row => row.forEach((cell, c) => {
-    const on = !!mic && micDrives(ctx.show.audio, clipIds[c] ?? null);
+    const on = !!mic && micDrives(ctx.show.audio, rowClips[clipCells.indexOf(row)]?.[c] ?? null);
     if ((cell.dataset.audio === "1") !== on) cell.dataset.audio = on ? "1" : "";
   }));
 }
@@ -662,7 +685,7 @@ function updateUi(now: number, beat: number): void {
   if (!document.activeElement || document.activeElement !== bpmIn) bpmBtn.textContent = ctx.tempo.bpm.toFixed(2);
   for (let l = 0; l < s.layers.length; l++) {
     const layer = s.layers[l]!;
-    clipCells[l]?.forEach((b, c) => b.classList.toggle("on", clipIds[c] === layer.clip));
+    clipCells[l]?.forEach((b, c) => b.classList.toggle("on", rowClips[l]?.[c] === layer.clip));
     if (document.activeElement !== opSliders[l]) opSliders[l]!.value = String(Math.round(layer.opacity * 100));
   }
   const rows = document.querySelectorAll<HTMLElement>("#grid .lrow");
@@ -691,7 +714,7 @@ const mediaPanel = new MediaPanel(ctx, library, $("media-panel"), () => fxPanel.
 const scenePanel = new ScenePanel(ctx, $("scenes"), $<HTMLButtonElement>("scene-auto"), $<HTMLButtonElement>("scene-add"));
 rebuildGrid(); buildSidebar(); buildCatalog(); bindSettings();
 fxPanel.select(0);
-const thumbs = new ThumbView($("grid"), () => ({ cells: clipCells, clips: clipIds }), ctx);
+const thumbs = new ThumbView($("grid"), () => ({ cells: clipCells, clips: rowClips }), ctx);
 if (engine) library.attach(engine);
 if (thumbs.gl) library.attach(thumbs.gl);
 

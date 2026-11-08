@@ -71,6 +71,7 @@ function partialLayer(v: unknown): Partial<LayerState> | null {
   if (!isObj(v)) return null;
   const out: Partial<LayerState> = {};
   if ("clip" in v) out.clip = clip(v.clip);
+  if (Array.isArray(v.clips)) out.clips = [...new Set(v.clips.map(clip).filter((c): c is string => !!c))].slice(0, 128);
   if ("opacity" in v) out.opacity = clamp01(num(v.opacity, 1));
   if ("blend" in v) out.blend = oneOf(v.blend, BLEND_MODES, "normal");
   if ("colorSource" in v) out.colorSource = oneOf(v.colorSource, COLOR_SOURCES, "original");
@@ -106,6 +107,12 @@ export function parseProject(json: string): ProjectFile | null {
   if (!isObj(raw) || raw.version !== PROJECT_VERSION) return null;
   const nLayers = Array.isArray(raw.layers) ? Math.min(MAX_LAYERS, Math.max(1, raw.layers.length)) : LAYER_COUNT;
   const layers = Array.from({ length: nLayers }, (_, i) => fullLayer(Array.isArray(raw.layers) ? raw.layers[i] : null));
+  // Ältere Projekte ohne eigene Zeilen: alle Generatoren und alle Grafiken in jeder Ebene (wie vorher)
+  const oldMedia = (Array.isArray(raw.media) ? raw.media : []).filter(isObj).map(m => m.id).filter(isValidMediaId).map(id => `img:${id}`);
+  layers.forEach((l, i) => {
+    const r = Array.isArray(raw.layers) ? raw.layers[i] : null;
+    if (!isObj(r) || !Array.isArray(r.clips)) l.clips = [...l.clips, ...oldMedia];
+  });
   const scenes: Scene[] = (Array.isArray(raw.scenes) ? raw.scenes : []).filter(isObj).slice(0, 128).map((sc, i) => ({
     name: str(sc.name, `Szene ${i + 1}`, 40) || `Szene ${i + 1}`,
     layers: Array.from({ length: Math.min(MAX_LAYERS, Array.isArray(sc.layers) ? sc.layers.length : 0) }, (_, k) => partialLayer((sc.layers as unknown[])[k])),

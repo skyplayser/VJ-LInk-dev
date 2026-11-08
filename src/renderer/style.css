@@ -291,3 +291,28 @@ body.mapping main,body.mapping .deck{cursor:not-allowed}
 .am-hint{margin:0;font-size:11px;color:var(--dim);line-height:1.4}
 /* Zelle wird vom Audio-Eingang gesteuert */
 .cell[data-audio="1"]::after{content:"LIVE";position:absolute;top:4px;right:4px;font:700 8.5px var(--mono);letter-spacing:.06em;background:var(--ok);color:#000;padding:1px 4px;border-radius:3px}
+
+/* ---- Zeilen: Clip entfernen ---- */
+.cell-name{position:relative;z-index:1}
+.cell-x{position:absolute;top:3px;left:3px;z-index:2;width:18px;height:18px;display:grid;place-items:center;border-radius:4px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;line-height:1;opacity:0;transition:opacity .12s}
+.cell:hover .cell-x,.cell:focus-visible .cell-x{opacity:1}
+.cell-x:hover{background:var(--live)}
+body.mapping .cell-x{display:none}
+.cell-gap{min-height:44px}
+
+/* ---- Bibliothek ---- */
+.lib-panel{position:fixed;z-index:45;width:420px;max-height:min(560px,80vh);display:flex;flex-direction:column;gap:6px;background:var(--raise);border:1px solid var(--line);border-radius:8px;box-shadow:0 16px 48px rgba(0,0,0,.6);padding:10px}
+.lib-head{display:flex;justify-content:space-between;align-items:center}
+.lib-hint{margin:0;font-size:11px;color:var(--dim)}
+.lib-body{overflow:auto;display:grid;gap:6px;padding-right:2px}
+.lib-body h4{margin:6px 0 0;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.lib-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.lib-chip{display:flex;justify-content:space-between;align-items:center;gap:6px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:8px 9px;font-weight:600;font-size:12px;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%}
+.lib-chip.on{background:var(--ok);border-color:var(--ok);color:#000}
+.lib-chip.on::after{content:"✓";font-weight:800}
+.lib-chip.soon{opacity:.45;cursor:default}
+.lib-chip small{font-weight:500;font-size:10px;color:var(--dim)}
+.lib-chip.add{border-style:dashed;color:var(--dim);justify-content:center}
+.lib-media{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px}
+.lib-media .icon{width:26px}
+.lib-media .icon.wide{width:auto;padding:0 6px;background:#7a2323;color:#fff}

@@ -1,4 +1,5 @@
 // Zustand der Show: wird vom Pult, von OSC, von LJ-Link und von der Oberfläche verändert.
+import { READY_GENERATORS } from "./effects";
 export type BlendMode = "normal" | "add" | "screen" | "multiply";
 export const BLEND_MODES: readonly BlendMode[] = ["normal", "add", "screen", "multiply"];
 export type ColorSource = "original" | "A" | "B" | "C" | "D" | "E" | "gradient" | "rainbow";
@@ -14,6 +15,8 @@ export const SLOT_NAMES = ["A", "B", "C", "D", "E"] as const;
 
 export interface LayerState {
   clip: string | null;
+  /** Clips in der Zeile dieser Ebene (aus der Bibliothek zusammengestellt). */
+  clips: string[];
   opacity: number;
   blend: BlendMode;
   colorSource: ColorSource;
@@ -147,13 +150,35 @@ export const defaultEffects = (): EffectSlot[] => [
 ];
 
 export const defaultLayer = (): LayerState => ({
-  clip: null, opacity: 1, blend: "normal", colorSource: "original", speed: 1, effects: defaultEffects(), strobe: 0,
+  clip: null, clips: defaultClips(), opacity: 1, blend: "normal", colorSource: "original", speed: 1, effects: defaultEffects(), strobe: 0,
   media: defaultMedia(),
 });
 
 /** Tiefe Kopie der Ebenen (Szenen und Überblendungen dürfen nichts teilen). */
 export const cloneLayer = (l: LayerState): LayerState =>
-  ({ ...l, effects: l.effects.map(e => ({ ...e })), media: { ...l.media } });
+  ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media } });
+
+/** Standard-Zeile: alle fertigen Generatoren. */
+export const defaultClips = (): string[] => READY_GENERATORS.map(g => g.id);
+
+/** Clip in die Zeile einer Ebene aufnehmen (am Ende, ohne Doppelte). */
+export function addClip(l: LayerState, id: string): void { if (!l.clips.includes(id)) l.clips.push(id); }
+
+/** Clip aus der Zeile nehmen; läuft er gerade, wird er gestoppt. */
+export function removeClip(l: LayerState, id: string): void {
+  l.clips = l.clips.filter(c => c !== id);
+  if (l.clip === id) l.clip = null;
+}
+
+/** Grafik aus allen Ebenen und Szenen entfernen (wenn sie aus der Bibliothek gelöscht wird). */
+export function forgetClip(state: ShowState, scenes: Scene[], id: string): void {
+  for (const l of state.layers) removeClip(l, id);
+  for (const sc of scenes) for (const l of sc.layers) {
+    if (!l) continue;
+    if (l.clips) l.clips = l.clips.filter(c => c !== id);
+    if (l.clip === id) l.clip = null;
+  }
+}
 export const cloneLayers = (layers: readonly LayerState[]): LayerState[] => layers.map(cloneLayer);
 
 /** Fortschritt der Überblendung 0–1 beim Beat `beat`; 1 = keine Blende aktiv. */
@@ -220,6 +245,7 @@ export function applyScene(state: ShowState, scene: Scene): void {
     Object.assign(layer, patch);
     if (patch.effects) layer.effects = patch.effects.map(e => ({ ...e }));
     if (patch.media) layer.media = { ...patch.media };
+    if (patch.clips) layer.clips = [...patch.clips];
   });
 }
 

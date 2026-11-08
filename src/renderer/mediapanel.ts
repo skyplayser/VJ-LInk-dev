@@ -1,6 +1,6 @@
 // Lage und Animation der Grafik auf der gewählten Ebene.
 import type { ControlContext } from "../core/control";
-import { KEY_MODES, MEDIA_ANIMS, isMediaClip, mediaIdOf, type KeyMode, type MediaAnim, type MediaSettings } from "../core/show";
+import { KEY_MODES, MEDIA_ANIMS, forgetClip, isMediaClip, mediaIdOf, type KeyMode, type MediaAnim, type MediaSettings } from "../core/show";
 import type { MediaLibrary } from "./medialib";
 
 const ANIM_LABEL: Record<MediaAnim, string> = {
@@ -69,7 +69,7 @@ export class MediaPanel {
       if (!l || !isMediaClip(l.clip)) return;
       if (!this.armed) { this.armed = true; this.del.textContent = "Wirklich aus der Bibliothek löschen?"; return; }
       const id = mediaIdOf(l.clip);
-      for (const layer of this.ctx.show.layers) if (layer.clip === l.clip) layer.clip = null;
+      forgetClip(this.ctx.show, this.ctx.scenes, l.clip);
       this.lib.remove(id);
       this.armed = false;
       this.onDeleted();

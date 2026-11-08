@@ -27,7 +27,8 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Ausgänge | Ein Vollbild-Fenster pro Bildschirm, gemeinsame Takt-Uhr, Testbild |
 | Mapping | Wie Daslight: MAPPING → Tastatur, MIDI, DMX/Art-Net oder OSC (⇧⌘K/M/D/O). Alle zuweisbaren Elemente leuchten lila, anklicken, Eingang bewegen. Liste der Zuweisungen je Art, wird mit dem Projekt gespeichert. Clips, Szenen, Fader, Effekte, BPM |
 | MIDI | Controller per Web MIDI, Hot-Plug, Noten und CCs, LED-Rückmeldung, Vorlagen (APC mini mk2, APC mini, nanoKONTROL2), Export/Import der Zuweisungen, MIDI-Clock als Tempo-Quelle |
-| Ebenen | 1 bis 8 Ebenen, hinzufügen und entfernen (Pult-Profil steuert Ebene 1–4) |
+| Ebenen | 1 bis 8 Ebenen, hinzufügen und entfernen (Pult-Profil steuert Ebene 1–4). Jede Ebene hat ihre eigene Clip-Zeile, zusammengestellt aus der Bibliothek („+ Clips“), Clips per × aus der Zeile nehmen |
+| Audio | Audio-Eingang (Mikrofon, Line-In) für Equalizer und Oszilloskop oder alle Visuals, mit Pegel |
 | Tempo | BPM anklicken und eintippen, Tempo-Quelle festlegen (Auto, LJ-Link, Ableton Link, OSC, Manuell), Ableton Link über Carabiner |
 | Bedienung | Fader-Leiste (Master, Ebenen, Effekt, Strobe mit Speed und Intensität, Strobe White, Szenen, Tap, Blackout), jedes Element auch per OSC (`/vjlink/ctl/<id>`) |
 | Oberfläche | Show, Bauen (Katalog), Ausgabe, Verbinden; Logo als App-Icon |

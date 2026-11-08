@@ -687,3 +687,34 @@ describe("Audio-Eingang", () => {
     expect(w[0]!).toBeLessThan(0.2);
   });
 });
+
+import { addClip, removeClip, forgetClip, defaultClips } from "../src/core/show";
+describe("Clips pro Ebene", () => {
+  it("aufnehmen, entfernen (stoppt laufenden Clip), Grafik überall vergessen", () => {
+    const c = ctx(); const l = c.show.layers[1]!;
+    expect(l.clips).toEqual(defaultClips());
+    addClip(l, "img:a1b2c3d4e5f60708"); addClip(l, "img:a1b2c3d4e5f60708");
+    expect(l.clips.filter(x => x.startsWith("img:")).length).toBe(1);
+    l.clip = "tunnel"; removeClip(l, "tunnel");
+    expect(l.clip).toBeNull(); expect(l.clips).not.toContain("tunnel");
+    l.clip = "img:a1b2c3d4e5f60708";
+    addSceneFromCurrent(c, "Mit Logo");
+    forgetClip(c.show, c.scenes, "img:a1b2c3d4e5f60708");
+    expect(l.clips).not.toContain("img:a1b2c3d4e5f60708");
+    expect(l.clip).toBeNull();
+    expect(c.scenes.at(-1)!.layers[1]!.clip).toBeNull();
+    expect(c.scenes.at(-1)!.layers[1]!.clips).not.toContain("img:a1b2c3d4e5f60708");
+  });
+  it("Projekt: eigene Zeilen bleiben, alte Projekte bekommen alle Grafiken", () => {
+    const c = ctx();
+    removeClip(c.show.layers[0]!, "plasma");
+    addClip(c.show.layers[0]!, "img:a1b2c3d4e5f60708");
+    const p = parseProject(serializeProject(c, [{ id: "a1b2c3d4e5f60708", name: "L", width: 1, height: 1 }]))!;
+    expect(p.layers[0]!.clips).not.toContain("plasma");
+    expect(p.layers[0]!.clips).toContain("img:a1b2c3d4e5f60708");
+    expect(p.layers[1]!.clips).not.toContain("img:a1b2c3d4e5f60708");
+    const old = parseProject(JSON.stringify({ version: 1, layers: [{ clip: "tunnel" }], media: [{ id: "a1b2c3d4e5f60708", name: "L" }] }))!;
+    expect(old.layers[0]!.clips).toContain("img:a1b2c3d4e5f60708");
+    expect(old.layers[0]!.clips).toContain("tunnel");
+  });
+});
