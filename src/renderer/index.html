@@ -10,6 +10,16 @@
 <body>
 <header class="top">
   <div class="logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
+  <div class="map-wrap proj-wrap">
+    <button class="pill proj-btn" id="proj-btn" aria-haspopup="menu" aria-expanded="false" title="Projekt: neu, öffnen, speichern"><span id="proj-name">Unbenannt</span><b id="proj-dirty" hidden title="Ungespeicherte Änderungen">●</b> ▾</button>
+    <div class="map-menu" id="proj-menu" role="menu" hidden>
+      <button role="menuitem" data-proj="new">Neues Projekt <kbd>⌘N</kbd></button>
+      <button role="menuitem" data-proj="open">Projekt öffnen … <kbd>⌘O</kbd></button>
+      <button role="menuitem" data-proj="save">Speichern <kbd>⌘S</kbd></button>
+      <button role="menuitem" data-proj="saveAs">Speichern unter … <kbd>⇧⌘S</kbd></button>
+      <div class="proj-recent" id="proj-recent"></div>
+    </div>
+  </div>
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="visuals" class="on">VISUALS</button>
     <button role="tab" data-tab="show">SHOW</button>

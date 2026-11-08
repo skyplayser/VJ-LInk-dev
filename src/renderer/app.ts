@@ -33,6 +33,8 @@ import { MediaPanel } from "./mediapanel";
 import { ScenePanel } from "./scenepanel";
 import { mediaClip } from "../core/media";
 import { applyProject, parseProject, serializeProject } from "../core/project";
+import { hashText } from "../core/projectfile";
+import type { ProjectFileCmd } from "../core/frame";
 import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
 import { LayerPanel } from "./layerpanel";
@@ -905,10 +907,51 @@ if (thumbs.gl) {
 
 // ---- Projekt laden und automatisch speichern -----------------------------------------
 let lastSaved = "", lastSaveCheck = 0, loaded = false;
+/** Projektdatei: Name, Fingerabdruck des gespeicherten Stands, ungespeicherte Änderungen. */
+let projName = "Unbenannt", baseline = "", projDirty = false, projRecent: string[] = [];
+const currentJson = () => serializeProject(ctx, library.items, mappings.list, videoLib.items, outLayout);
+function setDirty(d: boolean): void {
+  if (d === projDirty) return;
+  projDirty = d; $("proj-dirty").hidden = !d;
+  bridge?.projectDirty(d);
+}
+function showProjName(): void {
+  $("proj-name").textContent = projName;
+  const list = $("proj-recent"); list.replaceChildren();
+  if (!projRecent.length) return;
+  list.append(el("div", "proj-sep", "Zuletzt geöffnet"));
+  for (const f of projRecent.slice(0, 6)) {
+    const b = el("button", "", f.split(/[\\/]/).pop()!.replace(/\.vjlink$/i, "")); b.title = f; b.setAttribute("role", "menuitem");
+    b.addEventListener("click", () => { closeProjMenu(); void runFileCmd("openPath", f); });
+    list.append(b);
+  }
+}
+async function runFileCmd(cmd: ProjectFileCmd, filePath?: string): Promise<void> {
+  if (!bridge) { toast("Projektdateien gibt es nur in der App."); return; }
+  const json = currentJson();
+  const r = await bridge.projectFile(cmd, json, filePath);
+  if (r.ok && (cmd === "save" || cmd === "saveAs")) {
+    baseline = hashText(json); projName = r.name ?? projName;
+    setDirty(false); showProjName(); toast(`Gespeichert: ${projName}`);
+  }
+  // Öffnen und Neu: der Hauptprozess lädt die Oberfläche neu
+}
+const projBtn = $<HTMLButtonElement>("proj-btn"), projMenu = $("proj-menu");
+function closeProjMenu(): void { projMenu.hidden = true; projBtn.setAttribute("aria-expanded", "false"); }
+projBtn.addEventListener("click", () => { projMenu.hidden = !projMenu.hidden; projBtn.setAttribute("aria-expanded", String(!projMenu.hidden)); });
+projMenu.querySelectorAll<HTMLButtonElement>("[data-proj]").forEach(b => b.addEventListener("click", () => { closeProjMenu(); void runFileCmd(b.dataset.proj as ProjectFileCmd); }));
+document.addEventListener("pointerdown", e => { if (!projMenu.hidden && !(e.target as HTMLElement).closest(".proj-wrap")) closeProjMenu(); });
+bridge?.onMenu((cmd, arg) => {
+  if (cmd === "settings") { openSettings(); return; }
+  if (["new", "open", "save", "saveAs", "openPath"].includes(cmd)) void runFileCmd(cmd as ProjectFileCmd, arg);
+});
+if (!bridge) projBtn.hidden = true;
+
 function autosave(now: number): void {
   if (!loaded || now - lastSaveCheck < 2000) return;
   lastSaveCheck = now;
-  const json = serializeProject(ctx, library.items, mappings.list, videoLib.items, outLayout);
+  const json = currentJson();
+  if (baseline) setDirty(hashText(json) !== baseline);
   if (json === lastSaved) return;
   lastSaved = json;
   if (bridge) bridge.saveProject(json);
@@ -917,14 +960,20 @@ function autosave(now: number): void {
 function json0(raw: string | null): ReturnType<typeof parseProject> {
   return raw ? parseProject(raw) : null;
 }
+let fresh = false;
 async function loadProject(): Promise<void> {
   try {
     let json: string | null = null;
     if (bridge) {
       const r = await bridge.loadProject();
-      for (const m of r.media) await library.load(m);
-      // Videos: Angaben stehen im Projekt, die Dateien im Bibliotheksordner
       const pv = json0(r.project);
+      // Nur die Grafiken dieses Projekts (die Bibliothek im App-Ordner kann mehr enthalten)
+      const want = new Set((pv?.media ?? []).map(m => m.id));
+      for (const m of r.media) if (want.has(m.id)) await library.load(m);
+      projName = r.file?.name ?? "Unbenannt"; projRecent = r.recent ?? [];
+      baseline = r.fresh ? "" : r.savedHash ?? "";
+      fresh = !!r.fresh;
+      // Videos: Angaben stehen im Projekt, die Dateien im Bibliotheksordner
       for (const v of pv?.videos ?? []) await videoLib.add(v);
       json = r.project;
     } else {
@@ -942,6 +991,9 @@ async function loadProject(): Promise<void> {
     }
   } finally {
     loaded = true;
+    // Gerade geöffnet oder neu: dieser Stand gilt als gespeichert
+    if (bridge && (fresh || !baseline)) { baseline = hashText(currentJson()); bridge.projectBaseline(baseline); }
+    showProjName();
     rebuildGrid();
     fxPanel.select(Math.min(fxPanel.layer, ctx.show.layers.length - 1));
     rebuildDeck();

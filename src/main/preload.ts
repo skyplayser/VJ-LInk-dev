@@ -20,6 +20,10 @@ const bridge: VjBridge = {
   removeVideo: id => { ipcRenderer.send("video:remove", id); },
   sendArtTimecode: (b, host) => { ipcRenderer.send("tc:artnet", b, host); },
   loadProject: () => ipcRenderer.invoke("project:load"),
+  projectFile: (cmd, json, filePath) => ipcRenderer.invoke("project:file", cmd, json, filePath),
+  projectDirty: dirty => { ipcRenderer.send("project:dirty", dirty); },
+  projectBaseline: hash => { ipcRenderer.send("project:baseline", hash); },
+  onMenu: cb => { ipcRenderer.on("menu", (_e, cmd: string, arg?: string) => cb(cmd, arg)); },
   platform: process.platform,
 };
 contextBridge.exposeInMainWorld("vj", bridge);

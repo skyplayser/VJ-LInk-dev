@@ -972,3 +972,38 @@ describe("Mehrere Farb-Slots", () => {
     expect(b.laser).toEqual({ x: -0.2, y: 0.5, size: 1.5, thick: 2.5 });
   });
 });
+
+describe("Projektdatei", () => {
+  it("packen und entpacken ergibt dasselbe Projekt, Grafiken und Videos", async () => {
+    const { packProject, unpackProject, hashText, projectRefs } = await import("../src/core/projectfile");
+    const c = ctx();
+    c.show.layers[0]!.drive = "audio";
+    const json = serializeProject(c, [{ id: "a1b2c3d4e5f60708", name: "Logo", width: 10, height: 10 }], [],
+      [{ id: "0011223344556677", name: "Intro", ext: "mp4", duration: 3, width: 1920, height: 1080 }]);
+    const img = { id: "a1b2c3d4e5f60708", name: "Logo", dataUrl: "data:image/png;base64,AAAA" };
+    const text = packProject(json, [img], "Show Medien", "2026-11-08T00:00:00.000Z");
+    const u = unpackProject(text);
+    if (typeof u === "string") throw new Error(u);
+    expect(u.projectJson).toBe(json);
+    expect(hashText(u.projectJson)).toBe(hashText(json));
+    expect(u.images).toEqual([img]);
+    expect(u.mediaFolder).toBe("Show Medien");
+    expect(u.videos).toEqual([{ id: "0011223344556677", name: "Intro", ext: "mp4" }]);
+    expect(projectRefs(json).mediaIds).toEqual(["a1b2c3d4e5f60708"]);
+  });
+  it("fremde oder manipulierte Dateien werden abgelehnt", async () => {
+    const { unpackProject } = await import("../src/core/projectfile");
+    expect(typeof unpackProject("kein json")).toBe("string");
+    expect(typeof unpackProject(JSON.stringify({ format: "andere" }))).toBe("string");
+    const json = serializeProject(ctx(), []);
+    const evil = JSON.stringify({ format: "vjlink-project", formatVersion: 1, project: JSON.parse(json), images: [], mediaFolder: "../../etc" });
+    const u = unpackProject(evil);
+    if (typeof u === "string") throw new Error(u);
+    expect(u.mediaFolder).toBeNull();
+  });
+  it("Fingerabdruck unterscheidet Änderungen", async () => {
+    const { hashText } = await import("../src/core/projectfile");
+    expect(hashText("a")).not.toBe(hashText("b"));
+    expect(hashText("abc")).toMatch(/^[0-9a-f]{16}$/);
+  });
+});

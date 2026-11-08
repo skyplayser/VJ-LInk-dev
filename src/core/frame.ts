@@ -53,7 +53,12 @@ export interface NetConfig { sacnUniverse: number }
 
 export type MediaEvent = { type: "add"; item: MediaPayload } | { type: "remove"; id: string };
 
-export interface ProjectLoad { project: string | null; media: MediaPayload[] }
+export interface ProjectLoad {
+  project: string | null; media: MediaPayload[];
+  /** Geöffnete Projektdatei (null = unbenannt), Vergleichsstand, gerade geladen, zuletzt geöffnet. */
+  file?: { path: string; name: string } | null; savedHash?: string | null; fresh?: boolean; recent?: string[];
+}
+export type ProjectFileCmd = "new" | "open" | "save" | "saveAs" | "openPath";
 
 /** Brücke, die das Preload-Skript im Fenster bereitstellt. */
 export interface VjBridge {
@@ -83,5 +88,11 @@ export interface VjBridge {
   /** Mikrofon-Zugriff beim System anfragen (macOS). */
   askMicrophone(): Promise<boolean>;
   loadProject(): Promise<ProjectLoad>;
+  /** Projektdatei: neu, öffnen, speichern, speichern unter (fragt bei ungespeicherten Änderungen nach). */
+  projectFile(cmd: ProjectFileCmd, json: string, filePath?: string): Promise<{ ok: boolean; name?: string; message?: string }>;
+  projectDirty(dirty: boolean): void;
+  projectBaseline(hash: string): void;
+  /** Befehle aus dem App-Menü (Ablage, Einstellungen). */
+  onMenu(cb: (cmd: string, arg?: string) => void): void;
   platform: string;
 }

@@ -453,3 +453,9 @@ body.mapping .cell-x{display:none}
 .lp-sub{margin:6px 0 0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .layer-panel .mrow{grid-template-columns:62px minmax(0,1fr) 52px}
 .layer-panel .mval{white-space:nowrap}
+/* Projekt */
+.proj-btn{max-width:220px;gap:6px;display:inline-flex;align-items:center}
+.proj-btn #proj-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.proj-btn #proj-dirty{color:var(--warn);font-size:10px}
+.proj-recent{display:grid}
+.proj-sep{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:4px}

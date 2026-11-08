@@ -142,6 +142,34 @@ export class Storage {
     return out;
   }
 
+  /** Nur diese Grafiken (für die Projektdatei). */
+  async mediaPayloads(ids: readonly string[]): Promise<MediaPayload[]> {
+    const want = new Set(ids);
+    return (await this.allMedia()).filter(m => want.has(m.id));
+  }
+
+  /** Datei eines Videos in der Bibliothek, oder null. */
+  videoFile(id: string): { path: string; file: string } | null {
+    const e = this.videos.get(id);
+    return e ? { path: path.join(this.videoDir, e.file), file: e.file } : null;
+  }
+
+  /** Video aus einer Projektdatei übernehmen, mit seiner bisherigen Kennung (Clips verweisen darauf). */
+  async importVideo(src: string, id: string, name: string): Promise<boolean> {
+    if (!isValidMediaId(id) || !path.isAbsolute(src)) return false;
+    const ext = path.extname(src).slice(1).toLowerCase();
+    if (!["mp4", "m4v", "mov", "webm"].includes(ext)) return false;
+    try { if (!(await fs.stat(src)).isFile()) return false; } catch { return false; }
+    const file = `${id}.${ext}`;
+    await fs.copyFile(src, path.join(this.videoDir, file));
+    this.videos.set(id, { id, name: name.slice(0, 80), file });
+    await this.writeAtomic(path.join(this.videoDir, "index.json"), JSON.stringify([...this.videos.values()]));
+    return true;
+  }
+
+  /** Arbeitsstand verwerfen (neues Projekt): beim nächsten Laden startet die App leer. */
+  async clearProject(): Promise<void> { await fs.rm(this.projectFile, { force: true }); }
+
   async saveProject(json: unknown): Promise<void> {
     if (typeof json !== "string" || json.length > PROJECT_MAX_BYTES) return;
     await this.writeAtomic(this.projectFile, json);
