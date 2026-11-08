@@ -99,6 +99,11 @@ export function buildControls(): ControlDef[] {
   SLOT_NAMES.forEach((n, i) => {
     list.push({ id: `slot.${n}.hue`, label: `Slot ${n} Farbton`, group: "Farben", kind: "fader", quick: false,
       get: c => hueOf(c.show.slots[i] ?? [1, 1, 1]), set: (c, v) => { c.show.slots[i] = hueRgb(v); } });
+    (["Rot", "Grün", "Blau"] as const).forEach((name, k) => {
+      list.push({ id: `slot.${n}.${"rgb"[k]}`, label: `Slot ${n} ${name}`, group: "Farben", kind: "fader", quick: false,
+        get: c => c.show.slots[i]?.[k] ?? 0,
+        set: (c, v) => { const o = c.show.slots[i] ?? [0, 0, 0]; const nx: [number, number, number] = [o[0], o[1], o[2]]; nx[k] = clamp01(v); c.show.slots[i] = nx; } });
+    });
   });
   list.push(
     { id: "scene.next", label: "Weiter", group: "Szenen", kind: "trigger", quick: false,

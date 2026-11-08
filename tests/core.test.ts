@@ -631,3 +631,12 @@ describe("Phase 1: LEDs, Vorlagen, MIDI-Clock", () => {
     for (const h of [0, 0.1, 0.5, 0.8]) expect(hueOf(hueRgb(h))).toBeCloseTo(h);
   });
 });
+
+describe("Farbslots per Mapping", () => {
+  it("Rot, Grün, Blau einzeln", () => {
+    const c = ctx();
+    setControl(c, "slot.B.r", 0.2); setControl(c, "slot.B.g", 0.4); setControl(c, "slot.B.b", 1);
+    expect(c.show.slots[1]).toEqual([0.2, 0.4, 1]);
+    expect(resolveControl("slot.B.level")).toBeUndefined();
+  });
+});

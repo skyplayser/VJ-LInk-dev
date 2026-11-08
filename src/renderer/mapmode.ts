@@ -32,6 +32,10 @@ export class MapMode {
     this.panel.setAttribute("aria-label", "Zuweisungen");
     this.panel.hidden = true;
     document.body.append(this.panel);
+    this.restorePlace();
+    window.addEventListener("resize", () => this.keepInside());
+    // Größe merken, wenn an der Ecke gezogen wurde
+    new ResizeObserver(() => { if (!this.panel.hidden && !this.panel.classList.contains("collapsed")) this.savePlace(); }).observe(this.panel);
     // Im Mapping-Modus wählt ein Klick das Element aus, statt es zu bedienen.
     const block = (e: Event) => {
       if (!this.protocol) return;
@@ -52,6 +56,7 @@ export class MapMode {
     document.body.dataset.mapping = p;
     this.panel.hidden = false;
     this.render();
+    this.keepInside();
     clearInterval(this.timer);
     this.timer = window.setInterval(() => this.mark(), 300);
   }
@@ -114,16 +119,23 @@ export class MapMode {
     const box = this.panel;
     box.replaceChildren();
     const head = el("div", "map-head");
-    head.append(el("b", "", "Zuweisungen"));
+    head.title = "Zum Verschieben ziehen";
+    head.append(el("span", "grip", "⋮⋮"), el("b", "", "Zuweisungen"));
+    this.dragBy(head);
     const tabs = el("div", "map-tabs");
     for (const q of ["key", "midi", "dmx", "osc"] as MapProtocol[]) {
       const b = el("button", q === p ? "on" : "", PROTOCOL_LABEL[q]);
       b.addEventListener("click", () => this.open(q));
       tabs.append(b);
     }
-    const done = el("button", "btn small-btn", "Fertig (Esc)");
+    const fold = el("button", "icon", this.panel.classList.contains("collapsed") ? "▢" : "–");
+    fold.title = this.panel.classList.contains("collapsed") ? "Aufklappen" : "Einklappen (nur Kopfzeile)";
+    fold.addEventListener("click", () => { this.panel.classList.toggle("collapsed"); this.render(); this.keepInside(); });
+    const done = el("button", "btn small-btn", "Fertig");
+    done.title = "Mapping beenden (Esc)";
     done.addEventListener("click", () => this.close());
-    head.append(done);
+    const right = el("span", "inline"); right.append(fold, done);
+    head.append(right);
     box.append(head, tabs);
 
     const status = el("p", "map-status");
@@ -198,6 +210,50 @@ export class MapMode {
     });
     foot.append(clr);
     box.append(foot);
+  }
+
+  // ---- Fenster verschieben und Lage merken ---------------------------------------
+  private dragBy(handle: HTMLElement): void {
+    handle.addEventListener("pointerdown", e => {
+      if ((e.target as HTMLElement).closest("button")) return;
+      e.preventDefault();
+      const r = this.panel.getBoundingClientRect();
+      const dx = e.clientX - r.left, dy = e.clientY - r.top;
+      handle.setPointerCapture(e.pointerId);
+      const move = (ev: PointerEvent) => {
+        this.panel.style.left = `${ev.clientX - dx}px`;
+        this.panel.style.top = `${ev.clientY - dy}px`;
+        this.keepInside();
+      };
+      const up = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        this.savePlace();
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+    });
+  }
+
+  /** Fenster bleibt immer mit der Kopfzeile im sichtbaren Bereich. */
+  private keepInside(): void {
+    const r = this.panel.getBoundingClientRect();
+    const x = Math.min(Math.max(0, r.left), window.innerWidth - Math.min(r.width, 120));
+    const y = Math.min(Math.max(0, r.top), window.innerHeight - 40);
+    this.panel.style.left = `${x}px`; this.panel.style.top = `${y}px`;
+  }
+
+  private savePlace(): void {
+    const r = this.panel.getBoundingClientRect();
+    try { localStorage.setItem("vjlink.mapPanel", JSON.stringify({ x: r.left, y: r.top, w: r.width, h: r.height })); } catch { /* ohne Speicher */ }
+  }
+
+  private restorePlace(): void {
+    try {
+      const p = JSON.parse(localStorage.getItem("vjlink.mapPanel") ?? "null") as { x: number; y: number; w: number; h: number } | null;
+      if (!p) return;
+      Object.assign(this.panel.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${p.w}px`, height: `${p.h}px` });
+    } catch { /* Standardlage */ }
   }
 
   /** Vorlage für einen Controller laden (ersetzt die MIDI-Zuweisungen). */

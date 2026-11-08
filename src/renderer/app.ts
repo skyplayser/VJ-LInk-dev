@@ -13,7 +13,7 @@ import { MidiIn } from "./midi";
 import type { TempoSource } from "../core/tempo";
 import { frameBeat, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
 import { bridge } from "./bridge";
-import { setControl } from "../core/controls";
+import { resolveControl, setControl } from "../core/controls";
 import { buildDeck } from "./deck";
 import { ThumbView } from "./thumbs";
 import { MediaLibrary } from "./medialib";
@@ -324,6 +324,7 @@ function buildSidebar(): void {
   const slots = $("slots");
   const hex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
   const slotInputs: HTMLInputElement[] = [];
+  const slotRanges: { r: HTMLInputElement; id: string }[] = [];
   SLOT_NAMES.forEach((n, i) => {
     const row = el("div", "slot");
     const sw = el("div", "sw");
@@ -333,7 +334,19 @@ function buildSidebar(): void {
     });
     slotInputs[i] = inp;
     inp.dataset.ctl = `slot.${n}.hue`;
-    row.append(sw, el("b", "", `Slot ${n}`), inp); slots.append(row);
+    inp.title = "Farbe wählen (im Mapping: Farbton)";
+    // Kleine Regler für Rot, Grün und Blau: bedienbar und im Mapping zuweisbar
+    const mini = el("div", "slot-mini");
+    for (const [key, lbl] of [["r", "R"], ["g", "G"], ["b", "B"]] as const) {
+      const id = `slot.${n}.${key}`;
+      const wrap = el("label", `sm sm-${key}`); wrap.dataset.ctl = id; wrap.title = `Slot ${n} ${lbl}`;
+      const r = el("input"); r.type = "range"; r.min = "0"; r.max = "255"; r.setAttribute("aria-label", `Slot ${n} ${lbl}`);
+      r.addEventListener("input", () => setControl(ctx, id, Number(r.value) / 255));
+      wrap.append(el("span", "", lbl), r);
+      slotRanges.push({ r, id });
+      mini.append(wrap);
+    }
+    row.append(sw, el("b", "", n), mini, inp); slots.append(row);
   });
   (window as unknown as { refreshSlots: () => void }).refreshSlots = () => {
     const sw = slots.querySelectorAll<HTMLElement>(".sw");
@@ -342,6 +355,7 @@ function buildSidebar(): void {
       sw[i]!.style.background = h;
       if (document.activeElement !== slotInputs[i]) slotInputs[i]!.value = h;
     });
+    for (const { r, id } of slotRanges) if (document.activeElement !== r) r.value = String(Math.round((resolveControl(id)?.get(ctx) ?? 0) * 255));
   };
   $("tap").addEventListener("click", () => { setControl(ctx, "tempo.tap", 1); });
   $("blackout").addEventListener("click", () => { setControl(ctx, "blackout", ctx.show.blackout ? 0 : 1); });
