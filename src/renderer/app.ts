@@ -1044,7 +1044,7 @@ function json0(raw: string | null): ReturnType<typeof parseProject> {
 }
 /**
  * Start-Aufbau für ein leeres oder neues Projekt:
- * E6 LOGO (LJ-Link-Logo klein unten rechts), E5 TEXT EBENE (Text „LJ Link“), E4 Laser Ebene (alle Laser-Visuals),
+ * E6 Logo (LJ-Link-Logo klein unten rechts), E5 Text („LJ Link“), E4 Laser (alle Laser-Visuals),
  * E3 und E2 Overlay (Licht, Partikel, Geometrie), E1 Basis (Start-Clips).
  */
 async function setupStarterProject(): Promise<void> {
@@ -1055,19 +1055,19 @@ async function setupStarterProject(): Promise<void> {
   L[0]!.name = "Basis";
   L[1]!.name = "Overlay"; L[1]!.clips = gens(["starfield", "bokeh", "burst", "lightning", "vector-gobos", "flower", "moire", "co2-jet"]); L[1]!.clip = null;
   L[2]!.name = "Overlay"; L[2]!.clips = gens(["plexus", "hypercube", "ripples", "liquid-light", "uv-glow", "fire", "mirror-ball", "dot-matrix"]); L[2]!.clip = null;
-  L[3]!.name = "Laser Ebene"; L[3]!.clips = EFFECTS.filter(e => e.category === "laser" && e.kind === "generator" && e.status === "ready").map(e => e.id); L[3]!.clip = null; L[3]!.blend = "add";
+  L[3]!.name = "Laser"; L[3]!.clips = EFFECTS.filter(e => e.category === "laser" && e.kind === "generator" && e.status === "ready").map(e => e.id); L[3]!.clip = null; L[3]!.blend = "add";
   // Text-Ebene: „LJ Link“
   const spec = { ...defaultText(), text: "LJ Link" };
   const cv = document.createElement("canvas"); drawText(cv, spec);
   const tp = { id: newMediaId(), name: "LJ Link", dataUrl: cv.toDataURL("image/png") };
   const titem = await library.load(tp);
-  L[4]!.name = "TEXT EBENE"; L[4]!.clip = null; L[4]!.blend = "normal";
+  L[4]!.name = "Text"; L[4]!.clip = null; L[4]!.blend = "normal";
   if (titem) { titem.text = spec; bridge?.addMedia(tp); L[4]!.clips = [mediaClip(tp.id)]; }
   Object.assign(L[4]!.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
   // Logo-Ebene: LJ-Link-Logo klein unten rechts
   const lp = { id: newMediaId(), name: "LJ-Link-Logo", dataUrl: ljlinkLogo };
   const litem = await library.load(lp);
-  L[5]!.name = "LOGO"; L[5]!.blend = "normal";
+  L[5]!.name = "Logo"; L[5]!.blend = "normal";
   if (litem) { bridge?.addMedia(lp); L[5]!.clips = [mediaClip(lp.id)]; L[5]!.clip = mediaClip(lp.id); }
   Object.assign(L[5]!.media, { scale: 0.16, x: 0.86, y: -0.76, rotation: 0, anim: "none", keyMode: "none" });
   L[5]!.opacity = 1;
