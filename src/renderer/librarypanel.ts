@@ -1,5 +1,5 @@
 // Bibliothek: Clips für eine Ebene an- und abwählen (Visuals nach Kategorie, eigene Grafiken).
-import { camClip, ensureCamera } from "../core/camera";
+import { CAM_LOOKS, CAM_LOOK_INFO, CAM_LOOK_LABEL, camClip, ensureCamera, isCamClip } from "../core/camera";
 import { cameraDevices, cameraHelp } from "./camchooser";
 import type { CamDevice } from "./campool";
 import type { ControlContext } from "../core/control";
@@ -88,7 +88,7 @@ export class LibraryPanel {
     }
 
     // Kameras und Video-Eingänge (Webcam, Capture-Karte, OBS Virtual Camera)
-    body.append(el("h4", "", "Kameras und Video-Eingänge"));
+    body.append(el("h4", "", "Kameras und Video-Eingänge · Silhouette, Dot-Matrix, ASCII, Masken"));
     const cg = el("div", "lib-grid");
     for (const d of this.camDevices) {
       const known = this.ctx.show.cameras.find(c => c.deviceId === d.deviceId || (d.label && c.label === d.label));
@@ -111,6 +111,25 @@ export class LibraryPanel {
     cg.append(find);
     if (this.camSearched && !this.camDevices.length) { const h = cameraHelp(); h.style.gridColumn = "1 / -1"; cg.append(h); }
     body.append(cg);
+    // Darstellung der Kamera in dieser Ebene: Silhouette, Dot-Matrix, ASCII, Masken …
+    if (l.clips.some(c => isCamClip(c))) {
+      body.append(el("h4", "", "Kamera-Darstellung in dieser Ebene"));
+      const lg = el("div", "lib-grid");
+      for (const lk of CAM_LOOKS) {
+        const on = l.cam.look === lk;
+        const b = el("button", `lib-chip${on ? " on" : ""}`, CAM_LOOK_LABEL[lk]);
+        b.title = CAM_LOOK_INFO[lk];
+        b.setAttribute("aria-pressed", String(on));
+        b.addEventListener("click", () => {
+          l.cam.look = lk;
+          // Kamera gleich starten, wenn in der Ebene noch nichts läuft
+          if (!isCamClip(l.clip)) l.clip = l.clips.find(c => isCamClip(c)) ?? l.clip;
+          this.onChange(); this.render();
+        });
+        lg.append(b);
+      }
+      body.append(lg);
+    }
 
     body.append(el("h4", "", "Eigene Videos"));
     const vg = el("div", "lib-grid");

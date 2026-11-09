@@ -1494,12 +1494,12 @@ describe("Kameras", () => {
     const cam = ensureCamera(c.show.cameras, "dev1", "OBS Virtual Camera");
     const l = c.show.layers[1]!;
     addClip(l, camClip(cam.id)); l.clip = camClip(cam.id);
-    l.cam = { mirror: true, look: "silhouette", tol: 0.4, bgStamp: 123 };
+    l.cam = { mirror: true, look: "silhouette", tol: 0.4, bgStamp: 123, cells: 48, onlyFig: false };
     c.cues.list.push(newCue("camera", "Kamera", camClip(cam.id)));
     const p = parseProject(serializeProject(c, []))!;
     expect(p.cameras).toEqual([{ id: cam.id, deviceId: "dev1", label: "OBS Virtual Camera" }]);
     expect(p.layers[1]!.clip).toBe(camClip(cam.id));
-    expect(p.layers[1]!.cam).toEqual({ mirror: true, look: "silhouette", tol: 0.4, bgStamp: 123 });
+    expect(p.layers[1]!.cam).toEqual({ mirror: true, look: "silhouette", tol: 0.4, bgStamp: 123, cells: 48, onlyFig: false });
     expect(p.cues.at(-1)!.kind).toBe("camera");
     expect(p.cues.at(-1)!.media).toBe(camClip(cam.id));
     expect(parseProject(JSON.stringify({ version: 1, layers: [{ clip: "cam:../x" }] }))!.layers[0]!.clip).toBeNull();
@@ -1541,5 +1541,26 @@ describe("LJ-Link im Netz finden (Bonjour)", () => {
     expect(planAttempts("10.0.0.5", [], own).map(p => `${p.auth}${p.path}`)).toEqual(["10.0.0.5:8080/vjlink", "10.0.0.5:8080/ws"]);
     expect(ljAuthority("10.0.0.5:8097")).toBe("10.0.0.5:8097");
     expect(ljAuthority("fe80::2")).toBe("[fe80::2]:8080");
+  });
+});
+
+import { CAM_LOOKS, isMaskLook, usesCells, usesFigure } from "../src/core/camera";
+describe("Kamera-Darstellungen", () => {
+  it("alle Looks werden gespeichert, unbekannte fallen auf Normal", () => {
+    expect(CAM_LOOKS.length).toBe(10);
+    for (const lk of CAM_LOOKS) {
+      const p = parseProject(JSON.stringify({ version: 1, layers: [{ clip: "cam:abcd1234", cam: { look: lk, cells: 70, onlyFig: true } }] }))!;
+      expect(p.layers[0]!.cam.look).toBe(lk);
+      expect(p.layers[0]!.cam.cells).toBe(70);
+      expect(p.layers[0]!.cam.onlyFig).toBe(true);
+    }
+    expect(parseProject(JSON.stringify({ version: 1, layers: [{ cam: { look: "laser", cells: 9999 } }] }))!.layers[0]!.cam).toMatchObject({ look: "normal", cells: 160 });
+  });
+  it("welche Looks die Person brauchen bzw. ein Raster haben", () => {
+    expect(isMaskLook("mask-in") && isMaskLook("mask-out")).toBe(true);
+    expect(usesFigure("silhouette", false)).toBe(true);
+    expect(usesFigure("dots", false)).toBe(false);
+    expect(usesFigure("dots", true)).toBe(true);
+    expect(usesCells("ascii") && usesCells("halftone") && !usesCells("thermal")).toBe(true);
   });
 });

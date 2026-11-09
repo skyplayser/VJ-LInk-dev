@@ -654,3 +654,10 @@ body.mapping [data-ctl][data-mapped][data-map-sel]{outline:3px solid #fff!import
 .cam-menu{z-index:60;min-width:260px}
 .cam-help{display:grid;gap:6px;padding:4px 2px}
 .cam-menu .cam-help .btn{justify-self:start}
+
+/* ---- Kamera-Darstellung ---- */
+.look-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.look-btn{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:7px 8px;font-weight:600;font-size:11.5px;text-align:left;cursor:pointer}
+.look-btn.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+.look-btn.mask{border-style:dashed}
+.look-btn.mask.on{border-style:solid}

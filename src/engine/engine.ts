@@ -2,7 +2,7 @@
 // Ablauf pro Bild: jede Ebene → Generator in eine Textur → Effekt-Stapel (Ping-Pong)
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
-import { camIdOf, isCamClip } from "../core/camera";
+import { CAM_LOOKS, camIdOf, isCamClip, isMaskLook } from "../core/camera";
 import { WAVE_POINTS, bandsFrom, beatPulse, layerDrive, strobeGain, strobeGate, strobeWhite } from "../core/audio";
 import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
@@ -269,12 +269,18 @@ export class Engine {
       // Kamera: spiegeln, Silhouette (Farbe der Ebene, bei „Original“ schwarz)
       const ref = camLayer && l.cam.bgStamp > 0 ? this.camRef.get(camIdOf(l.clip!)) : undefined;
       gl.uniform1i(this.loc(im, "uMirror"), camLayer && l.cam.mirror ? 1 : 0);
-      gl.uniform1i(this.loc(im, "uLook"), camLayer && l.cam.look === "silhouette" ? 1 : 0);
+      const look = camLayer ? Math.max(0, CAM_LOOKS.indexOf(l.cam.look)) : 0;
+      gl.uniform1i(this.loc(im, "uLook"), look);
       gl.uniform1f(this.loc(im, "uSilTol"), l.cam.tol);
       gl.uniform1i(this.loc(im, "uHasRef"), ref ? 1 : 0);
       gl.uniform1i(this.loc(im, "uRef"), 1);
-      const fig = l.colorSource === "original" ? [0, 0, 0] : ca;
+      // Farbe: Silhouette bei „Original“ schwarz; Umriss/Raster bei „Original“ weiß (Shader); Duoton Slot A → Slot B
+      const fig = l.colorSource === "original" && l.cam.look !== "duotone" ? [0, 0, 0] : ca;
       gl.uniform3f(this.loc(im, "uFig"), fig[0]!, fig[1]!, fig[2]!);
+      gl.uniform3f(this.loc(im, "uFig2"), cb[0], cb[1], cb[2]);
+      gl.uniform1f(this.loc(im, "uCells"), l.cam.cells ?? 48);
+      gl.uniform1i(this.loc(im, "uOnlyFig"), l.cam.onlyFig ? 1 : 0);
+      gl.uniform2f(this.loc(im, "uTexel"), 1 / Math.max(1, media.w), 1 / Math.max(1, media.h));
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ref?.tex ?? media.tex);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, media.tex);
       this.bindTarget(this.work[0]);
@@ -412,7 +418,9 @@ export class Engine {
       this.bindTex(0, img);
       this.bindTarget(out);
       gl.enable(gl.BLEND);
-      setBlend(gl, i === 0 ? "normal" : l.blend);
+      // Kamera als Maske: schneidet in alles darunter (Ziel × (1 − Deckkraft × a)), egal welcher Mischmodus
+      if (isCamClip(l.clip) && isMaskLook(l.cam.look)) gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA);
+      else setBlend(gl, i === 0 ? "normal" : l.blend);
       this.draw();
       gl.disable(gl.BLEND);
     }

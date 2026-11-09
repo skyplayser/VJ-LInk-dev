@@ -10,7 +10,32 @@ export interface CameraSource {
   label: string;
 }
 
-export type CamLook = "normal" | "silhouette";
+/** Darstellungen eines Kamerabilds. Reihenfolge = Nummer im Shader (uLook). */
+export const CAM_LOOKS = ["normal", "silhouette", "outline", "dots", "ascii", "halftone", "thermal", "duotone", "mask-in", "mask-out"] as const;
+export type CamLook = typeof CAM_LOOKS[number];
+
+export const CAM_LOOK_LABEL: Record<CamLook, string> = {
+  normal: "Normal", silhouette: "Silhouette", outline: "Umriss", dots: "Dot-Matrix", ascii: "ASCII",
+  halftone: "Raster", thermal: "Wärmebild", duotone: "Duoton", "mask-in": "Maske positiv", "mask-out": "Maske negativ",
+};
+export const CAM_LOOK_INFO: Record<CamLook, string> = {
+  normal: "Das Kamerabild, wie es ist.",
+  silhouette: "Personen als Umriss vor den Visuals, schwarz oder in der Farbe der Ebene.",
+  outline: "Leuchtende Konturen der Person bzw. der Kanten im Bild.",
+  dots: "Punkte nach Helligkeit, in den Farben des Bildes.",
+  ascii: "Zeichen . : + # @ nach Helligkeit.",
+  halftone: "Zeitungsraster: Punkte in der Farbe der Ebene.",
+  thermal: "Falschfarben wie eine Wärmebildkamera.",
+  duotone: "Zwei Farben (Slot A dunkel, Slot B hell) nach Helligkeit.",
+  "mask-in": "Ganz oben: Die Visuals darunter sind nur in der Person sichtbar.",
+  "mask-out": "Ganz oben: Die Person wird aus den Visuals darunter ausgeschnitten.",
+};
+/** Looks, die die Person vom Hintergrund trennen (brauchen Schwelle bzw. gemerkten Hintergrund). */
+export const usesFigure = (l: CamLook, onlyFig: boolean): boolean =>
+  l === "silhouette" || l === "outline" || l === "mask-in" || l === "mask-out" || (onlyFig && l !== "normal");
+/** Looks mit Raster (Zellgröße einstellbar). */
+export const usesCells = (l: CamLook): boolean => l === "dots" || l === "ascii" || l === "halftone";
+export const isMaskLook = (l: CamLook): boolean => l === "mask-in" || l === "mask-out";
 
 /** Einstellungen einer Kamera als Clip in einer Ebene. */
 export interface CamSettings {
@@ -21,9 +46,13 @@ export interface CamSettings {
   tol: number;
   /** Zeitpunkt „Hintergrund merken“ (Epoch-ms); 0 = kein Hintergrund gemerkt. */
   bgStamp: number;
+  /** Zellen über die Bildhöhe (Dot-Matrix, ASCII, Raster). */
+  cells: number;
+  /** Stilisierte Looks nur auf der Person, Hintergrund durchsichtig. */
+  onlyFig: boolean;
 }
 
-export const defaultCam = (): CamSettings => ({ mirror: false, look: "normal", tol: 0.35, bgStamp: 0 });
+export const defaultCam = (): CamSettings => ({ mirror: false, look: "normal", tol: 0.35, bgStamp: 0, cells: 48, onlyFig: false });
 
 export const camClip = (id: string): string => `cam:${id}`;
 export const isCamClip = (clip: string | null | undefined): clip is string => !!clip && clip.startsWith("cam:");

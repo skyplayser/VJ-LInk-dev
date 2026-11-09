@@ -1,5 +1,5 @@
 // Projektdatei: Szenen, Ebenen, Farben, Grafik-Liste. Wird automatisch gespeichert und beim Start geladen.
-import { defaultCam, isValidCamId, type CamSettings, type CameraSource } from "./camera";
+import { CAM_LOOKS, defaultCam, isValidCamId, type CamSettings, type CameraSource } from "./camera";
 import type { ControlContext } from "./control";
 import { POST_BY_ID } from "./effects";
 import { isValidMediaId, type MediaItem } from "./media";
@@ -105,7 +105,8 @@ function video(v: unknown): VideoSettings | undefined {
 function cam(v: unknown): CamSettings | undefined {
   if (!isObj(v)) return undefined;
   const d = defaultCam();
-  return { mirror: v.mirror === true, look: oneOf(v.look, ["normal", "silhouette"] as const, d.look), tol: clamp01(num(v.tol, d.tol)), bgStamp: num(v.bgStamp, 0, 0, 1e15) };
+  return { mirror: v.mirror === true, look: oneOf(v.look, CAM_LOOKS, d.look), tol: clamp01(num(v.tol, d.tol)), bgStamp: num(v.bgStamp, 0, 0, 1e15),
+    cells: num(v.cells, d.cells, 12, 160), onlyFig: v.onlyFig === true };
 }
 
 function cue(v: unknown): Cue | null {

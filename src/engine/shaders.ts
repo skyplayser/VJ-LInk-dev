@@ -1060,11 +1060,38 @@ uniform int   uKeyMode;  // 0 aus, 1 Weiß entfernen, 2 Schwarz entfernen
 uniform float uKeyTol;
 // Kamera: spiegeln und Silhouette (Person als Umriss, Hintergrund durchsichtig)
 uniform int   uMirror;
-uniform int   uLook;     // 0 normal, 1 Silhouette
+// 0 normal, 1 Silhouette, 2 Umriss, 3 Dot-Matrix, 4 ASCII, 5 Raster, 6 Wärmebild, 7 Duoton, 8 Maske positiv, 9 Maske negativ
+uniform int   uLook;
 uniform float uSilTol;
 uniform sampler2D uRef;  // gemerkter Hintergrund (Einheit 1)
 uniform int   uHasRef;
-uniform vec3  uFig;      // Farbe der Silhouette
+uniform vec3  uFig;      // Farbe der Silhouette bzw. des Rasters
+uniform vec3  uFig2;     // zweite Farbe (Duoton hell)
+uniform float uCells;    // Zellen über die Bildhöhe
+uniform int   uOnlyFig;  // stilisierte Looks nur auf der Person
+uniform vec2  uTexel;    // 1 / Größe des Kamerabilds
+
+float camLum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+// Gehört dieser Bildpunkt zur Person? Mit gemerktem Hintergrund: Unterschied, sonst Gegenlicht (dunkel vor hell)
+float camFig(vec2 tc, vec3 col){
+  if (uHasRef == 1) {
+    float d = length(col - texture(uRef, tc).rgb) / 1.732;
+    return smoothstep(uSilTol * 0.5, uSilTol * 0.5 + 0.06, d);
+  }
+  return 1.0 - smoothstep(uSilTol, uSilTol + 0.08, camLum(col));
+}
+float boxI(vec2 f, vec2 c, vec2 h){ vec2 d = abs(f - c) - h; return step(max(d.x, d.y), 0.0); }
+float glyphI(float l, vec2 f){
+  if (l < 0.08) return 0.0;
+  if (l < 0.25) return boxI(f, vec2(0.5, 0.2), vec2(0.09));
+  if (l < 0.45) return max(boxI(f, vec2(0.5, 0.25), vec2(0.09)), boxI(f, vec2(0.5, 0.7), vec2(0.09)));
+  if (l < 0.65) return max(boxI(f, vec2(0.5), vec2(0.07, 0.32)), boxI(f, vec2(0.5), vec2(0.32, 0.07)));
+  if (l < 0.85) return max(max(boxI(f, vec2(0.35, 0.5), vec2(0.06, 0.38)), boxI(f, vec2(0.65, 0.5), vec2(0.06, 0.38))),
+                           max(boxI(f, vec2(0.5, 0.35), vec2(0.38, 0.06)), boxI(f, vec2(0.5, 0.65), vec2(0.38, 0.06))));
+  float r = length(f - 0.5);
+  return max(step(abs(r - 0.33), 0.07), step(r, 0.12));
+}
+vec2 camTc(vec2 q){ return vec2(clamp(q.x, 0.0, 1.0), 1.0 - clamp(q.y, 0.0, 1.0)); }
 void main(){
   float aspect = uRes.x / uRes.y;
   vec2 p = (vUv - 0.5) * vec2(aspect, 1.0) - uPos;
@@ -1085,20 +1112,72 @@ void main(){
     float t = max(uKeyTol, 0.01);
     c *= smoothstep(t * 0.4, t, d);                         // weiche Kante, kein harter Rand
   }
-  if (uLook == 1) {
+  if (uLook >= 1) {
     float inside = step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
-    float fig;
-    if (uHasRef == 1) {
-      // Unterschied zum gemerkten Hintergrund: was neu im Bild ist, gehört zur Person
-      float d = length(c.rgb - texture(uRef, tc).rgb) / 1.732;
-      fig = smoothstep(uSilTol * 0.5, uSilTol * 0.5 + 0.06, d);
+    float fig = camFig(tc, c.rgb) * inside;
+    if (uLook == 1) {                      // Silhouette
+      c = vec4(uFig * fig, fig);
+    } else if (uLook == 8) {               // Maske positiv: Loch außerhalb der Person (Mischen: Ziel × (1 − a))
+      c = vec4(0.0, 0.0, 0.0, 1.0 - fig);
+    } else if (uLook == 9) {               // Maske negativ: Loch in der Person
+      c = vec4(0.0, 0.0, 0.0, fig);
+    } else if (uLook == 2) {               // Umriss: Kanten der Personenmaske (bzw. des Bildes)
+      vec2 e = uTexel * 2.0;
+      float m = 0.0;
+      for (int k = 0; k < 8; k++) {
+        float an = float(k) * 0.7854;
+        vec2 o = vec2(cos(an), sin(an)) * e;
+        vec2 t2 = tc + o;
+        m += abs(camFig(t2, texture(uImg, t2).rgb) - camFig(tc, c.rgb));
+      }
+      float edge = smoothstep(0.4, 1.6, m) * inside;
+      vec3 col = uFig == vec3(0.0) ? vec3(1.0) : uFig;
+      c = vec4(col * edge, edge);
     } else {
-      // Gegenlicht: dunkle Bereiche vor hellem Hintergrund
-      float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-      fig = 1.0 - smoothstep(uSilTol, uSilTol + 0.08, lum);
+      // Raster-Looks: Zelle in Bildkoordinaten, Farbe aus der Zellmitte
+      float aspectI = uImgAspect;
+      vec2 g = vec2(max(4.0, floor(uCells * aspectI)), uCells);
+      vec2 qq = vec2(uMirror == 1 ? 1.0 - q.x : q.x, q.y);
+      vec2 id = floor(qq * g), f = fract(qq * g);
+      vec2 qc = (id + 0.5) / g;
+      vec2 tcc = camTc(vec2(uMirror == 1 ? 1.0 - qc.x : qc.x, qc.y));
+      vec3 cc = texture(uImg, tcc).rgb;
+      float l = camLum(cc);
+      float figc = camFig(tcc, cc);
+      vec4 o;
+      if (uLook == 3) {                    // Dot-Matrix
+        float r = length(f - 0.5);
+        float dotm = smoothstep(0.48 * sqrt(l) + 0.04, 0.48 * sqrt(l) - 0.02, r);
+        vec3 col = cc / max(max(cc.r, max(cc.g, cc.b)), 0.001);
+        o = vec4(col * dotm, dotm);
+      } else if (uLook == 4) {             // ASCII
+        float gl = glyphI(clamp(l * 1.2, 0.0, 1.0), vec2(f.x, 1.0 - f.y));
+        vec3 col = cc / max(max(cc.r, max(cc.g, cc.b)), 0.001);
+        o = vec4(col * gl, gl);
+      } else if (uLook == 5) {             // Raster (Halbton, 45° gedreht)
+        vec2 rq = mat2(0.7071, -0.7071, 0.7071, 0.7071) * (qq * g);
+        vec2 rf = fract(rq) - 0.5;
+        vec3 sc = texture(uImg, tc).rgb;
+        float dk = 1.0 - camLum(sc);
+        float dotm = smoothstep(0.55 * sqrt(dk) + 0.03, 0.55 * sqrt(dk) - 0.03, length(rf));
+        vec3 col = uFig == vec3(0.0) ? vec3(1.0) : uFig;
+        o = vec4(col * dotm, dotm);
+        figc = fig;
+      } else if (uLook == 6) {             // Wärmebild
+        float t = camLum(c.rgb);
+        vec3 th = t < 0.25 ? mix(vec3(0.0, 0.0, 0.2), vec3(0.4, 0.0, 0.7), t * 4.0)
+                : t < 0.5  ? mix(vec3(0.4, 0.0, 0.7), vec3(0.95, 0.1, 0.1), (t - 0.25) * 4.0)
+                : t < 0.75 ? mix(vec3(0.95, 0.1, 0.1), vec3(1.0, 0.8, 0.0), (t - 0.5) * 4.0)
+                           : mix(vec3(1.0, 0.8, 0.0), vec3(1.0), (t - 0.75) * 4.0);
+        o = vec4(th, 1.0) * inside;
+        figc = fig;
+      } else {                             // Duoton
+        float t = smoothstep(0.1, 0.9, camLum(c.rgb));
+        o = vec4(mix(uFig, uFig2, t), 1.0) * inside;
+        figc = fig;
+      }
+      c = (uOnlyFig == 1 ? o * figc : o) * inside;
     }
-    fig *= inside;
-    c = vec4(uFig * fig, fig);
   }
   outColor = c * uOpacity;
 }`;
