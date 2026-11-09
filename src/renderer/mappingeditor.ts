@@ -21,6 +21,8 @@ export class MappingEditor {
   private selCorner: number | null = null;
   private stage: HTMLElement | null = null;
   private open: OpenScreen[] = [];
+  /** Einrasten an Rand und anderen Ecken (abschaltbar für volle Präzision; ⌥ beim Ziehen schaltet kurz ab). */
+  private snap = (() => { try { return localStorage.getItem("vjlink.mapSnap") !== "0"; } catch { return true; } })();
 
   constructor(private get: () => OutputLayout, private set: (l: OutputLayout) => void, private onChange: () => void,
     private testGrid: { on: () => boolean; toggle: () => void },
@@ -40,7 +42,7 @@ export class MappingEditor {
     // Erster Besuch: eine Leinwand über das ganze Bild, damit sofort etwas zu sehen ist
     if (!this.mine().length) { const s = newSurface(this.screen, 1, 0); this.surfaces().push(s); this.sel = s.id; this.changed(); }
     if (!this.cur()) this.sel = this.mine()[0]?.id ?? null;
-    hint.textContent = "Leinwände auf das Bild des Beamers legen: Ecke ziehen passt die Leinwand an Wand, Kiste oder Trapez an, Mitte ziehen verschiebt. Pfeiltasten: 1 px (mit ⇧ 10 px). Ecken rasten am Rand und an anderen Leinwänden ein. Außerhalb bleibt der Beamer schwarz.";
+    hint.textContent = "Leinwände auf das Bild des Beamers legen: Ecke ziehen passt die Leinwand an Wand, Kiste oder Trapez an, Mitte ziehen verschiebt. Pfeiltasten: 1 px (mit ⇧ 10 px). Ecken rasten am Rand und an anderen Leinwänden ein („Einrasten aus“ oder ⌥ beim Ziehen für volle Präzision). Außerhalb bleibt der Beamer schwarz.";
     this.drawStage();
     this.drawTools(tools);
   }
@@ -108,7 +110,10 @@ export class MappingEditor {
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - sx) / f.w, dy = (ev.clientY - sy) / f.h;
       if (corner === null) s.corners = start.map(c => [c[0] + dx, c[1] + dy] as [number, number]);
-      else s.corners[corner] = snapCorner([start[corner]![0] + dx, start[corner]![1] + dy], [...others, ...start.filter((_, i) => i !== corner)], tol);
+      else {
+        const p: [number, number] = [start[corner]![0] + dx, start[corner]![1] + dy];
+        s.corners[corner] = this.snap && !ev.altKey ? snapCorner(p, [...others, ...start.filter((_, i) => i !== corner)], tol) : p;
+      }
       this.drawStage();
     };
     const up = () => {
@@ -156,7 +161,14 @@ export class MappingEditor {
     const grid = el("button", `btn small-btn${this.testGrid.on() ? " on" : ""}`, "Raster zum Ausrichten");
     grid.title = "Raster-Testbild auf die Leinwände legen (verzerrt), um Ecken genau an Kanten auszurichten";
     grid.addEventListener("click", () => { this.testGrid.toggle(); grid.classList.toggle("on", this.testGrid.on()); });
-    tools.append(add, grid);
+    const snap = el("button", `btn small-btn${this.snap ? " on" : ""}`, this.snap ? "Einrasten an" : "Einrasten aus");
+    snap.title = "Ecken rasten am Bildrand und an anderen Leinwänden ein. Aus für volle Präzision (⌥ beim Ziehen schaltet es kurz ab).";
+    snap.addEventListener("click", () => {
+      this.snap = !this.snap;
+      try { localStorage.setItem("vjlink.mapSnap", this.snap ? "1" : "0"); } catch { /* ohne Speicher */ }
+      snap.classList.toggle("on", this.snap); snap.textContent = this.snap ? "Einrasten an" : "Einrasten aus";
+    });
+    tools.append(add, grid, snap);
     const s = this.cur();
     if (!s) return;
     const name = el("input", "mp-nm"); name.value = s.name; name.maxLength = 40; name.setAttribute("aria-label", "Name der Leinwand");

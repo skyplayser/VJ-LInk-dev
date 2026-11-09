@@ -2,7 +2,7 @@
 import type { ControlContext } from "../core/control";
 import { showBack, showGo, showStop } from "../core/control";
 import {
-  cueSetNext, cueStatus, goLabel, isVideoClip, newCue, newCueId, videoIdOf,
+  cueSetNext, cueStatus, cueTime, goLabel, isVideoClip, newCue, newCueId, videoIdOf,
   type Cue, type CueEnd, type CueEnv, type CueLoop, type CueOver, type CueStart, type Fit,
 } from "../core/video";
 import type { MediaLibrary } from "./medialib";
@@ -40,6 +40,9 @@ export class ShowTab {
   private detSig = "";
   private rows: HTMLElement[] = [];
   private armedDelete = false;
+  /** Timeline: Abspielposition und gewählter Marker im Detail-Bereich. */
+  private playhead: HTMLElement | null = null;
+  private selMark = -1;
 
   constructor(private d: ShowDeps) {
     const $ = (id: string) => document.getElementById(id)!;
@@ -241,6 +244,7 @@ export class ShowTab {
           range("Loop bis", () => c.loopOut || c.trimOut || d, v => { c.loopOut = v; }, d);
         }
       }
+      if (d > 0) this.timeline(box, c, d);
     }
     if (c.kind === "tcsignal") {
       seg("Befehl", { start: "Start ab", stop: "Stopp", locate: "Springen auf" } as Record<"start" | "stop" | "locate", string>, () => c.tcAction, v => {
@@ -303,6 +307,55 @@ export class ShowTab {
     this.update(true);
   }
 
+  /**
+   * Timeline eines Videos: Szenen-Marker. Klick auf die Leiste setzt einen Marker, Marker anklicken wählt ihn.
+   * Läuft das Video über einen Marker, wird seine Szene abgerufen (vorgegeben: nur die anderen Bilder).
+   */
+  private timeline(box: HTMLElement, c: Cue, d: number): void {
+    const marks = (c.marks ??= []);
+    box.append(el("h4", "", "Timeline: Szenen im Video"));
+    const bar = el("div", "tl-bar");
+    bar.title = "Klicken: hier einen Szenen-Marker setzen";
+    const pct = (x: number) => `${(Math.max(0, Math.min(d, x)) / d) * 100}%`;
+    this.playhead = el("i", "tl-play");
+    bar.append(this.playhead);
+    marks.forEach((m, k) => {
+      const pin = el("button", `tl-mark${k === this.selMark ? " sel" : ""}`, String(m.scene));
+      pin.style.left = pct(m.t);
+      pin.title = `${fmt1(m.t)} · Szene ${m.scene} „${this.d.ctx.scenes[m.scene - 1]?.name ?? "?"}“`;
+      pin.addEventListener("click", e => { e.stopPropagation(); this.selMark = k; this.update(true); });
+      bar.append(pin);
+    });
+    bar.addEventListener("click", e => {
+      const r = bar.getBoundingClientRect();
+      const t = Math.round(((e.clientX - r.left) / r.width) * d * 10) / 10;
+      const last = marks.filter(m => m.t <= t).pop();
+      marks.push({ t, scene: Math.min(this.d.ctx.scenes.length || 1, (last?.scene ?? 0) + 1), others: true });
+      marks.sort((a, b) => a.t - b.t);
+      this.selMark = marks.findIndex(m => m.t === t);
+      this.update(true);
+    });
+    box.append(bar);
+    if (!marks.length) { box.append(el("p", "muted small", "Auf die Leiste klicken, um an dieser Stelle eine Szene abzurufen. So wechseln z. B. die anderen Leinwände passend zum Video.")); return; }
+    const m = marks[this.selMark];
+    if (!m) { box.append(el("p", "muted small", `${marks.length} Marker. Einen anklicken, um Zeit und Szene einzustellen.`)); return; }
+    const r1 = el("div", "cd-row"); r1.append(el("span", "", "Marker"));
+    const w = el("span", "inline wrap");
+    const tIn = el("input", "tc-in"); tIn.value = m.t.toFixed(1); tIn.setAttribute("aria-label", "Zeit im Video in Sekunden");
+    tIn.addEventListener("change", () => { const v = Number(tIn.value.replace(",", ".")); if (Number.isFinite(v)) { m.t = Math.max(0, Math.min(d, v)); marks.sort((a, b) => a.t - b.t); this.selMark = marks.indexOf(m); } this.update(true); });
+    const sc = el("select"); sc.setAttribute("aria-label", "Szene");
+    this.d.ctx.scenes.forEach((s, i) => sc.append(new Option(`${i + 1} · ${s.name}`, String(i + 1))));
+    sc.value = String(m.scene);
+    sc.addEventListener("change", () => { m.scene = Number(sc.value); this.update(true); });
+    const oth = el("button", `btn small-btn${m.others ? " on" : ""}`, m.others ? "nur andere Bilder" : "alle Bilder");
+    oth.title = "„nur andere Bilder“: das Bild, auf dem der SHOW-Ablauf läuft, bleibt unberührt";
+    oth.addEventListener("click", () => { m.others = !m.others; this.update(true); });
+    const del = el("button", "btn small-btn", "Löschen");
+    del.addEventListener("click", () => { marks.splice(marks.indexOf(m), 1); this.selMark = -1; this.update(true); });
+    w.append(tIn, el("small", "muted", "s"), sc, oth, del);
+    r1.append(w); box.append(r1);
+  }
+
   /** Zehnmal pro Sekunde: Liste nur bei Änderungen neu bauen, sonst Zustände nachführen. */
   update(force = false): void {
     const s = this.d.ctx.cues, now = Date.now();
@@ -312,6 +365,14 @@ export class ShowTab {
     if (force || dsig !== this.detSig) {
       const focusInDetails = document.activeElement && document.getElementById("cue-details")!.contains(document.activeElement) && (document.activeElement as HTMLElement).tagName !== "BUTTON";
       if (!focusInDetails || force) { this.detSig = dsig; this.buildDetails(); }
+    }
+    // Timeline: Abspielposition des gewählten Videos
+    const selC = s.list[this.selected];
+    if (this.playhead && selC?.kind === "video") {
+      const ac = s.run.active.find(a => a.cueId === selC.id);
+      const d = this.d.env.duration(selC.media);
+      if (ac && d > 0 && now >= ac.startMs) { this.playhead.hidden = false; this.playhead.style.left = `${(Math.min(d, cueTime(selC, ac, now, d).t) / d) * 100}%`; }
+      else this.playhead.hidden = true;
     }
     let liveName = "", liveTime = "";
     s.list.forEach((c, i) => {

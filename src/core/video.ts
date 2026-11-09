@@ -109,7 +109,12 @@ export interface Cue {
   /** Timecode-Befehl: eigene Uhr starten (ab Zeit), anhalten oder auf eine Zeit springen. */
   tcAction: TcAction;
   tcTarget: string;
+  /** Timeline (nur Video): an diesen Stellen im Video eine Szene abrufen. */
+  marks?: SceneMark[];
 }
+
+/** Szenen-Marker in einem Video: Zeit in der Datei (s), Szene (1…), nur die anderen Bilder oder alle. */
+export interface SceneMark { t: number; scene: number; others: boolean }
 
 export function newCue(kind: CueKind, name: string, media: string | null = null, id = newCueId()): Cue {
   return {
@@ -137,6 +142,8 @@ export interface ActiveCue {
   endHandled: boolean;
   /** Szene schon abgerufen. */
   fired: boolean;
+  /** Timeline: zuletzt gesehene Video-Zeit (für die Szenen-Marker). */
+  lastT?: number;
 }
 
 export interface CueRun { active: ActiveCue[]; next: number; current: number }
@@ -254,8 +261,8 @@ export function cueOpacity(c: Cue, ac: ActiveCue, nowMs: number): number {
 export interface CueEnv {
   /** Länge eines Videos (Sekunden) aus der Bibliothek. */
   duration(media: string | null): number;
-  /** VJ-Szene abrufen (Index 0…). */
-  recallScene(index: number): void;
+  /** VJ-Szene abrufen (Index 0…). `othersOnly`: das Bild, auf dem der SHOW-Ablauf läuft, bleibt unberührt. */
+  recallScene(index: number, othersOnly?: boolean): void;
   /** Timecode-Befehl für die eigene Uhr (Start ab Zeit, Stopp, Springen). */
   tcCommand?(action: TcAction, target: string): void;
   /** Aktueller Timecode, falls einer läuft. */
@@ -386,6 +393,7 @@ export function cueTick(s: CueState, nowMs: number, env: CueEnv): void {
       if (ac.fired) { ac.endHandled = true; ac.fadeOutMs ??= nowMs; ac.fadeOutDur = 0; }
     } else if (!ac.endHandled && nowMs >= ac.startMs) {
       const tm = cueTime(c, ac, nowMs, env.duration(c.media));
+      if (c.kind === "video" && c.marks?.length && !ac.frozen) fireMarks(c, ac, tm.t, tm.looping, env);
       if (tm.ended) {
         ac.endHandled = true;
         const isCurrent = s.list[s.run.current]?.id === c.id;
@@ -429,4 +437,22 @@ export function cueStatus(s: CueState, c: Cue, nowMs: number, env: CueEnv): { li
   const total = (tm.endMs - ac.startMs) / 1000;
   const rem = Math.max(0, (tm.endMs - nowMs) / 1000);
   return { live: true, remaining: rem, progress: total > 0 ? 1 - rem / total : 1 };
+}
+
+/**
+ * Timeline: Marker zwischen der zuletzt gesehenen und der jetzigen Video-Zeit auslösen.
+ * Im Loop zählt der Sprung an den Anfang mit; springt das Video sonst zurück (z. B. Timecode), gilt der Stand
+ * des letzten Markers vor der neuen Stelle.
+ */
+export function fireMarks(c: Cue, ac: ActiveCue, t: number, looping: boolean, env: CueEnv): SceneMark[] {
+  const marks = [...(c.marks ?? [])].sort((a, b) => a.t - b.t);
+  const prev = ac.lastT;
+  ac.lastT = t;
+  let due: SceneMark[];
+  if (prev === undefined) due = marks.filter(m => m.t <= t);
+  else if (t >= prev) due = marks.filter(m => m.t > prev && m.t <= t);
+  else if (looping) due = [...marks.filter(m => m.t > prev), ...marks.filter(m => m.t <= t)];
+  else { const last = marks.filter(m => m.t <= t).pop(); due = last ? [last] : []; }
+  for (const m of due) env.recallScene(m.scene - 1, m.others);
+  return due;
 }

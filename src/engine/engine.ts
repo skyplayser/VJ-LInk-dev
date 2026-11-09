@@ -346,7 +346,9 @@ export class Engine {
     const dest = view || mapping ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
     // Hauptbild (bei Leinwänden mit eigenen Ebenen rechnet jede ihren Stapel unten selbst)
     this.composeStack(show, mainLayers(show), show.transition?.from ?? null, key, dest, w, h, beat, sec, bpm, nowMs);
-    if (!show.blackout && show.cues.length) this.drawCues(show.cues, nowMs, w, h, dest);
+    // SHOW-Ablauf: im Projektionsmapping auf dem gewählten Bild, sonst auf dem Hauptbild
+    const cueImg = mapping ? (show.cueImage ?? "main") : "main";
+    if (!show.blackout && show.cues.length && cueImg === "main") this.drawCues(show.cues, nowMs, w, h, dest);
     // „Raster über alle“: auf der ganzen Leinwand rechnen, jeder Ausgang zeigt seinen Teil wie bei den Visuals
     const spanTest = show.testCard && show.testPattern === "span" && !!dest;
     if (spanTest) this.drawTestCard(show, beat, nowMs, w, h, dest);
@@ -368,10 +370,11 @@ export class Engine {
       const srcOf = new Map<string, Target>();
       for (const wp of warps!) {
         const own = wp.stack ? show.stacks?.[wp.stack] : undefined;
-        if (!wp.stack || !own) continue;
+        if (!wp.stack || !own || srcOf.has(wp.stack)) continue;
         const st = this.target(this.surfT.get(wp.stack) ?? null, w, h);
         this.surfT.set(wp.stack, st);
         this.composeStack(show, own, show.transition?.fromStacks?.[wp.stack] ?? null, `S${wp.stack}:`, st, w, h, beat, sec, bpm, nowMs);
+        if (!show.blackout && show.cues.length && cueImg === wp.stack) this.drawCues(show.cues, nowMs, w, h, st);
         if (show.testCard && !spanTest) this.drawTestCard(show, beat, nowMs, w, h, st);
         srcOf.set(wp.stack, st);
       }

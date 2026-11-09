@@ -189,6 +189,8 @@ export interface ShowState {
   stacks?: Record<string, LayerState[]>;
   /** Welcher Stapel gerade bearbeitet wird („main“ oder Bild-ID). */
   canvas?: string;
+  /** SHOW-Ablauf läuft auf diesem Bild (Projektionsmapping), sonst auf Bild 1. */
+  cueImage?: string;
   /** Projektionsmapping: Bilder (bis 5), jedes mit eigenem Ebenen-Stapel; „main“ ist Bild 1. Leinwände wählen ein Bild. */
   images?: { id: string; name: string }[];
   /** SHOW-Ablauf: was gerade über bzw. statt den Visuals läuft. */
@@ -324,10 +326,11 @@ export const defaultScenes = (): Scene[] => DEFAULT_SCENES.map(sc => ({
   layers: sc.layers.map(l => (l ? { ...l, ...(l.effects ? { effects: l.effects.map(e => ({ ...e })) } : {}) } : null)),
 }));
 
-export function applyScene(state: ShowState, scene: Scene): void {
+export function applyScene(state: ShowState, scene: Scene, skip: readonly string[] = []): void {
   syncStacks(state);
-  applyStack(mainLayers(state), scene.layers);
+  if (!skip.includes(MAIN_STACK)) applyStack(mainLayers(state), scene.layers);
   for (const [id, patches] of Object.entries(scene.stacks ?? {})) {
+    if (skip.includes(id)) continue;
     // Leinwand ohne eigene Ebenen: aus dem Hauptbild anlegen, dann die Szene darauf
     const st = (state.stacks![id] ??= cloneLayers(mainLayers(state)));
     applyStack(st, patches);

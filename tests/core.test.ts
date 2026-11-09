@@ -1202,3 +1202,41 @@ describe("Bilder im Projektionsmapping", () => {
     expect(imageList(c2.show).map(i => i.id)).toEqual(["main", "sOld"]);
   });
 });
+
+describe("Timeline: Szenen-Marker im Video", () => {
+  it("löst Marker beim Überqueren aus, im Loop auch nach dem Sprung, bei Rücksprung nur den letzten Stand", async () => {
+    const { fireMarks, newCue } = await import("../src/core/video");
+    const c = newCue("video", "Film", "vid:0011223344556677");
+    c.marks = [{ t: 5, scene: 2, others: true }, { t: 10, scene: 3, others: false }];
+    const calls: [number, boolean | undefined][] = [];
+    const env = { duration: () => 20, recallScene: (i: number, o?: boolean) => { calls.push([i, o]); } };
+    const ac = { uid: "x", cueId: c.id, startMs: 0, releasedMs: null, fadeOutMs: null, fadeOutDur: 0, endHandled: false, fired: false } as import("../src/core/video").ActiveCue;
+    fireMarks(c, ac, 1, false, env); expect(calls).toEqual([]);
+    fireMarks(c, ac, 6, false, env); expect(calls).toEqual([[1, true]]);
+    fireMarks(c, ac, 12, false, env); expect(calls.at(-1)).toEqual([2, false]);
+    // Loop: von 18 zurück auf 6 → Marker 5 kommt wieder
+    fireMarks(c, ac, 18, true, env); calls.length = 0;
+    fireMarks(c, ac, 6, true, env); expect(calls).toEqual([[1, true]]);
+    // Rücksprung ohne Loop (Timecode): nur der Stand des letzten Markers davor
+    fireMarks(c, ac, 15, false, env); calls.length = 0;
+    fireMarks(c, ac, 7, false, env); expect(calls).toEqual([[1, true]]);
+  });
+  it("Szene ohne das SHOW-Bild abrufen; Marker werden gespeichert", async () => {
+    const { selectCanvas, mainLayers, addImage } = await import("../src/core/show");
+    const { addSceneFromCurrent, recallScene } = await import("../src/core/control");
+    const c = ctx();
+    const b2 = addImage(c.show)!;
+    mainLayers(c.show)[0]!.clip = "tunnel"; c.show.stacks![b2]![0]!.clip = "plasma";
+    const i = addSceneFromCurrent(c, "S");
+    mainLayers(c.show)[0]!.clip = "fire"; c.show.stacks![b2]![0]!.clip = "fire";
+    recallScene(c, i, 0, ["main"]);
+    expect(mainLayers(c.show)[0]!.clip).toBe("fire");       // SHOW-Bild bleibt
+    expect(c.show.stacks![b2]![0]!.clip).toBe("plasma");     // andere Bilder wechseln
+    selectCanvas(c.show, "main");
+    const { newCue } = await import("../src/core/video");
+    const cue = newCue("video", "Film", "vid:0011223344556677"); cue.marks = [{ t: 3.5, scene: 1, others: true }];
+    c.cues.list = [cue];
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.cues[0]!.marks).toEqual([{ t: 3.5, scene: 1, others: true }]);
+  });
+});

@@ -560,3 +560,12 @@ body.mapping .cell-edit,body.modding .cell-edit{display:none}
 /* Mapping-Modus: Einzelvorschau unsichtbar (rechnet für die Kacheln) */
 .mon.mapping .mon-box{position:absolute;left:-10000px;top:0;width:640px;height:360px;flex:none}
 .mon.mapping{position:relative}
+/* SHOW: Bild wählen, Timeline */
+.cue-img{font-size:11px;color:var(--dim);font-weight:500;letter-spacing:0;text-transform:none;margin-left:8px}
+.cue-img[hidden]{display:none}
+.cue-img select{margin-left:4px}
+.tl-bar{position:relative;height:34px;background:var(--raise);border:1px solid var(--line);border-radius:5px;cursor:copy;margin:4px 0 6px}
+.tl-play{position:absolute;top:0;bottom:0;width:2px;background:var(--live);pointer-events:none}
+.tl-mark{position:absolute;top:4px;transform:translateX(-50%);min-width:20px;height:24px;border-radius:4px;border:1px solid #22c8f0;background:#123a40;color:#cff6ff;font:700 11px system-ui,sans-serif;cursor:pointer;padding:0 4px}
+.tl-mark::after{content:"";position:absolute;left:50%;top:-4px;bottom:-5px;width:1px;background:#22c8f0;opacity:.6}
+.tl-mark.sel{background:#22c8f0;color:#000}

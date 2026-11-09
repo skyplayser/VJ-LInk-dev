@@ -208,7 +208,8 @@ previewPool.setSink(settings.audioOut);
 let lastSweep = 0;
 const cueEnv: CueEnv = {
   duration: m => (m && isVideoClip(m) ? videoLib.duration(videoIdOf(m)) : 0),
-  recallScene: i => { recallScene(ctx, i); },
+  // Szenen-Marker der Timeline: „nur andere Bilder“ lässt das Bild des SHOW-Ablaufs unberührt
+  recallScene: (i, othersOnly) => { recallScene(ctx, i, Date.now(), othersOnly ? [showImage()] : []); },
   timecode: () => tcClock.now(Date.now()),
   tcCommand: (action, target) => {
     const now = Date.now(), t = parseTc(target, tcClock.sendFps);
@@ -1091,7 +1092,7 @@ async function setupStarterProject(): Promise<void> {
   L[5]!.opacity = 1;
 }
 // ---- Projektionsmapping: Bilder (bis 5) und welche Leinwand welches Bild zeigt -----------
-let canvasSig = "", tilesSig = "", tileTurn = 0;
+let canvasSig = "", tilesSig = "", tileTurn = 0, cueImgSig = "";
 const tileCanvases = new Map<string, HTMLCanvasElement>();
 let armedImageDelete = "";
 const mappingOn = () => outLayout.mode === "mapping";
@@ -1154,6 +1155,19 @@ function syncCanvases(): void {
     }
     fitPreview();
   }
+  // SHOW: auf welchem Bild der Ablauf läuft (nur im Mapping-Modus mit mehreren Bildern)
+  const cueSig = `${mappingOn()}|${ctx.show.cueImage}|${images.map(im => `${im.id}:${im.name}`).join(",")}|${surfaces.map(sf => `${sf.name}:${sf.image}`).join(",")}`;
+  if (cueSig !== cueImgSig) {
+    cueImgSig = cueSig;
+    const wrap = $("cue-img-wrap"), sel = $<HTMLSelectElement>("cue-image");
+    wrap.hidden = !mappingOn() || images.length < 2;
+    sel.replaceChildren();
+    for (const im of images) {
+      const on = surfaces.filter(sf => (sf.image ?? MAIN_STACK) === im.id).map(sf => sf.name);
+      sel.append(new Option(`${im.name}${on.length ? ` (${on.join(", ")})` : " (auf keiner Leinwand)"}`, im.id));
+    }
+    sel.value = showImage();
+  }
   // Rechts: Leinwände → Bild
   const sig = `${mappingOn()}|${images.map(im => `${im.id}:${im.name}`).join(",")}|${surfaces.map(sf => `${sf.id}:${sf.name}:${sf.image}:${sf.screen}`).join(",")}|${displays.map(d => d.label).join(",")}`;
   const gc = $("grid-canvas");
@@ -1181,6 +1195,8 @@ function syncCanvases(): void {
   box.append(el("p", "muted small", "Welches Bild auf welche Leinwand kommt. Ein Bild bearbeiten: links seine Vorschau anklicken. Szenen speichern alle Bilder."));
 }
 
+$<HTMLSelectElement>("cue-image").addEventListener("change", e => { ctx.show.cueImage = (e.target as HTMLSelectElement).value; cueImgSig = ""; });
+
 /** Bild zum Bearbeiten wählen (Clip-Raster, Ebenen, Effekte, Fader zeigen dann seine Ebenen). */
 function editImage(id: string): void {
   selectCanvas(ctx.show, id);
@@ -1189,12 +1205,19 @@ function editImage(id: string): void {
   syncCanvases();
 }
 
-/** Bild-Zustand für eine Vorschau: dessen Ebenen als Hauptbild. */
+/** Bild, auf dem der SHOW-Ablauf läuft (nur im Mapping-Modus wählbar). */
+function showImage(): string {
+  const id = ctx.show.cueImage ?? MAIN_STACK;
+  return mappingOn() && imageList(ctx.show).some(im => im.id === id) ? id : MAIN_STACK;
+}
+
+/** Bild-Zustand für eine Vorschau: dessen Ebenen als Hauptbild; Cues nur auf dem Bild des SHOW-Ablaufs. */
 function showForImage(sh: ShowState, id: string): ShowState {
-  if (id === MAIN_STACK) return sh.canvas === MAIN_STACK || !sh.canvas ? sh : { ...sh, layers: sh.stacks?.[MAIN_STACK] ?? sh.layers };
+  const cues = showImage() === id ? sh.cues : [];
+  if (id === MAIN_STACK) return { ...sh, cues, layers: sh.stacks?.[MAIN_STACK] ?? sh.layers };
   const layers = sh.stacks?.[id];
   if (!layers) return sh;
-  return { ...sh, layers, stacks: { ...sh.stacks, [MAIN_STACK]: layers },
+  return { ...sh, cues, layers, stacks: { ...sh.stacks, [MAIN_STACK]: layers },
     transition: sh.transition ? { ...sh.transition, from: sh.transition.fromStacks?.[id] ?? sh.transition.from } : null };
 }
 

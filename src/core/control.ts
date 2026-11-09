@@ -33,7 +33,7 @@ export function sceneTransition(c: ControlContext, sc: Scene): SceneTransition {
  * Szene abrufen. Übergang in Beats beginnt auf dem nächsten Schlag, in Sekunden sofort.
  * Wert 0 = harter Schnitt.
  */
-export function recallScene(c: ControlContext, indexOrName: number | string, nowMs = Date.now()): boolean {
+export function recallScene(c: ControlContext, indexOrName: number | string, nowMs = Date.now(), skip: readonly string[] = []): boolean {
   const i = typeof indexOrName === "number" ? indexOrName : c.scenes.findIndex(s => s.name === indexOrName);
   const sc = c.scenes[i];
   if (!sc) return false;
@@ -49,7 +49,7 @@ export function recallScene(c: ControlContext, indexOrName: number | string, now
   } else {
     c.show.transition = null;
   }
-  applyScene(c.show, sc);
+  applyScene(c.show, sc, skip);
   c.show.scene = i + 1;
   c.show.sceneStart = { beat, ms: nowMs };
   return true;
