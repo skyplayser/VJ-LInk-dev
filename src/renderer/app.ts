@@ -38,7 +38,7 @@ import type { ProjectFileCmd } from "../core/frame";
 import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
 import { LayerPanel } from "./layerpanel";
-import { MAIN_STACK, addLayer as addShowLayer, cloneLayers, dropCanvas, layerName, mainLayers, selectCanvas, syncStacks } from "../core/show";
+import { MAIN_STACK, MAX_IMAGES, addImage, addLayer as addShowLayer, dropCanvas, imageList, layerName, removeImage, selectCanvas, syncStacks, type ShowState } from "../core/show";
 import { ShowLock } from "./lock";
 import vjlinkLogo from "../../assets/logo-for-dark.png";
 import { drawText } from "./texteditor";
@@ -712,7 +712,7 @@ const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => 
   // Projektionsmapping: Raster-Testbild auf die Leinwände
   on: () => ctx.show.testCard && ctx.show.testPattern === "grid",
   toggle: () => { const on = !(ctx.show.testCard && ctx.show.testPattern === "grid"); ctx.show.testPattern = "grid"; ctx.show.testCard = on; syncTestUi(); },
-});
+}, () => imageList(ctx.show));
 async function refreshDisplays(): Promise<void> {
   const list = $("displays");
   if (!bridge) {
@@ -895,11 +895,18 @@ function frame(): void {
   const lt = layerClock.tick(now, ctx.show.layers);
   // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert
   const shown = modulatedShow(ctx, ctx.mods ?? [], beat, liveBands(ctx.show.audio, beat, now / 1000));
-  // Vorschau zeigt, was gerade bearbeitet wird (Hauptbild oder eine Leinwand)
+  // Projektionsmapping: Live-Vorschauen der Bilder (je Bild abwechselnd eins pro Durchlauf), dann das bearbeitete groß
   const cv = shown.canvas ?? MAIN_STACK;
-  const previewShow = cv === MAIN_STACK ? shown : { ...shown, stacks: { ...shown.stacks, [MAIN_STACK]: shown.layers },
-    transition: shown.transition ? { ...shown.transition, from: shown.transition.fromStacks?.[cv] ?? shown.transition.from } : null };
-  engine?.render(previewShow, beat, now, ctx.tempo.bpm, null, lt);
+  if (engine && mappingOn() && tileCanvases.size > 1) {
+    const ids = [...tileCanvases.keys()].filter(id => id !== cv);
+    const id = ids[tileTurn++ % Math.max(1, ids.length)];
+    if (id) {
+      engine.render(showForImage(shown, id), beat, now, ctx.tempo.bpm, null, lt, null, `I${id}:`);
+      tileCanvases.get(id)?.getContext("2d")?.drawImage(preview, 0, 0, 384, 216);
+    }
+  }
+  engine?.render(showForImage(shown, cv), beat, now, ctx.tempo.bpm, null, lt);
+  if (mappingOn()) tileCanvases.get(cv)?.getContext("2d")?.drawImage(preview, 0, 0, 384, 216);
   thumbs.draw(now);
 
   if (now - lastPublish > 33 && bridge) {
@@ -1083,52 +1090,112 @@ async function setupStarterProject(): Promise<void> {
   Object.assign(L[5]!.media, { scale: 0.08, x: 0.77, y: -0.84, rotation: 0, anim: "none", keyMode: "none" });
   L[5]!.opacity = 1;
 }
-// ---- Projektionsmapping: Leinwände mit eigenen Ebenen bearbeiten ---------------------
-let canvasSig = "";
-/** Auswahl „Hauptbild | Leinwand …“ neben der Vorschau; Ebenen der Leinwände anlegen bzw. aufräumen. */
+// ---- Projektionsmapping: Bilder (bis 5) und welche Leinwand welches Bild zeigt -----------
+let canvasSig = "", tilesSig = "", tileTurn = 0;
+const tileCanvases = new Map<string, HTMLCanvasElement>();
+let armedImageDelete = "";
+const mappingOn = () => outLayout.mode === "mapping";
+
+/** Live-Vorschauen der Bilder unter „Ausgang“ (Klick = bearbeiten) und rechts die Leinwände mit Bild-Auswahl. */
 function syncCanvases(): void {
   const s = ctx.show, st = syncStacks(s);
+  const images = imageList(s);
+  // Stapel ohne Bild aufräumen (z. B. nach dem Laden alter Projekte)
+  for (const id of Object.keys(st)) if (id !== MAIN_STACK && !images.some(im => im.id === id)) { dropCanvas(s, id); rebuildGrid(); rebuildDeck(); }
+  if (!mappingOn() && s.canvas !== MAIN_STACK) { selectCanvas(s, MAIN_STACK); rebuildGrid(); rebuildDeck(); fxPanel.select(0); }
   const surfaces = outLayout.surfaces ?? [];
-  // Leinwand mit „eigenen Ebenen“ ohne Stapel: aus dem Hauptbild anlegen; gelöschte Leinwände aufräumen
-  for (const sf of surfaces) if (sf.content === "own" && !st[sf.id]) st[sf.id] = cloneLayers(mainLayers(s));
-  for (const id of Object.keys(st)) if (id !== MAIN_STACK && !surfaces.some(sf => sf.id === id)) { dropCanvas(s, id); rebuildGrid(); rebuildDeck(); }
-  const mapping = outLayout.mode === "mapping" && surfaces.length > 0;
-  if (!mapping && s.canvas !== MAIN_STACK) { selectCanvas(s, MAIN_STACK); rebuildGrid(); rebuildDeck(); fxPanel.select(0); }
-  const sig = `${mapping}|${s.canvas}|${surfaces.map(sf => `${sf.id}:${sf.name}:${sf.content}:${sf.screen}`).join(",")}|${displays.map(d => d.label).join(",")}`;
+  // Bild-Vorschauen
+  const tsig = `${mappingOn()}|${s.canvas}|${images.map(im => `${im.id}:${im.name}`).join(",")}|${armedImageDelete}`;
+  if (tsig !== tilesSig) {
+    tilesSig = tsig;
+    const box = $("img-tiles");
+    box.hidden = !mappingOn();
+    // Im Mapping-Modus sind die Bilder die Ausgangs-Anzeige; die Einzelvorschau rechnet unsichtbar für die Kacheln
+    monHome.classList.toggle("mapping", mappingOn());
+    box.replaceChildren(); tileCanvases.clear();
+    if (mappingOn()) {
+      for (const im of images) {
+        const t = el("div", `img-tile${s.canvas === im.id ? " on" : ""}`);
+        const c = el("canvas"); c.width = 384; c.height = 216; tileCanvases.set(im.id, c);
+        const nm = el("span", "img-name", im.name);
+        nm.title = "Doppelklick: umbenennen";
+        nm.addEventListener("dblclick", ev => {
+          ev.stopPropagation();
+          const inp = el("input", "img-rename"); inp.value = im.name; inp.maxLength = 30;
+          const done = () => { const v = inp.value.trim(); if (v) { im.name = v; ctx.show.images = imageList(ctx.show).map(x => x.id === im.id ? { ...x, name: v } : x); } tilesSig = ""; canvasSig = ""; syncCanvases(); };
+          inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { inp.value = im.name; inp.blur(); } });
+          inp.addEventListener("blur", done);
+          inp.addEventListener("click", e => e.stopPropagation());
+          nm.replaceWith(inp); inp.focus(); inp.select();
+        });
+        t.append(c, nm);
+        t.title = `${im.name} bearbeiten (Clips, Ebenen, Effekte)`;
+        t.addEventListener("click", ev => { if ((ev.target as HTMLElement).closest(".img-x")) return; editImage(im.id); });
+        if (im.id !== MAIN_STACK) {
+          const x = el("button", `img-x${armedImageDelete === im.id ? " armed" : ""}`, armedImageDelete === im.id ? "löschen?" : "×");
+          x.title = "Bild löschen";
+          x.addEventListener("click", ev => {
+            ev.stopPropagation();
+            if (armedImageDelete !== im.id) { armedImageDelete = im.id; syncCanvases(); setTimeout(() => { if (armedImageDelete === im.id) { armedImageDelete = ""; syncCanvases(); } }, 2500); return; }
+            armedImageDelete = "";
+            for (const sf of surfaces) if (sf.image === im.id) sf.image = MAIN_STACK;
+            removeImage(s, im.id); rebuildGrid(); rebuildDeck(); fxPanel.select(0); syncCanvases();
+          });
+          t.append(x);
+        }
+        box.append(t);
+      }
+      if (images.length < MAX_IMAGES) {
+        const add = el("button", "img-add", "+ Bild");
+        add.title = `Weiteres Bild mit eigenen Ebenen (bis ${MAX_IMAGES})`;
+        add.addEventListener("click", () => { const id = addImage(s); if (id) { editImage(id); toast("Neues Bild (Kopie von Bild 1). Rechts einer Leinwand zuweisen."); } });
+        box.append(add);
+      }
+    }
+    fitPreview();
+  }
+  // Rechts: Leinwände → Bild
+  const sig = `${mappingOn()}|${images.map(im => `${im.id}:${im.name}`).join(",")}|${surfaces.map(sf => `${sf.id}:${sf.name}:${sf.image}:${sf.screen}`).join(",")}|${displays.map(d => d.label).join(",")}`;
+  const gc = $("grid-canvas");
+  const curName = s.canvas === MAIN_STACK && !mappingOn() ? "" : images.find(im => im.id === s.canvas)?.name ?? "";
+  gc.hidden = !curName; gc.textContent = curName ? `· ${curName}` : "";
   if (sig === canvasSig) return;
   canvasSig = sig;
-  const gc = $("grid-canvas");
-  const curName = s.canvas === MAIN_STACK ? "" : surfaces.find(sf => sf.id === s.canvas)?.name ?? "";
-  gc.hidden = !curName; gc.textContent = curName ? `· ${curName}` : "";
   const box = $("canvas-pick");
-  box.hidden = !mapping;
+  box.hidden = !mappingOn();
   box.replaceChildren();
-  if (!mapping) return;
-  box.append(el("div", "cp-head", "Bearbeiten"));
-  const pick = (id: string, label: string, sub: string) => {
-    const b = el("button", `cp-btn${s.canvas === id ? " on" : ""}`);
-    b.append(el("b", "", label), el("small", "", sub));
-    b.addEventListener("click", () => editCanvas(id));
-    box.append(b);
-  };
-  pick(MAIN_STACK, "Hauptbild", "für Leinwände mit „Hauptbild“");
+  if (!mappingOn()) return;
+  box.append(el("div", "cp-head", "Leinwände"));
+  if (!surfaces.length) box.append(el("p", "muted small", "Noch keine Leinwand. Im Tab AUSGABE → Projektionsmapping anlegen."));
   for (const sf of surfaces) {
+    const row = el("div", "cp-row");
     const scr = displays.find(d => d.id === sf.screen)?.label ?? "Ausgang";
-    pick(sf.id, sf.name, `${scr} · ${sf.content === "own" ? "eigene Ebenen" : "zeigt Hauptbild"}`);
+    const t = el("div", "cp-name"); t.append(el("b", "", sf.name), el("small", "", scr));
+    const sel = el("select"); sel.setAttribute("aria-label", `Bild für ${sf.name}`);
+    for (const im of images) sel.append(new Option(im.name, im.id));
+    sel.value = images.some(im => im.id === sf.image) ? sf.image! : MAIN_STACK;
+    sel.addEventListener("change", () => { sf.image = sel.value; canvasSig = ""; syncCanvases(); if ($("tab-output").classList.contains("on")) outputTab.render(); });
+    row.append(t, sel);
+    box.append(row);
   }
-  box.append(el("p", "muted small", "Leinwand wählen, dann wie gewohnt Clips, Ebenen und Effekte einstellen. Szenen speichern alle Leinwände."));
+  box.append(el("p", "muted small", "Welches Bild auf welche Leinwand kommt. Ein Bild bearbeiten: links seine Vorschau anklicken. Szenen speichern alle Bilder."));
 }
-/** Hauptbild oder eine Leinwand zum Bearbeiten wählen; Leinwände bekommen dabei eigene Ebenen. */
-function editCanvas(id: string): void {
-  if (id !== MAIN_STACK) {
-    const sf = outLayout.surfaces?.find(x => x.id === id);
-    if (sf && sf.content !== "own") { sf.content = "own"; toast(`„${sf.name}“ hat jetzt eigene Ebenen (Kopie des Hauptbilds).`); }
-  }
+
+/** Bild zum Bearbeiten wählen (Clip-Raster, Ebenen, Effekte, Fader zeigen dann seine Ebenen). */
+function editImage(id: string): void {
   selectCanvas(ctx.show, id);
-  canvasSig = "";
+  canvasSig = ""; tilesSig = "";
   rebuildGrid(); rebuildDeck(); fxPanel.select(0); libraryPanel.close();
   syncCanvases();
-  if ($("tab-output").classList.contains("on")) outputTab.render();
+}
+
+/** Bild-Zustand für eine Vorschau: dessen Ebenen als Hauptbild. */
+function showForImage(sh: ShowState, id: string): ShowState {
+  if (id === MAIN_STACK) return sh.canvas === MAIN_STACK || !sh.canvas ? sh : { ...sh, layers: sh.stacks?.[MAIN_STACK] ?? sh.layers };
+  const layers = sh.stacks?.[id];
+  if (!layers) return sh;
+  return { ...sh, layers, stacks: { ...sh.stacks, [MAIN_STACK]: layers },
+    transition: sh.transition ? { ...sh.transition, from: sh.transition.fromStacks?.[id] ?? sh.transition.from } : null };
 }
 
 let fresh = false;

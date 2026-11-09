@@ -324,7 +324,8 @@ export class Engine {
    * `view`: Dieses Fenster zeigt nur einen Ausschnitt einer größeren Leinwand (Bildschirme nebeneinander).
    * Dann wird die ganze Leinwand gerechnet und der eigene Teil ausgegeben, damit alles nahtlos passt.
    */
-  render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null, layerTimes: readonly number[] | null = null, warps: readonly Warp[] | null = null): void {
+  render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null, layerTimes: readonly number[] | null = null, warps: readonly Warp[] | null = null,
+    /** Eigener Schlüssel für Zwischenbilder, Feedback und Video-Abspieler (z. B. je Bild-Vorschau). */ key = ""): void {
     const t0 = performance.now();
     const gl = this.gl;
     const sec = nowMs / 1000;
@@ -344,7 +345,7 @@ export class Engine {
     const mapping = !view && !!warps;
     const dest = view || mapping ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
     // Hauptbild (bei Leinwänden mit eigenen Ebenen rechnet jede ihren Stapel unten selbst)
-    this.composeStack(show, mainLayers(show), show.transition?.from ?? null, "", dest, w, h, beat, sec, bpm, nowMs);
+    this.composeStack(show, mainLayers(show), show.transition?.from ?? null, key, dest, w, h, beat, sec, bpm, nowMs);
     if (!show.blackout && show.cues.length) this.drawCues(show.cues, nowMs, w, h, dest);
     // „Raster über alle“: auf der ganzen Leinwand rechnen, jeder Ausgang zeigt seinen Teil wie bei den Visuals
     const spanTest = show.testCard && show.testPattern === "span" && !!dest;
@@ -384,8 +385,7 @@ export class Engine {
         this.bindTex(0, own ?? dest);
         this.bindTarget(null, 0, 0, outW, outH);
         gl.uniformMatrix3fv(this.loc(this.warp, "uHinv"), false, wp.hinv);
-        if (own) gl.uniform4f(this.loc(this.warp, "uSrc"), 0, 0, 1, 1);
-        else gl.uniform4f(this.loc(this.warp, "uSrc"), wp.src[0], wp.src[1], wp.src[2], wp.src[3]);
+        gl.uniform4f(this.loc(this.warp, "uSrc"), wp.src[0], wp.src[1], wp.src[2], wp.src[3]);
         this.draw();
       }
       gl.disable(gl.BLEND);
@@ -394,6 +394,7 @@ export class Engine {
     this.dropStaleFeedback();
 
     const ms = performance.now() - t0;
+    if (key) return; // Vorschauen der Bilder zählen nicht als eigenes Bild
     this.fpsAcc += dt; this.fpsFrames++;
     if (this.fpsAcc >= 0.5) { this.info = { fps: this.fpsFrames / this.fpsAcc, frameMs: ms }; this.fpsAcc = 0; this.fpsFrames = 0; }
   }

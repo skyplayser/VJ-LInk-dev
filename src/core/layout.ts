@@ -19,7 +19,9 @@ export interface Surface {
   corners: [number, number][];
   src: { x: number; y: number; w: number; h: number };
   on: boolean;
-  /** Inhalt: Hauptbild (ganz oder Ausschnitt) oder eigene Ebenen (im Tab VISUALS bearbeiten). */
+  /** Welches Bild die Leinwand zeigt („main“ = Bild 1, sonst Bild-ID); dazu `src` als Ausschnitt. */
+  image?: string;
+  /** Alt (vor den Bildern): „own“ hieß eigene Ebenen unter der Leinwand-ID. */
   content?: "main" | "own";
 }
 
@@ -31,7 +33,7 @@ export const defaultLayout = (): OutputLayout => ({ mode: "mirror", screens: [],
 export function newSurface(screen: number, n: number, inset = 0.1): Surface {
   const a = inset, b = 1 - inset;
   return { id: `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, screen, name: `Leinwand ${n}`,
-    corners: [[a, a], [b, a], [b, b], [a, b]], src: { x: 0, y: 0, w: 1, h: 1 }, on: true, content: "main" };
+    corners: [[a, a], [b, a], [b, b], [a, b]], src: { x: 0, y: 0, w: 1, h: 1 }, on: true, image: "main" };
 }
 
 // ---- Perspektive: Einheitsquadrat → Viereck (Heckbert) ----------------------------------------
@@ -79,7 +81,7 @@ export function warpFor(layout: OutputLayout | undefined, screen: number): Warp[
     if (!inv) continue;
     // spaltenweise für uniformMatrix3fv
     out.push({ hinv: [inv[0]!, inv[3]!, inv[6]!, inv[1]!, inv[4]!, inv[7]!, inv[2]!, inv[5]!, inv[8]!], src: [s.src.x, s.src.y, s.src.w, s.src.h],
-      ...(s.content === "own" ? { stack: s.id } : {}) });
+      ...(s.image && s.image !== "main" ? { stack: s.image } : {}) });
   }
   return out;
 }

@@ -17,8 +17,10 @@ export const PROJECT_VERSION = 1;
 export interface ProjectFile {
   version: number;
   layers: LayerState[];
-  /** Eigene Ebenen der Leinwände (Projektionsmapping), je Leinwand-ID. */
+  /** Eigene Ebenen der Bilder (Projektionsmapping), je Bild-ID. */
   stacks?: Record<string, LayerState[]>;
+  /** Bilder (Projektionsmapping): Reihenfolge und Namen. */
+  images?: { id: string; name: string }[];
   scenes: Scene[];
   slots: Rgb[];
   transitionBeats: number;
@@ -40,7 +42,7 @@ export function serializeProject(c: ControlContext, media: readonly MediaItem[],
   const s = c.show;
   const p: ProjectFile = {
     version: PROJECT_VERSION,
-    layers: mainLayers(s), stacks: sideStacks(s), scenes: c.scenes, slots: s.slots, transitionBeats: s.transitionBeats, fxMaster: s.fxMaster,
+    layers: mainLayers(s), stacks: sideStacks(s), images: s.images, scenes: c.scenes, slots: s.slots, transitionBeats: s.transitionBeats, fxMaster: s.fxMaster,
     strobe: { speed: s.strobe.speed, intensity: s.strobe.intensity, sync: s.strobe.sync },
     media: [...media],
     videos: [...videos],
@@ -131,7 +133,8 @@ function layout(v: unknown): OutputLayout {
       corners: cs.map((c: unknown) => Array.isArray(c) ? [cl(c[0], 0), cl(c[1], 0)] as [number, number] : [0, 0] as [number, number]),
       src: { x: num(src.x, 0, 0, 1), y: num(src.y, 0, 0, 1), w: num(src.w, 1, 0.01, 1), h: num(src.h, 1, 0.01, 1) },
       on: s.on !== false,
-      content: s.content === "own" ? "own" as const : "main" as const,
+      // Ältere Projekte: „eigene Ebenen“ lagen unter der Leinwand-ID; die wird jetzt ein Bild
+      image: s.content === "own" ? str(s.id, "main", 40) : typeof s.image === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(s.image) ? s.image : "main",
     };
   });
   return { mode: oneOf(v.mode, ["mirror", "canvas", "mapping"] as const, "mirror"), screens, surfaces };
@@ -237,6 +240,8 @@ export function parseProject(json: string): ProjectFile | null {
     })),
     cues: (Array.isArray(raw.cues) ? raw.cues : []).map(cue).filter((x): x is Cue => !!x).slice(0, 500),
     outputs: layout(raw.outputs),
+    ...(Array.isArray(raw.images) ? { images: raw.images.filter(isObj).filter(i => typeof i.id === "string" && (i.id === "main" || okStackId(i.id))).slice(0, 5)
+      .map(i => ({ id: i.id as string, name: str(i.name, "Bild", 30) || "Bild" })) } : {}),
     ...(isObj(raw.stacks) ? { stacks: Object.fromEntries(Object.entries(raw.stacks).filter(([id, v]) => okStackId(id) && Array.isArray(v) && v.length).slice(0, 64)
       .map(([id, v]) => [id, (v as unknown[]).slice(0, MAX_LAYERS).map(fullLayer)])) } : {}),
     mods: parseMods(raw.mods),
@@ -249,6 +254,10 @@ export function applyProject(c: ControlContext, p: ProjectFile): void {
   s.layers = p.layers;
   s.canvas = "main";
   s.stacks = { main: p.layers, ...(p.stacks ?? {}) };
+  // Bilder: gespeicherte Liste; ältere Projekte: jeder Leinwand-Stapel wird ein Bild
+  const names = new Map((p.images ?? []).map(i => [i.id, i.name]));
+  s.images = [{ id: "main", name: names.get("main") ?? "Bild 1" },
+    ...Object.keys(p.stacks ?? {}).slice(0, 4).map((id, k) => ({ id, name: names.get(id) ?? p.outputs.surfaces?.find(sf => sf.id === id)?.name ?? `Bild ${k + 2}` }))];
   c.scenes.splice(0, c.scenes.length, ...p.scenes);
   s.slots = p.slots;
   s.transitionBeats = p.transitionBeats;

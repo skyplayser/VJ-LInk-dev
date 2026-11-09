@@ -1170,3 +1170,35 @@ describe("Leinwände mit eigenen Ebenen", () => {
     expect(c2.show.stacks!.sB![1]!.clip).toBe("laser-beams");
   });
 });
+
+describe("Bilder im Projektionsmapping", () => {
+  it("bis zu 5 Bilder, Bild 1 bleibt, Löschen räumt den Stapel auf", async () => {
+    const { addImage, removeImage, imageList } = await import("../src/core/show");
+    const c = ctx();
+    const ids = [addImage(c.show), addImage(c.show), addImage(c.show), addImage(c.show)];
+    expect(ids.every(Boolean)).toBe(true);
+    expect(addImage(c.show)).toBeNull();
+    expect(imageList(c.show).map(i => i.name)).toEqual(["Bild 1", "Bild 2", "Bild 3", "Bild 4", "Bild 5"]);
+    removeImage(c.show, ids[1]!);
+    expect(imageList(c.show).length).toBe(4);
+    expect(c.show.stacks![ids[1]!]).toBeUndefined();
+    removeImage(c.show, "main");
+    expect(imageList(c.show)[0]!.id).toBe("main");
+  });
+  it("Leinwand zeigt ihr Bild; alte „eigene Ebenen“ werden ein Bild", async () => {
+    const { warpFor, newSurface } = await import("../src/core/layout");
+    const s = { ...newSurface(5, 1), image: "b2" };
+    expect(warpFor({ mode: "mapping", screens: [], surfaces: [s] }, 5)![0]!.stack).toBe("b2");
+    expect(warpFor({ mode: "mapping", screens: [], surfaces: [{ ...s, image: "main" }] }, 5)![0]!.stack).toBeUndefined();
+    // altes Projekt: Leinwand mit content „own“ und Stapel unter ihrer ID
+    const c = ctx();
+    const raw = JSON.parse(serializeProject(c, [], [], [], { mode: "mapping", screens: [], surfaces: [{ ...newSurface(5, 1), id: "sOld", content: "own" } as never] }));
+    raw.stacks = { sOld: raw.layers };
+    delete raw.images;
+    const p = parseProject(JSON.stringify(raw))!;
+    expect(p.outputs.surfaces![0]!.image).toBe("sOld");
+    const c2 = ctx(); applyProject(c2, p);
+    const { imageList } = await import("../src/core/show");
+    expect(imageList(c2.show).map(i => i.id)).toEqual(["main", "sOld"]);
+  });
+});

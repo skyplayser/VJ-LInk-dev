@@ -187,8 +187,10 @@ export interface ShowState {
    * `layers` ist immer derselbe Stapel wie `stacks[canvas]`.
    */
   stacks?: Record<string, LayerState[]>;
-  /** Welcher Stapel gerade bearbeitet wird („main“ oder Leinwand-ID). */
+  /** Welcher Stapel gerade bearbeitet wird („main“ oder Bild-ID). */
   canvas?: string;
+  /** Projektionsmapping: Bilder (bis 5), jedes mit eigenem Ebenen-Stapel; „main“ ist Bild 1. Leinwände wählen ein Bild. */
+  images?: { id: string; name: string }[];
   /** SHOW-Ablauf: was gerade über bzw. statt den Visuals läuft. */
   cues: CueRender[];
   /** Testbild auf Vorschau und allen Ausgängen. */
@@ -462,4 +464,34 @@ export function cloneSideStacks(s: ShowState): Record<string, LayerState[]> {
   const out: Record<string, LayerState[]> = {};
   for (const [id, st] of Object.entries(s.stacks ?? {})) if (id !== MAIN_STACK) out[id] = cloneLayers(st);
   return out;
+}
+
+// ---- Bilder (Projektionsmapping): bis zu 5 eigene Ebenen-Stapel ---------------------------
+
+export const MAX_IMAGES = 5;
+
+/** Liste der Bilder, Bild 1 (Hauptbild) immer vorn. */
+export function imageList(s: ShowState): { id: string; name: string }[] {
+  const list = (s.images ?? []).filter(i => i.id !== MAIN_STACK);
+  const main = s.images?.find(i => i.id === MAIN_STACK) ?? { id: MAIN_STACK, name: "Bild 1" };
+  return [main, ...list];
+}
+
+/** Neues Bild (Kopie des Hauptbilds); null, wenn schon 5 da sind. */
+export function addImage(s: ShowState): string | null {
+  const list = imageList(s);
+  if (list.length >= MAX_IMAGES) return null;
+  const st = syncStacks(s);
+  let n = 2; while (list.some(i => i.id === `b${n}`)) n++;
+  const id = `b${n}`;
+  st[id] = cloneLayers(mainLayers(s));
+  s.images = [...list, { id, name: `Bild ${list.length + 1}` }];
+  return id;
+}
+
+/** Bild entfernen (Bild 1 bleibt immer). */
+export function removeImage(s: ShowState, id: string): void {
+  if (id === MAIN_STACK) return;
+  dropCanvas(s, id);
+  s.images = imageList(s).filter(i => i.id !== id);
 }
