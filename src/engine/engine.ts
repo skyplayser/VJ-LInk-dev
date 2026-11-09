@@ -3,7 +3,7 @@
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
 import { WAVE_POINTS, bandsFrom, beatPulse, layerDrive, strobeGain, strobeGate, strobeWhite } from "../core/audio";
-import { TEST_IDS, defaultLaser, layerPalette,
+import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
@@ -55,8 +55,6 @@ export class Engine {
   videoDuration: (id: string) => number = () => 0;
   private vao: WebGLVertexArrayObject;
   private work: [Target | null, Target | null] = [null, null];
-  private compTo: Target | null = null;
-  private compFrom: Target | null = null;
   private canvasT: Target | null = null;
   /** Feedback braucht das letzte Bild: pro Ebene (bzw. Vorschauzelle) zwei Texturen im Wechsel. */
   private feedback = new Map<string, { t: [Target, Target]; cur: 0 | 1; used: number }>();
@@ -345,33 +343,8 @@ export class Engine {
     // Projektionsmapping: erst das ganze Bild in Ausgangsgröße, dann jede Leinwand verzerrt daraus zeichnen
     const mapping = !view && !!warps;
     const dest = view || mapping ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
-    if (show.blackout) {
-      this.bindTarget(null); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-    } else {
-      const pulse = beatPulse(beat);
-      const bands = new Float32Array(bandsFrom(show.audio, beat, sec));
-      const mix = transitionProgress(show.transition, beat, nowMs);
-      this.compTo = this.target(this.compTo, w, h);
-      this.composite(show.layers, this.compTo, "to", show, beat, pulse, bands);
-      let from = this.compTo;
-      if (show.transition && mix < 1) {
-        this.compFrom = this.target(this.compFrom, w, h);
-        this.composite(show.transition.from, this.compFrom, "from", show, beat, pulse, bands);
-        from = this.compFrom;
-      }
-      gl.useProgram(this.fin.p);
-      gl.uniform1i(this.loc(this.fin, "uFrom"), 0);
-      gl.uniform1i(this.loc(this.fin, "uTo"), 1);
-      gl.uniform1f(this.loc(this.fin, "uMix"), mix);
-      gl.uniform1i(this.loc(this.fin, "uDip"), show.transition?.style === "black" ? 1 : 0);
-      gl.uniform1f(this.loc(this.fin, "uGain"), show.master * strobeGain(show.strobe, beat, sec, bpm));
-      // Strobe White wirkt auch bei Master 0, aber nicht bei Blackout
-      gl.uniform1f(this.loc(this.fin, "uWhite"), strobeWhite(show.strobe, beat, sec, bpm));
-      this.bindTex(0, from); this.bindTex(1, this.compTo);
-      this.bindTarget(dest, 0, 0, w, h);
-      this.draw();
-    }
-    if (dest && show.blackout) { this.bindTarget(dest); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+    // Hauptbild (bei Leinwänden mit eigenen Ebenen rechnet jede ihren Stapel unten selbst)
+    this.composeStack(show, mainLayers(show), show.transition?.from ?? null, "", dest, w, h, beat, sec, bpm, nowMs);
     if (!show.blackout && show.cues.length) this.drawCues(show.cues, nowMs, w, h, dest);
     // „Raster über alle“: auf der ganzen Leinwand rechnen, jeder Ausgang zeigt seinen Teil wie bei den Visuals
     const spanTest = show.testCard && show.testPattern === "span" && !!dest;
@@ -390,16 +363,29 @@ export class Engine {
     if (dest && mapping) {
       // Testbild mit auf die Leinwände legen (zum Ausrichten an Objekten)
       if (show.testCard && !spanTest) this.drawTestCard(show, beat, nowMs, w, h, dest);
+      // Leinwände mit eigenen Ebenen: jede rechnet ihren Stapel in ein eigenes Bild
+      const srcOf = new Map<string, Target>();
+      for (const wp of warps!) {
+        const own = wp.stack ? show.stacks?.[wp.stack] : undefined;
+        if (!wp.stack || !own) continue;
+        const st = this.target(this.surfT.get(wp.stack) ?? null, w, h);
+        this.surfT.set(wp.stack, st);
+        this.composeStack(show, own, show.transition?.fromStacks?.[wp.stack] ?? null, `S${wp.stack}:`, st, w, h, beat, sec, bpm, nowMs);
+        if (show.testCard && !spanTest) this.drawTestCard(show, beat, nowMs, w, h, st);
+        srcOf.set(wp.stack, st);
+      }
       this.bindTarget(null, 0, 0, outW, outH);
       gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(this.warp.p);
       gl.uniform1i(this.loc(this.warp, "uTex"), 0);
-      this.bindTex(0, dest);
-      this.bindTarget(null, 0, 0, outW, outH);
       gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      for (const s of warps!) {
-        gl.uniformMatrix3fv(this.loc(this.warp, "uHinv"), false, s.hinv);
-        gl.uniform4f(this.loc(this.warp, "uSrc"), s.src[0], s.src[1], s.src[2], s.src[3]);
+      for (const wp of warps!) {
+        const own = wp.stack ? srcOf.get(wp.stack) : undefined;
+        this.bindTex(0, own ?? dest);
+        this.bindTarget(null, 0, 0, outW, outH);
+        gl.uniformMatrix3fv(this.loc(this.warp, "uHinv"), false, wp.hinv);
+        if (own) gl.uniform4f(this.loc(this.warp, "uSrc"), 0, 0, 1, 1);
+        else gl.uniform4f(this.loc(this.warp, "uSrc"), wp.src[0], wp.src[1], wp.src[2], wp.src[3]);
         this.draw();
       }
       gl.disable(gl.BLEND);
@@ -493,6 +479,40 @@ export class Engine {
   }
 
   /** Testbild als oberste Fläche (in voller Auflösung des Fensters). */
+  private stackT = new Map<string, { to: Target | null; from: Target | null }>();
+  private surfT = new Map<string, Target>();
+
+  /** Einen Ebenen-Stapel mischen (mit Überblendung, Master, Strobe) und nach `dest` (null = Bildschirm) zeichnen. */
+  private composeStack(show: ShowState, layers: readonly LayerState[], fromLayers: readonly LayerState[] | null, key: string,
+    dest: Target | null, w: number, h: number, beat: number, sec: number, bpm: number, nowMs: number): void {
+    const gl = this.gl;
+    if (show.blackout) { this.bindTarget(dest, 0, 0, w, h); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); return; }
+    const pulse = beatPulse(beat);
+    const bands = new Float32Array(bandsFrom(show.audio, beat, sec));
+    const mix = transitionProgress(show.transition, beat, nowMs);
+    let t = this.stackT.get(key);
+    if (!t) { t = { to: null, from: null }; this.stackT.set(key, t); }
+    t.to = this.target(t.to, w, h);
+    this.composite(layers, t.to, `${key}to`, show, beat, pulse, bands);
+    let from: Target = t.to;
+    if (show.transition && mix < 1 && fromLayers) {
+      t.from = this.target(t.from, w, h);
+      this.composite(fromLayers, t.from, `${key}from`, show, beat, pulse, bands);
+      from = t.from;
+    }
+    gl.useProgram(this.fin.p);
+    gl.uniform1i(this.loc(this.fin, "uFrom"), 0);
+    gl.uniform1i(this.loc(this.fin, "uTo"), 1);
+    gl.uniform1f(this.loc(this.fin, "uMix"), mix);
+    gl.uniform1i(this.loc(this.fin, "uDip"), show.transition?.style === "black" ? 1 : 0);
+    gl.uniform1f(this.loc(this.fin, "uGain"), show.master * strobeGain(show.strobe, beat, sec, bpm));
+    // Strobe White wirkt auch bei Master 0, aber nicht bei Blackout
+    gl.uniform1f(this.loc(this.fin, "uWhite"), strobeWhite(show.strobe, beat, sec, bpm));
+    this.bindTex(0, from); this.bindTex(1, t.to);
+    this.bindTarget(dest, 0, 0, w, h);
+    this.draw();
+  }
+
   private drawTestCard(show: ShowState, beat: number, nowMs: number, w: number, h: number, dest: Target | null): void {
     const gl = this.gl, g = this.gen;
     gl.useProgram(g.p);

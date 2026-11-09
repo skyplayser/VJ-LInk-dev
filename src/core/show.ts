@@ -113,6 +113,8 @@ export const MAX_EFFECTS = 6;
 /** Läuft gerade eine Überblendung: von `from` zum aktuellen Zustand. */
 export interface Transition {
   from: LayerState[];
+  /** Ausgangsstand der Leinwand-Stapel (Projektionsmapping), damit auch sie überblenden. */
+  fromStacks?: Record<string, LayerState[]>;
   /** Beat, an dem die Blende beginnt (auf den nächsten Schlag gerundet). */
   startBeat: number;
   beats: number;
@@ -178,7 +180,15 @@ export interface ShowState {
   sceneStart: { beat: number; ms: number };
   fxMaster: number;
   autoVj: boolean;
+  /** Ebenen, die gerade bearbeitet und gesteuert werden (Hauptbild oder eine Leinwand, siehe `canvas`). */
   layers: LayerState[];
+  /**
+   * Alle Ebenen-Stapel: „main“ = Hauptbild, sonst Leinwand-ID (Projektionsmapping, eigene Ebenen je Leinwand).
+   * `layers` ist immer derselbe Stapel wie `stacks[canvas]`.
+   */
+  stacks?: Record<string, LayerState[]>;
+  /** Welcher Stapel gerade bearbeitet wird („main“ oder Leinwand-ID). */
+  canvas?: string;
   /** SHOW-Ablauf: was gerade über bzw. statt den Visuals läuft. */
   cues: CueRender[];
   /** Testbild auf Vorschau und allen Ausgängen. */
@@ -241,8 +251,8 @@ export function removeClip(l: LayerState, id: string): void {
 
 /** Grafik aus allen Ebenen und Szenen entfernen (wenn sie aus der Bibliothek gelöscht wird). */
 export function forgetClip(state: ShowState, scenes: Scene[], id: string): void {
-  for (const l of state.layers) removeClip(l, id);
-  for (const sc of scenes) for (const l of sc.layers) {
+  for (const st of Object.values(allStacks(state))) for (const l of st) removeClip(l, id);
+  for (const sc of scenes) for (const l of [...sc.layers, ...Object.values(sc.stacks ?? {}).flat()]) {
     if (!l) continue;
     if (l.clips) l.clips = l.clips.filter(c => c !== id);
     if (l.clip === id) l.clip = null;
@@ -290,6 +300,8 @@ export interface Scene {
   name: string;
   /** Nur die genannten Ebenen/Felder werden gesetzt. Selbst angelegte Szenen speichern alle Ebenen. */
   layers: (Partial<LayerState> | null)[];
+  /** Ebenen der Leinwände (Projektionsmapping), je Leinwand-ID. Szenen gelten für alle Leinwände. */
+  stacks?: Record<string, (Partial<LayerState> | null)[]>;
   /** Fehlt sie, gilt der Regler „Blende“ (Beats, Überblenden). */
   transition?: SceneTransition;
   next?: SceneNext;
@@ -311,8 +323,18 @@ export const defaultScenes = (): Scene[] => DEFAULT_SCENES.map(sc => ({
 }));
 
 export function applyScene(state: ShowState, scene: Scene): void {
-  scene.layers.forEach((patch, i) => {
-    const layer = state.layers[i];
+  syncStacks(state);
+  applyStack(mainLayers(state), scene.layers);
+  for (const [id, patches] of Object.entries(scene.stacks ?? {})) {
+    // Leinwand ohne eigene Ebenen: aus dem Hauptbild anlegen, dann die Szene darauf
+    const st = (state.stacks![id] ??= cloneLayers(mainLayers(state)));
+    applyStack(st, patches);
+  }
+}
+
+function applyStack(layers: LayerState[], patches: readonly (Partial<LayerState> | null)[]): void {
+  patches.forEach((patch, i) => {
+    const layer = layers[i];
     if (!patch || !layer) return;
     // Der Name gehört zur Ebene, nicht zur Szene
     const name = layer.name;
@@ -398,3 +420,46 @@ export function layerTimesAt(s: LayerClockSnap, nowMs: number, layers: readonly 
 /** Anzeigename einer Ebene. */
 export const layerName = (l: Pick<LayerState, "name"> | undefined, i: number): string =>
   (l?.name?.trim() || (i === 0 ? "Basis" : "Overlay"));
+
+// ---- Ebenen je Leinwand (Projektionsmapping) ------------------------------------------------
+
+export const MAIN_STACK = "main";
+
+/** Stapel-Verzeichnis anlegen bzw. mit `layers` abgleichen (nach dem Laden oder Ersetzen von `layers`). */
+export function syncStacks(s: ShowState): Record<string, LayerState[]> {
+  s.stacks ??= {};
+  s.canvas ??= MAIN_STACK;
+  s.stacks[s.canvas] = s.layers;
+  return s.stacks;
+}
+
+/** Ebenen des Hauptbilds (unabhängig davon, was gerade bearbeitet wird). */
+export const mainLayers = (s: ShowState): LayerState[] => s.stacks?.[MAIN_STACK] ?? s.layers;
+
+/** Alle Stapel inklusive Hauptbild. */
+export function allStacks(s: ShowState): Record<string, LayerState[]> {
+  return { ...(s.stacks ?? {}), [MAIN_STACK]: mainLayers(s) };
+}
+
+/** Stapel zum Bearbeiten wählen; eine Leinwand ohne eigene Ebenen bekommt eine Kopie des Hauptbilds. */
+export function selectCanvas(s: ShowState, id: string): void {
+  const st = syncStacks(s);
+  st[id] ??= cloneLayers(mainLayers(s));
+  s.canvas = id;
+  s.layers = st[id]!;
+}
+
+/** Leinwand-Ebenen entfernen (Leinwand gelöscht); wird sie gerade bearbeitet, zurück zum Hauptbild. */
+export function dropCanvas(s: ShowState, id: string): void {
+  if (id === MAIN_STACK) return;
+  syncStacks(s);
+  if (s.canvas === id) selectCanvas(s, MAIN_STACK);
+  delete s.stacks![id];
+}
+
+/** Stand aller Leinwand-Stapel (ohne Hauptbild) kopieren: für Szenen und Überblendungen. */
+export function cloneSideStacks(s: ShowState): Record<string, LayerState[]> {
+  const out: Record<string, LayerState[]> = {};
+  for (const [id, st] of Object.entries(s.stacks ?? {})) if (id !== MAIN_STACK) out[id] = cloneLayers(st);
+  return out;
+}

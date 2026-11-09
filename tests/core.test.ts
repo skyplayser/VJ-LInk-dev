@@ -1131,3 +1131,42 @@ describe("Projektionsmapping", () => {
     expect(p.outputs.surfaces![0]!.src.x).toBe(0.5);
   });
 });
+
+describe("Leinwände mit eigenen Ebenen", () => {
+  it("Bearbeiten wechselt den Stapel, Hauptbild bleibt unberührt", async () => {
+    const { selectCanvas, mainLayers, MAIN_STACK } = await import("../src/core/show");
+    const c = ctx();
+    c.show.layers[0]!.clip = "tunnel";
+    selectCanvas(c.show, "sA");
+    expect(c.show.canvas).toBe("sA");
+    c.show.layers[0]!.clip = "plasma";            // bearbeitet die Leinwand
+    expect(mainLayers(c.show)[0]!.clip).toBe("tunnel");
+    selectCanvas(c.show, MAIN_STACK);
+    expect(c.show.layers[0]!.clip).toBe("tunnel");
+    expect(c.show.stacks!.sA![0]!.clip).toBe("plasma");
+  });
+  it("Szenen speichern und rufen alle Leinwände ab, auch während eine Leinwand bearbeitet wird", async () => {
+    const { selectCanvas, mainLayers } = await import("../src/core/show");
+    const { addSceneFromCurrent, recallScene } = await import("../src/core/control");
+    const c = ctx();
+    c.show.layers[0]!.clip = "tunnel";
+    selectCanvas(c.show, "sA"); c.show.layers[0]!.clip = "plasma";
+    const i = addSceneFromCurrent(c, "Alles");
+    c.show.layers[0]!.clip = "fire";
+    mainLayers(c.show)[0]!.clip = "starfield";
+    recallScene(c, i);
+    expect(mainLayers(c.show)[0]!.clip).toBe("tunnel");
+    expect(c.show.stacks!.sA![0]!.clip).toBe("plasma");
+    expect(c.show.layers[0]!.clip).toBe("plasma");   // bearbeiteter Stapel ist dieselbe Leinwand
+  });
+  it("Leinwand-Ebenen werden gespeichert und geladen", async () => {
+    const { selectCanvas } = await import("../src/core/show");
+    const c = ctx();
+    selectCanvas(c.show, "sB"); c.show.layers[1]!.clip = "laser-beams";
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.stacks!.sB![1]!.clip).toBe("laser-beams");
+    const c2 = ctx(); applyProject(c2, p);
+    expect(c2.show.canvas).toBe("main");
+    expect(c2.show.stacks!.sB![1]!.clip).toBe("laser-beams");
+  });
+});

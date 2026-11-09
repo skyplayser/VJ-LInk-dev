@@ -161,15 +161,19 @@ export class MappingEditor {
     const name = el("input", "mp-nm"); name.value = s.name; name.maxLength = 40; name.setAttribute("aria-label", "Name der Leinwand");
     name.addEventListener("change", () => { s.name = name.value.trim() || s.name; this.changed(); this.drawStage(); });
     const full = s.src.x === 0 && s.src.y === 0 && s.src.w === 1 && s.src.h === 1;
+    const own = s.content === "own";
     const content = el("select"); content.setAttribute("aria-label", "Inhalt der Leinwand");
-    content.append(new Option("Inhalt: ganzes Bild", "full"), new Option("Inhalt: Ausschnitt", "part"));
-    content.value = full ? "full" : "part";
+    content.append(new Option("Inhalt: Hauptbild ganz", "full"), new Option("Inhalt: Hauptbild Ausschnitt", "part"),
+      new Option("Inhalt: eigene Ebenen (Tab VISUALS)", "own"));
+    content.value = own ? "own" : full ? "full" : "part";
     content.addEventListener("change", () => {
-      s.src = content.value === "full" ? { x: 0, y: 0, w: 1, h: 1 } : { x: 0, y: 0, w: 0.5, h: 0.5 };
+      if (content.value === "own") s.content = "own";
+      else { s.content = "main"; s.src = content.value === "full" ? { x: 0, y: 0, w: 1, h: 1 } : { x: 0, y: 0, w: 0.5, h: 0.5 }; }
       this.changed(); this.drawTools(tools);
     });
     tools.append(name, content);
-    if (!full) {
+    if (own) tools.append(el("small", "muted", "Ebenen dieser Leinwand: Tab VISUALS → rechts neben der Vorschau wählen"));
+    if (!full && !own) {
       const num = (label: string, key: "x" | "y" | "w" | "h") => {
         const lab = el("label", "", label);
         const i = el("input"); i.type = "number"; i.min = key === "w" || key === "h" ? "1" : "0"; i.max = "100"; i.value = String(Math.round(s.src[key] * 100));

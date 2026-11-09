@@ -2,7 +2,7 @@
 import { TempoClock } from "./tempo";
 import { matchRules, reduceLj, type LjMessage, type LjState, type Rule, type RuleAction } from "./ljlink";
 import type { OscMessage } from "./osc";
-import { SLOT_NAMES, applyScene, clamp01, cloneLayers, transitionProgress, type Scene, type SceneTransition, type ShowState } from "./show";
+import { SLOT_NAMES, allStacks, applyScene, clamp01, cloneLayers, cloneSideStacks, mainLayers, syncStacks, transitionProgress, type Scene, type SceneTransition, type ShowState } from "./show";
 import { READY_GENERATORS } from "./effects";
 import { cueBack, cueGo, cueStopAll, type CueEnv, type CueState } from "./video";
 import { setControl } from "./controls";
@@ -41,10 +41,11 @@ export function recallScene(c: ControlContext, indexOrName: number | string, now
   const beat = c.tempo.beatAt(nowMs);
   if (tr.value > 0) {
     // Läuft schon eine Blende, startet die neue vom aktuellen Ziel aus (kein Rücksprung auf den alten Stand).
-    const from = cloneLayers(c.show.layers);
+    syncStacks(c.show);
+    const from = cloneLayers(mainLayers(c.show)), fromStacks = cloneSideStacks(c.show);
     c.show.transition = tr.unit === "seconds"
-      ? { from, startBeat: beat, beats: 0, startMs: nowMs, ms: tr.value * 1000, style: tr.style }
-      : { from, startBeat: Math.ceil(beat - 1e-6), beats: tr.value, style: tr.style };
+      ? { from, fromStacks, startBeat: beat, beats: 0, startMs: nowMs, ms: tr.value * 1000, style: tr.style }
+      : { from, fromStacks, startBeat: Math.ceil(beat - 1e-6), beats: tr.value, style: tr.style };
   } else {
     c.show.transition = null;
   }
@@ -79,7 +80,8 @@ export function tickAuto(c: ControlContext, nowMs: number): boolean {
 export function addSceneFromCurrent(c: ControlContext, name?: string): number {
   c.scenes.push({
     name: name ?? `Szene ${c.scenes.length + 1}`,
-    layers: cloneLayers(c.show.layers),
+    layers: (syncStacks(c.show), cloneLayers(mainLayers(c.show))),
+    stacks: cloneSideStacks(c.show),
     transition: { unit: "beats", value: c.show.transitionBeats || 1, style: "fade" },
     next: { after: "off", value: 16 },
   });
@@ -91,7 +93,9 @@ export function addSceneFromCurrent(c: ControlContext, name?: string): number {
 export function overwriteScene(c: ControlContext, i: number): boolean {
   const sc = c.scenes[i];
   if (!sc) return false;
-  sc.layers = cloneLayers(c.show.layers);
+  syncStacks(c.show);
+  sc.layers = cloneLayers(mainLayers(c.show));
+  sc.stacks = cloneSideStacks(c.show);
   return true;
 }
 
@@ -180,7 +184,7 @@ export function runAction(c: ControlContext, a: RuleAction): void {
 
 /** Startzeit merken, sobald eine Ebene einen anderen Clip bekommt (Videos laufen dann ab dort). */
 export function tickVideoStarts(c: ControlContext, nowMs: number): void {
-  for (const l of c.show.layers) {
+  for (const l of Object.values(allStacks(c.show)).flat()) {
     if (l.videoStart.clip !== l.clip) l.videoStart = { clip: l.clip, ms: nowMs, beat: Math.floor(c.tempo.beatAt(nowMs)) };
   }
 }

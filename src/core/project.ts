@@ -8,7 +8,7 @@ import { defaultLayout, type OutputLayout } from "./layout";
 import { parseMods, type Modulation } from "./modulation";
 import { parseTextSpec } from "./text";
 import {
-  BLEND_MODES, COLOR_SOURCES_ALL, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
+  BLEND_MODES, COLOR_SOURCES_ALL, mainLayers, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
 } from "./show";
 
@@ -17,6 +17,8 @@ export const PROJECT_VERSION = 1;
 export interface ProjectFile {
   version: number;
   layers: LayerState[];
+  /** Eigene Ebenen der Leinwände (Projektionsmapping), je Leinwand-ID. */
+  stacks?: Record<string, LayerState[]>;
   scenes: Scene[];
   slots: Rgb[];
   transitionBeats: number;
@@ -38,7 +40,7 @@ export function serializeProject(c: ControlContext, media: readonly MediaItem[],
   const s = c.show;
   const p: ProjectFile = {
     version: PROJECT_VERSION,
-    layers: s.layers, scenes: c.scenes, slots: s.slots, transitionBeats: s.transitionBeats, fxMaster: s.fxMaster,
+    layers: mainLayers(s), stacks: sideStacks(s), scenes: c.scenes, slots: s.slots, transitionBeats: s.transitionBeats, fxMaster: s.fxMaster,
     strobe: { speed: s.strobe.speed, intensity: s.strobe.intensity, sync: s.strobe.sync },
     media: [...media],
     videos: [...videos],
@@ -129,9 +131,20 @@ function layout(v: unknown): OutputLayout {
       corners: cs.map((c: unknown) => Array.isArray(c) ? [cl(c[0], 0), cl(c[1], 0)] as [number, number] : [0, 0] as [number, number]),
       src: { x: num(src.x, 0, 0, 1), y: num(src.y, 0, 0, 1), w: num(src.w, 1, 0.01, 1), h: num(src.h, 1, 0.01, 1) },
       on: s.on !== false,
+      content: s.content === "own" ? "own" as const : "main" as const,
     };
   });
   return { mode: oneOf(v.mode, ["mirror", "canvas", "mapping"] as const, "mirror"), screens, surfaces };
+}
+
+/** Leinwand-IDs: kurz und schlicht. */
+const okStackId = (id: string): boolean => /^[A-Za-z0-9_-]{1,40}$/.test(id) && id !== "main";
+
+/** Leinwand-Stapel ohne Hauptbild (zum Speichern). */
+function sideStacks(s: import("./show").ShowState): Record<string, LayerState[]> | undefined {
+  const out: Record<string, LayerState[]> = {};
+  for (const [id, st] of Object.entries(s.stacks ?? {})) if (id !== "main" && st !== mainLayers(s)) out[id] = st;
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** Teil-Ebene (für Szenen): nur Felder übernehmen, die gültig vorhanden sind. */
@@ -200,6 +213,8 @@ export function parseProject(json: string): ProjectFile | null {
   const scenes: Scene[] = (Array.isArray(raw.scenes) ? raw.scenes : []).filter(isObj).slice(0, 128).map((sc, i) => ({
     name: str(sc.name, `Szene ${i + 1}`, 40) || `Szene ${i + 1}`,
     layers: Array.from({ length: Math.min(MAX_LAYERS, Array.isArray(sc.layers) ? sc.layers.length : 0) }, (_, k) => partialLayer((sc.layers as unknown[])[k])),
+    ...(isObj(sc.stacks) ? { stacks: Object.fromEntries(Object.entries(sc.stacks).filter(([id, v]) => okStackId(id) && Array.isArray(v)).slice(0, 64)
+      .map(([id, v]) => [id, (v as unknown[]).slice(0, MAX_LAYERS).map(partialLayer)])) } : {}),
     transition: transition(sc.transition),
     next: next(sc.next),
   }));
@@ -222,6 +237,8 @@ export function parseProject(json: string): ProjectFile | null {
     })),
     cues: (Array.isArray(raw.cues) ? raw.cues : []).map(cue).filter((x): x is Cue => !!x).slice(0, 500),
     outputs: layout(raw.outputs),
+    ...(isObj(raw.stacks) ? { stacks: Object.fromEntries(Object.entries(raw.stacks).filter(([id, v]) => okStackId(id) && Array.isArray(v) && v.length).slice(0, 64)
+      .map(([id, v]) => [id, (v as unknown[]).slice(0, MAX_LAYERS).map(fullLayer)])) } : {}),
     mods: parseMods(raw.mods),
   };
 }
@@ -230,6 +247,8 @@ export function parseProject(json: string): ProjectFile | null {
 export function applyProject(c: ControlContext, p: ProjectFile): void {
   const s = c.show;
   s.layers = p.layers;
+  s.canvas = "main";
+  s.stacks = { main: p.layers, ...(p.stacks ?? {}) };
   c.scenes.splice(0, c.scenes.length, ...p.scenes);
   s.slots = p.slots;
   s.transitionBeats = p.transitionBeats;
