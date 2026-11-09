@@ -5,6 +5,7 @@ import { isValidMediaId, type MediaItem } from "./media";
 import { parseMappings, type Mapping } from "./mapping";
 import { FITS, newCue, type Cue, type VideoItem, type VideoSettings } from "./video";
 import { defaultLayout, type OutputLayout } from "./layout";
+import { parseMods, type Modulation } from "./modulation";
 import {
   BLEND_MODES, COLOR_SOURCES_ALL, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
@@ -28,6 +29,8 @@ export interface ProjectFile {
   outputs: OutputLayout;
   /** Fehlt in alten Dateien: dann gilt die Standard-Tastenbelegung. */
   mappings?: Mapping[];
+  /** Modulationen (LFO, Audio) an Reglern. */
+  mods?: Modulation[];
 }
 
 export function serializeProject(c: ControlContext, media: readonly MediaItem[], mappings: readonly Mapping[] = [], videos: readonly VideoItem[] = [], outputs: OutputLayout = defaultLayout()): string {
@@ -41,6 +44,7 @@ export function serializeProject(c: ControlContext, media: readonly MediaItem[],
     cues: c.cues.list,
     outputs,
     mappings: [...mappings],
+    mods: [...(c.mods ?? [])],
   };
   return JSON.stringify(p);
 }
@@ -199,6 +203,7 @@ export function parseProject(json: string): ProjectFile | null {
     })),
     cues: (Array.isArray(raw.cues) ? raw.cues : []).map(cue).filter((x): x is Cue => !!x).slice(0, 500),
     outputs: layout(raw.outputs),
+    mods: parseMods(raw.mods),
   };
 }
 
@@ -215,4 +220,6 @@ export function applyProject(c: ControlContext, p: ProjectFile): void {
   s.transition = null;
   c.cues.list = p.cues;
   c.cues.run = { active: [], next: 0, current: -1 };
+  // An Ort und Stelle ersetzen (die Oberfläche hält die Liste)
+  if (c.mods) c.mods.splice(0, c.mods.length, ...(p.mods ?? [])); else c.mods = [...(p.mods ?? [])];
 }

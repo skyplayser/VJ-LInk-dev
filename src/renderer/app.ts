@@ -38,6 +38,10 @@ import type { ProjectFileCmd } from "../core/frame";
 import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
 import { LayerPanel } from "./layerpanel";
+import { ShowLock } from "./lock";
+import { ModMode } from "./modmode";
+import { modulatedShow } from "../core/modulation";
+import { liveBands } from "../core/audio";
 import { LayerClock, TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -67,7 +71,7 @@ const tcClock = new TimecodeClock();
 // ---- Zustand --------------------------------------------------------------------------
 const ctx: ControlContext = {
   show: defaultShow(), tempo: new TempoClock(), scenes: defaultScenes(), lj: newLjState(),
-  cues: newCueState(), rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1,
+  cues: newCueState(), rules: CLUB_STANDARD_RULES.map(r => ({ ...r })), bank: 1, mods: [],
 };
 ctx.tempo.update("manual", 120, Date.now(), 0);
 const decoder = new DmxDecoder(settings.address, ctx.scenes);
@@ -298,6 +302,10 @@ function toast(msg: string): void {
   const t = $("toast"); t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer); toastTimer = window.setTimeout(() => { t.hidden = true; }, 4000);
 }
+/** Sperrmodus: während der Show nur bedienen. */
+const showLock = new ShowLock($<HTMLButtonElement>("lock-btn"), toast);
+/** Modulation: Regler an LFO oder Audio hängen (⇧⌘L oder MAPPING → Modulation). */
+const modMode = new ModMode(ctx, () => ctx.tempo.beatAt(Date.now()), () => liveBands(ctx.show.audio, ctx.tempo.beatAt(Date.now()), Date.now() / 1000), toast);
 
 /** Dateien laden; die erste Grafik kommt auf die Ziel-Ebene. */
 /** Dateien in die Bibliotheken übernehmen (Videos und Bilder). Gibt Clip-IDs und Namen zurück. */
@@ -352,7 +360,8 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closes
 const MAP_KEYS: Record<string, MapProtocol> = { KeyK: "key", KeyM: "midi", KeyD: "dmx", KeyO: "osc" };
 window.addEventListener("keydown", e => {
   // ⇧⌘K/M/D/O (Windows: ⇧Strg) öffnet den Mapping-Modus
-  if (e.shiftKey && (e.metaKey || e.ctrlKey) && MAP_KEYS[e.code]) { e.preventDefault(); mapMode.open(MAP_KEYS[e.code]!); return; }
+  if (e.shiftKey && (e.metaKey || e.ctrlKey) && e.code === "KeyL") { e.preventDefault(); if (showLock.locked) showLock.hint(); else { mapMode.close(); modMode.open(); } return; }
+  if (e.shiftKey && (e.metaKey || e.ctrlKey) && MAP_KEYS[e.code]) { e.preventDefault(); if (showLock.locked) showLock.hint(); else mapMode.open(MAP_KEYS[e.code]!); return; }
   if (e.key === "Escape" && mapMode.active) { mapMode.close(); return; }
   if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
   const input = { p: "key" as const, code: e.code, label: e.key.length === 1 ? e.key.toUpperCase() : e.key.replace("Arrow", "Pfeil ") };
@@ -372,8 +381,13 @@ mapBtn.addEventListener("click", () => {
 });
 mapMenu.querySelectorAll<HTMLButtonElement>("[data-map]").forEach(b => b.addEventListener("click", () => {
   mapMenu.hidden = true; mapBtn.setAttribute("aria-expanded", "false");
+  modMode.close();
   mapMode.open(b.dataset.map as MapProtocol);
 }));
+mapMenu.querySelector<HTMLButtonElement>("[data-mod]")!.addEventListener("click", () => {
+  mapMenu.hidden = true; mapBtn.setAttribute("aria-expanded", "false");
+  mapMode.close(); modMode.open();
+});
 document.addEventListener("pointerdown", e => {
   if (!mapMenu.hidden && !(e.target as HTMLElement).closest(".map-wrap")) { mapMenu.hidden = true; mapBtn.setAttribute("aria-expanded", "false"); }
 });
@@ -812,14 +826,16 @@ function frame(): void {
   if (mic) ctx.show.audio.mic = mic; else delete ctx.show.audio.mic;
   const beat = ctx.tempo.beatAt(now);
   const lt = layerClock.tick(now, ctx.show.layers);
-  engine?.render(ctx.show, beat, now, ctx.tempo.bpm, null, lt);
+  // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert
+  const shown = modulatedShow(ctx, ctx.mods ?? [], beat, liveBands(ctx.show.audio, beat, now / 1000));
+  engine?.render(shown, beat, now, ctx.tempo.bpm, null, lt);
   thumbs.draw(now);
 
   if (now - lastPublish > 33 && bridge) {
     lastPublish = now;
     const t = ctx.tempo.snapshot;
     const f: Frame = {
-      show: ctx.show, bpm: ctx.tempo.bpm, originMs: t.originMs, beatAtOrigin: t.beatAtOrigin, testPattern: ctx.show.testCard,
+      show: shown, bpm: ctx.tempo.bpm, originMs: t.originMs, beatAtOrigin: t.beatAtOrigin, testPattern: ctx.show.testCard,
       videoDurations: Object.fromEntries(videoLib.items.map(v => [v.id, v.duration])),
       layout: outLayout, openOutputs: displays.filter(d => d.open).map(d => d.id),
       layerClock: layerClock.snap(now),
@@ -928,6 +944,8 @@ function showProjName(): void {
 }
 async function runFileCmd(cmd: ProjectFileCmd, filePath?: string): Promise<void> {
   if (!bridge) { toast("Projektdateien gibt es nur in der App."); return; }
+  // Gesperrt: speichern ja, aber kein anderes Projekt laden
+  if (showLock.locked && cmd !== "save" && cmd !== "saveAs") { showLock.hint(); return; }
   const json = currentJson();
   const r = await bridge.projectFile(cmd, json, filePath);
   if (r.ok && (cmd === "save" || cmd === "saveAs")) {
@@ -942,7 +960,7 @@ projBtn.addEventListener("click", () => { projMenu.hidden = !projMenu.hidden; pr
 projMenu.querySelectorAll<HTMLButtonElement>("[data-proj]").forEach(b => b.addEventListener("click", () => { closeProjMenu(); void runFileCmd(b.dataset.proj as ProjectFileCmd); }));
 document.addEventListener("pointerdown", e => { if (!projMenu.hidden && !(e.target as HTMLElement).closest(".proj-wrap")) closeProjMenu(); });
 bridge?.onMenu((cmd, arg) => {
-  if (cmd === "settings") { openSettings(); return; }
+  if (cmd === "settings") { if (showLock.locked) showLock.hint(); else openSettings(); return; }
   if (["new", "open", "save", "saveAs", "openPath"].includes(cmd)) void runFileCmd(cmd as ProjectFileCmd, arg);
 });
 if (!bridge) projBtn.hidden = true;

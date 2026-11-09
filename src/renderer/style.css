@@ -459,3 +459,29 @@ body.mapping .cell-x{display:none}
 .proj-btn #proj-dirty{color:var(--warn);font-size:10px}
 .proj-recent{display:grid}
 .proj-sep{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:4px}
+/* Sperrmodus */
+.lock-btn{position:relative;overflow:hidden;gap:6px;display:inline-flex;align-items:center}
+.lock-btn span:empty{display:none}
+.lock-btn span{font-size:10.5px;font-weight:700;letter-spacing:.06em}
+.lock-btn.on{background:var(--warn);border-color:var(--warn);color:#000}
+.lock-btn.holding::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.55);transform-origin:left;animation:lockhold 1s linear forwards}
+@keyframes lockhold{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+body.locked .top{box-shadow:inset 0 -2px 0 var(--warn)}
+body.locked .cell.add,body.locked .layer-del,body.locked .cell-x,body.locked #layer-add,body.locked #fx-add,body.locked #scene-add{opacity:.35}
+/* Modulation */
+[data-mod]{box-shadow:0 0 0 2px #19d3c5 !important;border-radius:4px}
+body.modding [data-modable]{outline:1px dashed #19d3c5;outline-offset:1px;cursor:crosshair}
+body.modding [data-mod-sel]{box-shadow:0 0 0 3px #19d3c5,0 0 14px rgba(25,211,197,.6) !important}
+.mod-panel{background:#122423;border-color:#1d6b66}
+.mod-edit{display:grid;gap:6px}
+.mod-target{font-size:13px}
+.mod-src{display:flex;flex-wrap:wrap;gap:3px}
+.mod-src button{background:var(--raise);border:1px solid var(--line);border-radius:4px;color:var(--text);padding:4px 7px;font:600 11px system-ui,sans-serif;cursor:pointer}
+.mod-src button.on{background:#19d3c5;color:#000;border-color:#19d3c5}
+.mod-gap{width:8px}
+.mod-meter{height:6px;border-radius:3px;background:var(--raise);position:relative;overflow:hidden}
+.mod-meter::after{content:"";position:absolute;inset:0;width:calc(var(--v,0) * 100%);background:#19d3c5}
+.mod-row{display:flex;justify-content:space-between;gap:8px;width:100%;background:none;border:0;border-bottom:1px solid var(--line);color:var(--text);padding:6px 4px;text-align:left;cursor:pointer;font:12px system-ui,sans-serif}
+.mod-row small{color:var(--dim)}
+.mod-row.sel{background:#1d3a38}
+.mod-row.off{opacity:.5}

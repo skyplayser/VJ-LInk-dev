@@ -150,8 +150,7 @@ export function layerDrive(drive: Drive | undefined, audio: AudioState, clip: st
     case "bpm":
       return { beat, pulse: beatPulse(beat), bands: bandsFrom(SILENT, beat, tSec), wave: null };
     case "audio": {
-      const live = audio.bass + audio.mid + audio.high > 0.001;
-      const bands = audio.mic ? audio.mic.bands : live ? bandsFrom(audio, beat, tSec) : new Array<number>(BAND_COUNT).fill(0);
+      const bands = liveBands(audio, beat, tSec);
       const bass = Math.max(bands[0] ?? 0, bands[1] ?? 0);
       return { beat, pulse: Math.min(1, Math.pow(bass, 1.5) * 1.3), bands, wave: audio.mic?.wave ?? null };
     }
@@ -160,4 +159,10 @@ export function layerDrive(drive: Drive | undefined, audio: AudioState, clip: st
       return { beat, pulse: beatPulse(beat), bands: mic ? audio.mic!.bands : bandsFrom(audio, beat, tSec), wave: mic ? audio.mic!.wave : null };
     }
   }
+}
+
+/** Nur echtes Audio: Eingang, sonst LJ-Link; ohne Audio alles 0 (keine Demo-Bewegung). */
+export function liveBands(audio: AudioState, beat: number, tSec: number): number[] {
+  if (audio.mic) return audio.mic.bands;
+  return audio.bass + audio.mid + audio.high > 0.001 ? bandsFrom(audio, beat, tSec) : new Array<number>(BAND_COUNT).fill(0);
 }

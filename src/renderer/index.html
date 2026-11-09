@@ -34,6 +34,7 @@
       <button role="menuitem" data-map="midi">MIDI <kbd>⇧⌘M</kbd></button>
       <button role="menuitem" data-map="dmx">DMX / Art-Net <kbd>⇧⌘D</kbd></button>
       <button role="menuitem" data-map="osc">OSC <kbd>⇧⌘O</kbd></button>
+      <button role="menuitem" data-mod>Modulation (LFO, Audio) <kbd>⇧⌘L</kbd></button>
     </div>
   </div>
   <div class="map-wrap">
@@ -67,6 +68,9 @@
     <span class="pill" id="st-midi"><span class="dot"></span>MIDI</span>
     <span class="pill" id="st-fps">– FPS</span>
   </div>
+  <button class="btn icon-btn lock-btn" id="lock-btn" aria-pressed="false" aria-label="Sperrmodus">
+    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M17 10V7a5 5 0 0 0-10 0v3H5v11h14V10h-2zm-8-3a3 3 0 0 1 6 0v3H9V7zm4 10.7V19h-2v-1.3a2 2 0 1 1 2 0z"/></svg><span></span>
+  </button>
   <button class="btn icon-btn" id="settings-btn" title="Einstellungen" aria-label="Einstellungen">
     <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.4h-4l-.3 2.6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
   </button>

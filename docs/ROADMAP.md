@@ -20,22 +20,22 @@ Aufwand: S = ein Abend, M = zwei bis drei Abende, L = eine Woche oder mehr.
 
 Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung nach einem Neustart noch da ist.
 
-## Phase 2: Speichern und Szenen
+## Phase 2: Speichern und Szenen (fertig)
 
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
-| 2.1 | Projekte | Automatisch speichern und laden (Szenen, Ebenen, Grafiken). Offen: mehrere Projekte, Export/Import, Ausgänge | M | teilweise |
+| 2.1 | Projekte | Automatisch sichern; Projektdateien (.vjlink) neu, öffnen, speichern, speichern unter, zuletzt geöffnet; Grafiken in der Datei, Videos im Medienordner; Ausgänge und Modulationen gehören dazu | M | erledigt |
 | 2.2 | Szenen bearbeiten | Speichern, benennen, sortieren, löschen; Übergang je Szene (Beats/Sekunden, über Schwarz); Abfolge nach Takten, Sekunden, Phrase | M | erledigt |
 | 2.3 | Überblendung | Szenenwechsel im Takt über 0 bis 8 Beats | M | erledigt |
-| 2.4 | Sperrmodus | Show-Ansicht bedienen, nichts versehentlich ändern | S |
+| 2.4 | Sperrmodus | Schloss oben: nur noch bedienen (Fader, Clips, Szenen, GO …), nichts ändern; Entsperren durch 1 s Halten | S | erledigt |
 
-## Phase 3: Effekt-Editor
+## Phase 3: Effekt-Editor (fertig)
 
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
 | 3.1 | Effekt-Stapel | Pro Ebene bis zu 6 Effekte, Reihenfolge, einzeln abschaltbar, Live-Vorschau im Clip-Raster | L | erledigt |
 | 3.2 | Erste Post-Effekte | Kaleidoskop, Spiegeln, RGB-Versatz, Feedback, Glitch, Röhre, Pixel, Leuchten, Beat-Zoom, Invertieren | L | erledigt |
-| 3.3 | Modulation | Regler per Ziehen an Beat-LFO, Audio-Bänder, MIDI, DMX, OSC hängen | M |
+| 3.3 | Modulation | Regler anklicken und an LFO im Takt (Sinus, Dreieck, Säge, Rechteck, Zufall, ¼–32 Beats) oder Audio-Band (Bass, Mitten, Höhen) hängen; MIDI, DMX, OSC über das Mapping | M | erledigt |
 | 3.4 | Restliche Generatoren | Alle Visuals der Liste bis auf „Silhouette“ (braucht Kamera) | L | erledigt |
 
 ## Phase 4: Ausgänge und Mapping

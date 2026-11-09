@@ -1007,3 +1007,42 @@ describe("Projektdatei", () => {
     expect(hashText("abc")).toMatch(/^[0-9a-f]{16}$/);
   });
 });
+
+describe("Modulation", () => {
+  it("LFO-Formen und Wertebereich", async () => {
+    const { lfo } = await import("../src/core/modulation");
+    expect(lfo("sine", 0, 4)).toBeCloseTo(0, 6);
+    expect(lfo("sine", 2, 4)).toBeCloseTo(1, 6);
+    expect(lfo("square", 1, 4)).toBe(1);
+    expect(lfo("square", 3, 4)).toBe(0);
+    expect(lfo("saw", 1, 4)).toBeCloseTo(0.25, 6);
+    expect(lfo("triangle", 2, 4)).toBeCloseTo(1, 6);
+    // Zufall: gleicher Durchlauf = gleicher Wert
+    expect(lfo("random", 0.1, 1, 5)).toBe(lfo("random", 0.9, 1, 5));
+  });
+  it("schwingt um den Grundwert, ohne ihn zu verändern", async () => {
+    const { modulatedShow } = await import("../src/core/modulation");
+    const c = ctx();
+    c.show.layers[0]!.opacity = 0.5;
+    const mods = [{ target: "layer.1.opacity", source: "square" as const, beats: 4, depth: 0.6, on: true }];
+    const hi = modulatedShow(c, mods, 1, []);
+    const lo = modulatedShow(c, mods, 3, []);
+    expect(hi.layers[0]!.opacity).toBeCloseTo(0.8, 6);
+    expect(lo.layers[0]!.opacity).toBeCloseTo(0.2, 6);
+    expect(c.show.layers[0]!.opacity).toBe(0.5);
+    // ohne aktive Modulation: derselbe Zustand, keine Kopie
+    expect(modulatedShow(c, [{ ...mods[0]!, on: false }], 1, [])).toBe(c.show);
+  });
+  it("nur Bild-Regler, Tempo und Auswahl sind ausgeschlossen; wird gespeichert", async () => {
+    const { modulatable } = await import("../src/core/modulation");
+    expect(modulatable("layer.2.opacity")).toBe(true);
+    expect(modulatable("layer.1.laser.y")).toBe(true);
+    expect(modulatable("tempo.bpm")).toBe(false);
+    expect(modulatable("layer.1.color")).toBe(false);
+    expect(modulatable("blackout")).toBe(false);
+    const c = ctx();
+    c.mods = [{ target: "master", source: "bass", beats: 4, depth: 0.3, on: true }, { target: "tempo.bpm", source: "sine", beats: 4, depth: 1, on: true }];
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.mods).toEqual([{ target: "master", source: "bass", beats: 4, depth: 0.3, on: true }]);
+  });
+});

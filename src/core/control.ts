@@ -20,6 +20,8 @@ export interface ControlContext {
   lj: LjState;
   rules: Rule[];
   bank: number;
+  /** Modulationen (LFO, Audio) an Reglern; gehören zum Projekt. */
+  mods?: import("./modulation").Modulation[];
 }
 
 /** Übergang, der für diese Szene gilt: eigener Wert der Szene, sonst der Regler „Blende“. */
