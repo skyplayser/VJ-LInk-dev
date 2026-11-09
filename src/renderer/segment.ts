@@ -32,6 +32,7 @@ async function load(): Promise<ImageSegmenter | null> {
 }
 
 interface Track { small: HTMLCanvasElement; sg: CanvasRenderingContext2D; out: HTMLCanvasElement; og: CanvasRenderingContext2D;
+  raw: HTMLCanvasElement; rg: CanvasRenderingContext2D;
   img: ImageData; acc: Float32Array | null; lastTime: number; lastRun: number; ready: boolean; lastAsk: number }
 
 export class PersonMasks {
@@ -58,7 +59,8 @@ export class PersonMasks {
     if (!t || t.small.height !== h) {
       const small = document.createElement("canvas"); small.width = w; small.height = h;
       const out = document.createElement("canvas"); out.width = w; out.height = h;
-      t = { small, sg: small.getContext("2d", { willReadFrequently: true })!, out, og: out.getContext("2d")!,
+      const raw = document.createElement("canvas"); raw.width = w; raw.height = h;
+      t = { small, sg: small.getContext("2d", { willReadFrequently: true })!, out, og: out.getContext("2d")!, raw, rg: raw.getContext("2d")!,
         img: new ImageData(w, h), acc: null, lastTime: -1, lastRun: 0, ready: false, lastAsk: 0 };
       this.tracks.set(id, t);
     }
@@ -92,7 +94,11 @@ export class PersonMasks {
         px[i * 4] = b; px[i * 4 + 1] = b; px[i * 4 + 2] = b; px[i * 4 + 3] = 255;
       }
       res.close();
-      t.og.putImageData(t.img, 0, 0);
+      // Leicht weichzeichnen: glatte Ränder statt Treppen, kleine Fehl-Flecken verschwinden unter der Schwelle
+      t.rg.putImageData(t.img, 0, 0);
+      t.og.filter = "blur(2px)";
+      t.og.clearRect(0, 0, w, h);
+      t.og.drawImage(t.raw, 0, 0);
       t.ready = true;
     } catch (e) {
       failed = (e as Error).message;
