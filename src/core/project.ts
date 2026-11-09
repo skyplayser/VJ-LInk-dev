@@ -120,7 +120,18 @@ function layout(v: unknown): OutputLayout {
     id: num(s.id, 0, -1e12, 1e12), label: str(s.label, "Bildschirm", 60),
     x: num(s.x, 0, -32768, 32768), y: num(s.y, 0, -32768, 32768), w: num(s.w, 1920, 16, 16384), h: num(s.h, 1080, 16, 16384),
   }));
-  return { mode: oneOf(v.mode, ["mirror", "canvas"] as const, "mirror"), screens };
+  const cl = (x: unknown, d: number) => num(x, d, -0.5, 1.5);
+  const surfaces = (Array.isArray(v.surfaces) ? v.surfaces : []).filter(isObj).slice(0, 64).map((s, i) => {
+    const cs = Array.isArray(s.corners) && s.corners.length === 4 ? s.corners : [[0, 0], [1, 0], [1, 1], [0, 1]];
+    const src = isObj(s.src) ? s.src : {};
+    return {
+      id: str(s.id, `s${i}`, 40) || `s${i}`, screen: num(s.screen, 0, -1e12, 1e12), name: str(s.name, `Leinwand ${i + 1}`, 40),
+      corners: cs.map((c: unknown) => Array.isArray(c) ? [cl(c[0], 0), cl(c[1], 0)] as [number, number] : [0, 0] as [number, number]),
+      src: { x: num(src.x, 0, 0, 1), y: num(src.y, 0, 0, 1), w: num(src.w, 1, 0.01, 1), h: num(src.h, 1, 0.01, 1) },
+      on: s.on !== false,
+    };
+  });
+  return { mode: oneOf(v.mode, ["mirror", "canvas", "mapping"] as const, "mirror"), screens, surfaces };
 }
 
 /** Teil-Ebene (für Szenen): nur Felder übernehmen, die gültig vorhanden sind. */

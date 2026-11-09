@@ -10,6 +10,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 export class FxPanel {
   layer = 0;
   private sig = "";
+  /** Liste, für die gebaut wurde (Szenen und Projekt-Laden ersetzen sie). */
+  private built: unknown = null;
   private ranges: HTMLInputElement[] = [];
 
   constructor(private ctx: ControlContext, private title: HTMLElement, private list: HTMLElement, private add: HTMLSelectElement) {
@@ -29,7 +31,7 @@ export class FxPanel {
   update(force = false): void {
     const fx = this.effects();
     const sig = `${this.layer}|${fx.map(e => `${e.id}:${e.on}`).join(",")}`;
-    if (force || sig !== this.sig) { this.sig = sig; this.build(); }
+    if (force || sig !== this.sig || fx !== this.built) { this.sig = sig; this.built = fx; this.build(); }
     fx.forEach((e, i) => {
       const r = this.ranges[i];
       if (r && document.activeElement !== r) r.value = String(Math.round(e.amount * 100));

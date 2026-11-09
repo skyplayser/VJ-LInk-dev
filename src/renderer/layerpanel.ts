@@ -32,6 +32,8 @@ const rgbCss = (c: readonly number[]) => `rgb(${c.map(v => Math.round(v * 255)).
 
 export class LayerPanel {
   private sig = "";
+  /** Ebene, für die das Panel gebaut wurde: nach dem Laden eines Projekts sind es neue Objekte. */
+  private built: LayerState | null = null;
   private ranges = new Map<NumKey, { input: HTMLInputElement; val: HTMLElement }>();
 
   constructor(private ctx: ControlContext, private root: HTMLElement, private layerOf: () => number, private onRename: () => void = () => {}) {}
@@ -49,7 +51,7 @@ export class LayerPanel {
     const isGen = !l.clip || EFFECT_BY_ID.get(l.clip)?.kind === "generator";
     const slots = this.ctx.show.slots.map(rgbCss).join(";");
     const sig = `${this.layerOf()}|${l.laser?.override ? 1 : 0}|${l.drive}|${l.colorSource}|${(l.colorSlots ?? []).join(",")}|${isLaser}|${isGen}|${slots}`;
-    if (force || sig !== this.sig) { this.sig = sig; this.build(l, isLaser, isGen); }
+    if (force || sig !== this.sig || l !== this.built) { this.sig = sig; this.built = l; this.build(l, isLaser, isGen); }
     const z = l.laser ?? defaultLaser();
     for (const f of LASER_FIELDS) {
       const r = this.ranges.get(f.key); if (!r) continue;

@@ -43,7 +43,7 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
 | 4.1 | Ausgänge | Freie Auflösung pro Ausgang, Ausschnitt aus der Leinwand (erledigt: Leinwand mit frei angeordneten Bildschirmen, Testbilder zum Ausrichten) | M |
-| 4.2 | Eckpunkte | Vier Ecken ziehen, Beamer-Trapez ausgleichen | M |
+| 4.2 | Eckpunkte | Projektionsmapping: Leinwände mit vier Ecken je Beamer, perspektivisch verzerrt, Ausschnitt wählbar, Raster zum Ausrichten | M | erledigt |
 | 4.3 | Raster und Masken | 3×3 und 5×5 Punkte, Masken, Bühnenfoto als Hilfe | L |
 | 4.4 | Syphon und Spout | Bild an andere Programme weitergeben | M |
 

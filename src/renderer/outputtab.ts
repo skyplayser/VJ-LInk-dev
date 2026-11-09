@@ -2,6 +2,7 @@
 // liegen (ziehen, einrasten, Werte eintippen). Jeder Ausgang zeigt dann seinen Ausschnitt.
 import { arrange, canvasBounds, snapRect, syncScreens, type OutputLayout, type ScreenRect } from "../core/layout";
 import type { DisplayInfo } from "../core/frame";
+import { MappingEditor } from "./mappingeditor";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -11,8 +12,12 @@ export class OutputTab {
   private sel: number | null = null;
   private dragging = false;
 
+  private mapping: MappingEditor;
+
   constructor(private get: () => OutputLayout, private set: (l: OutputLayout) => void,
-    private displays: () => DisplayInfo[], private onChange: () => void) {
+    private displays: () => DisplayInfo[], private onChange: () => void,
+    testGrid: { on: () => boolean; toggle: () => void } = { on: () => false, toggle: () => {} }) {
+    this.mapping = new MappingEditor(get, set, onChange, testGrid);
     document.querySelectorAll<HTMLButtonElement>("#out-mode [data-mode]").forEach(b => b.addEventListener("click", () => {
       this.set({ ...this.get(), mode: b.dataset.mode as OutputLayout["mode"] });
       this.render(); this.onChange();
@@ -36,6 +41,10 @@ export class OutputTab {
     document.querySelectorAll<HTMLButtonElement>("#out-mode [data-mode]").forEach(b => {
       const on = b.dataset.mode === l.mode; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on));
     });
+    if (l.mode === "mapping") {
+      this.mapping.render(document.getElementById("cv-stage")!, document.getElementById("cv-tools")!, document.getElementById("out-mode-hint")!, open);
+      return;
+    }
     const b = canvasBounds(onCanvas);
     document.getElementById("out-mode-hint")!.textContent = l.mode === "mirror"
       ? "Jeder Ausgang zeigt das ganze Bild in seiner eigenen Auflösung."

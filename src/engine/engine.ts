@@ -7,9 +7,9 @@ import { TEST_IDS, defaultLaser, layerPalette,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
-import type { View } from "../core/layout";
+import type { View, Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
-import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT } from "./shaders";
+import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT, WARP_FRAG } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
   original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3, multi: 4,
@@ -43,6 +43,7 @@ export class Engine {
   private comp: Program;
   private fin: Program;
   private img: Program;
+  private warp: Program;
   private media = new Map<string, { tex: WebGLTexture; w: number; h: number }>();
   private videoTex = new Map<string, WebGLTexture>();
   private black: WebGLTexture | null = null;
@@ -78,6 +79,7 @@ export class Engine {
     this.comp = this.program(COMPOSITE_FRAG);
     this.fin = this.program(FINAL_FRAG);
     this.img = this.program(IMAGE_FRAG);
+    this.warp = this.program(WARP_FRAG);
     this.vao = gl.createVertexArray()!;
   }
 
@@ -324,7 +326,7 @@ export class Engine {
    * `view`: Dieses Fenster zeigt nur einen Ausschnitt einer größeren Leinwand (Bildschirme nebeneinander).
    * Dann wird die ganze Leinwand gerechnet und der eigene Teil ausgegeben, damit alles nahtlos passt.
    */
-  render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null, layerTimes: readonly number[] | null = null): void {
+  render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null, layerTimes: readonly number[] | null = null, warps: readonly Warp[] | null = null): void {
     const t0 = performance.now();
     const gl = this.gl;
     const sec = nowMs / 1000;
@@ -340,7 +342,9 @@ export class Engine {
     // Leinwand: in Leinwand-Pixeln rechnen (Obergrenze ca. 8K × 4K), sonst direkt in Fenstergröße
     const k = view ? Math.min(1, 8192 / Math.max(view.cw, view.ch), Math.sqrt(33e6 / (view.cw * view.ch))) : 1;
     const w = view ? Math.max(1, Math.round(view.cw * k)) : outW, h = view ? Math.max(1, Math.round(view.ch * k)) : outH;
-    const dest = view ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
+    // Projektionsmapping: erst das ganze Bild in Ausgangsgröße, dann jede Leinwand verzerrt daraus zeichnen
+    const mapping = !view && !!warps;
+    const dest = view || mapping ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
     if (show.blackout) {
       this.bindTarget(null); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
     } else {
@@ -383,7 +387,24 @@ export class Engine {
       gl.disable(gl.BLEND);
       this.draw();
     }
-    if (show.testCard && !spanTest) this.drawTestCard(show, beat, nowMs, outW, outH, null);
+    if (dest && mapping) {
+      // Testbild mit auf die Leinwände legen (zum Ausrichten an Objekten)
+      if (show.testCard && !spanTest) this.drawTestCard(show, beat, nowMs, w, h, dest);
+      this.bindTarget(null, 0, 0, outW, outH);
+      gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(this.warp.p);
+      gl.uniform1i(this.loc(this.warp, "uTex"), 0);
+      this.bindTex(0, dest);
+      this.bindTarget(null, 0, 0, outW, outH);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      for (const s of warps!) {
+        gl.uniformMatrix3fv(this.loc(this.warp, "uHinv"), false, s.hinv);
+        gl.uniform4f(this.loc(this.warp, "uSrc"), s.src[0], s.src[1], s.src[2], s.src[3]);
+        this.draw();
+      }
+      gl.disable(gl.BLEND);
+    }
+    if (show.testCard && !spanTest && !mapping) this.drawTestCard(show, beat, nowMs, outW, outH, null);
     this.dropStaleFeedback();
 
     const ms = performance.now() - t0;

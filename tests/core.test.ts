@@ -1102,3 +1102,32 @@ describe("Text-Clips", () => {
     expect(parseProject(json)!.media[0]!.text).toEqual(defaultText());
   });
 });
+
+describe("Projektionsmapping", () => {
+  it("Einheitsquadrat landet genau auf den vier Ecken, Inverse führt zurück", async () => {
+    const { squareToQuad, invert3, applyH } = await import("../src/core/layout");
+    const q: [number, number][] = [[0.1, 0.2], [0.8, 0.05], [0.95, 0.9], [0.05, 0.7]];
+    const H = squareToQuad(q);
+    const unit: [number, number][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    unit.forEach(([u, v], i) => { const [x, y] = applyH(H, u, v); expect(x).toBeCloseTo(q[i]![0], 9); expect(y).toBeCloseTo(q[i]![1], 9); });
+    const inv = invert3(H)!;
+    const [u, v] = applyH(inv, ...applyH(H, 0.3, 0.6));
+    expect(u).toBeCloseTo(0.3, 9); expect(v).toBeCloseTo(0.6, 9);
+    expect(invert3([0, 0, 0, 0, 0, 0, 0, 0, 0])).toBeNull();
+  });
+  it("Leinwände nur im Mapping-Modus und nur für ihren Ausgang; Ecken rasten ein; wird gespeichert", async () => {
+    const { warpFor, newSurface, snapCorner } = await import("../src/core/layout");
+    const s = newSurface(5, 1);
+    const off = { ...newSurface(5, 2), on: false };
+    expect(warpFor({ mode: "canvas", screens: [], surfaces: [s] }, 5)).toBeNull();
+    expect(warpFor({ mode: "mapping", screens: [], surfaces: [s, off] }, 5)!.length).toBe(1);
+    expect(warpFor({ mode: "mapping", screens: [], surfaces: [s] }, 7)!.length).toBe(0);
+    expect(snapCorner([0.995, 0.5], [], 0.01)).toEqual([1, 0.5]);
+    const c = ctx();
+    const json = serializeProject(c, [], [], [], { mode: "mapping", screens: [], surfaces: [{ ...s, corners: [[0.1, 0.1], [0.9, 0.2], [0.8, 0.8], [0.2, 0.9]], src: { x: 0.5, y: 0, w: 0.5, h: 1 } }] });
+    const p = parseProject(json)!;
+    expect(p.outputs.mode).toBe("mapping");
+    expect(p.outputs.surfaces![0]!.corners[1]).toEqual([0.9, 0.2]);
+    expect(p.outputs.surfaces![0]!.src.x).toBe(0.5);
+  });
+});

@@ -708,7 +708,11 @@ function buildCatalog(): void {
 
 // ---- Ausgabe --------------------------------------------------------------------------
 let outLayout: OutputLayout = defaultLayout();
-const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => displays, () => fitPreview());
+const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => displays, () => fitPreview(), {
+  // Projektionsmapping: Raster-Testbild auf die Leinwände
+  on: () => ctx.show.testCard && ctx.show.testPattern === "grid",
+  toggle: () => { const on = !(ctx.show.testCard && ctx.show.testPattern === "grid"); ctx.show.testPattern = "grid"; ctx.show.testCard = on; syncTestUi(); },
+});
 async function refreshDisplays(): Promise<void> {
   const list = $("displays");
   if (!bridge) {

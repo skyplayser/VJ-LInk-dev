@@ -1076,3 +1076,23 @@ void main(){
   }
   outColor = c * uOpacity;
 }`;
+
+/** Projektionsmapping: eine Leinwand perspektivisch aus dem Gesamtbild zeichnen. */
+export const WARP_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uTex;
+uniform mat3 uHinv;   // Bildpunkt (0–1, oben links) → Leinwand-Koordinate (0–1)
+uniform vec4 uSrc;    // Ausschnitt des Gesamtbilds (x, y, Breite, Höhe), oben links = 0/0
+void main(){
+  vec2 p = vec2(vUv.x, 1.0 - vUv.y);
+  vec3 h = uHinv * vec3(p, 1.0);
+  vec2 uv = h.xy / (abs(h.z) < 1e-6 ? 1e-6 : h.z);
+  vec2 fw = fwidth(uv) + 1e-5;
+  // weiche Kante (ein Pixel), damit die Ränder nicht treppig werden
+  float m = smoothstep(0.0, fw.x, uv.x) * smoothstep(0.0, fw.x, 1.0 - uv.x) * smoothstep(0.0, fw.y, uv.y) * smoothstep(0.0, fw.y, 1.0 - uv.y);
+  m *= step(0.0, h.z);
+  vec2 s = uSrc.xy + clamp(uv, 0.0, 1.0) * uSrc.zw;
+  outColor = texture(uTex, vec2(s.x, 1.0 - s.y)) * m;
+}`;

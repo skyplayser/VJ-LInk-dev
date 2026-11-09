@@ -515,3 +515,19 @@ body.mapping .cell-edit,body.modding .cell-edit{display:none}
 .text-view{display:flex;flex-direction:column;gap:6px;min-width:0}
 .text-preview{width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--line);border-radius:6px}
 .lp-name{min-width:0;background:var(--raise);border:1px solid var(--line);border-radius:4px;color:var(--text);padding:4px 7px;font:600 12px system-ui,sans-serif}
+/* Projektionsmapping */
+.mp-svg{position:absolute;inset:0;overflow:visible}
+.mp-frame{fill:#06070a;stroke:var(--warn);stroke-dasharray:5 4;stroke-width:1}
+.mp-label{fill:var(--warn);font:10.5px var(--mono)}
+.mp-poly{fill:rgba(34,200,240,.14);stroke:#22c8f0;stroke-width:1.5;cursor:move}
+.mp-grid{stroke:rgba(34,200,240,.35);stroke-width:1;pointer-events:none}
+.mp-name{fill:var(--text);font:600 12px system-ui,sans-serif;pointer-events:none}
+.mp-corner{fill:#0c0e13;stroke:#22c8f0;stroke-width:2;cursor:crosshair}
+.mp-surf.sel .mp-poly{fill:rgba(255,92,147,.16);stroke:var(--accent);stroke-width:2}
+.mp-surf.sel .mp-grid{stroke:rgba(255,92,147,.4)}
+.mp-surf.sel .mp-corner{stroke:var(--accent)}
+.mp-corner.sel{fill:var(--accent)}
+.mp-surf.off{opacity:.4}
+.mp-nm{width:130px;background:var(--raise);border:1px solid var(--line);border-radius:4px;color:var(--text);padding:4px 7px;font:600 12px system-ui,sans-serif}
+.cv-tools label input[type=number]{width:52px}
+.out-mode{display:grid;grid-template-columns:repeat(3,1fr)}
