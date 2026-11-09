@@ -159,7 +159,7 @@ describe("Effekt-Katalog", () => {
     expect(EFFECTS.length).toBe(49);
     expect(new Set(EFFECTS.map(e => e.id)).size).toBe(49);
     expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 49 }, (_, i) => i + 1));
-    expect(EFFECTS.filter(e => e.category === "laser").length).toBe(14);
+    expect(EFFECTS.filter(e => e.category === "laser").length).toBe(15);
   });
 });
 

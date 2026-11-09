@@ -392,19 +392,6 @@ vec3 uvGlow(vec2 uv){
   return pal * line + vec3(0.18, 0.0, 0.35) * 0.25;
 }
 
-// 29 Laser-Fläche: waagerechte Laserebene über dem Publikum, wie eine Nebeldecke
-vec3 laserSheet(vec2 uv){
-  vec2 p = cp(uv);
-  float hor = 0.08;
-  if (p.y < hor) return vec3(0.0);
-  float depth = 0.12 / (p.y - hor + 0.002);
-  vec2 w = vec2(p.x * depth, depth - uTime * 1.2);
-  float fog = fbm(w * 0.9);
-  float wave = smoothstep(0.35, 0.8, fog) * exp(-depth * 0.08);
-  float edge = smoothstep(0.012, 0.0, p.y - hor) * 1.5;
-  return vec3(0.15, 1.0, 0.3) * (wave * (0.7 + 0.5 * uPulse) + edge);
-}
-
 // 30 Laser-Fächer: Strahlen aus einem Punkt, schwenkend
 vec3 laserFans(vec2 uv){
   vec2 d = cp(uv) - vec2(0.0, -0.48);
@@ -558,6 +545,17 @@ float lzDot(float d){ float k = lzK(); return smoothstep(5.5 * k, 3.5 * k, d); }
 /** Abstand zu einer Kurve y = f(x) mit Steigung s (in cp-Einheiten). */
 float curveDist(float dy, float s){ return abs(dy) / sqrt(1.0 + s * s); }
 
+// 29 Laser-Fläche: gerade Linie über die ganze Breite, wird im Nebel eine Lichtdecke. Pulsiert in der Helligkeit.
+// Höhe, Seite, Breite und Stärke über die Laser-Regler der Ebene (vorgegeben: oberes Drittel).
+vec3 laserSheet(vec2 uv){
+  vec2 p = lzP(uv); float P = lzPx();
+  float half_ = uRes.x / uRes.y * 0.5 / max(uLz.z, 0.05);
+  float d = abs(p.y - 0.18) * P;
+  float ends = smoothstep(half_ * 0.98, half_ * 0.9, abs(p.x));
+  float pulse = 0.35 + 0.65 * uPulse;
+  return lzCol(floor(uBeat / 16.0), 0.0) * lzLine(d) * ends * pulse;
+}
+
 // 36 Strahlen-Fächer: Reihe aus Punkten
 vec3 laserBeams(vec2 uv){
   vec2 p = lzP(uv); float P = lzPx();
@@ -706,16 +704,19 @@ vec3 beamDerby(vec2 uv){
   return min(acc, vec3(1.0)) * (0.75 + 0.25 * uPulse);
 }
 
-// 45 Scanner: ein kräftiger Strahl fährt eine Acht, dazu eine drehende Lichtfläche; neue Figur alle 4 Beats
+// 45 Scanner: zwei Strahlen fahren über den ganzen Bildschirm hin und her,
+// einer von oben nach unten, einer von links nach rechts (gegeneinander versetzt, im Takt)
+float pingPong(float x){ float f = fract(x * 0.5) * 2.0; return f < 1.0 ? f : 2.0 - f; }
 vec3 beamScanner(vec2 uv){
-  vec2 p = lzP(uv); float P = lzPx(); float k = floor(uBeat / 4.0);
-  float t = uTime * 0.8 + k * 1.3;
-  vec2 c = vec2(sin(t) * 0.42, sin(t * 2.0) * 0.16);
-  float spot = lzSpot(length(p - c) * P, 0.022 * P);
-  float an = uTime * 0.5 + k; vec2 dir = vec2(cos(an), sin(an)), d = p - c;
-  float along = abs(dot(d, dir)), perp = abs(dot(d, vec2(-dir.y, dir.x)));
-  float sheet = mod(k, 2.0) < 0.5 ? lzLine((along < 0.18 ? perp : length(vec2(along - 0.18, perp))) * P) : 0.0;
-  return lzCol(k, 0.0) * max(spot, sheet);
+  vec2 p = lzP(uv); float P = lzPx();
+  float a = uRes.x / uRes.y * 0.5 / max(uLz.z, 0.05), h = 0.5 / max(uLz.z, 0.05);
+  float k = floor(uBeat / 8.0);
+  // weich umkehren wie ein Spiegel, ein Durchlauf = 2 Beats
+  float sv = smoothstep(0.0, 1.0, pingPong(uBeat / 2.0)), sh = smoothstep(0.0, 1.0, pingPong(uBeat / 2.0 + 0.5));
+  vec2 c1 = vec2(sin(uTime * 0.23) * a * 0.6, mix(h * 0.92, -h * 0.92, sv));   // oben ↔ unten
+  vec2 c2 = vec2(mix(-a * 0.92, a * 0.92, sh), cos(uTime * 0.19) * h * 0.6);    // links ↔ rechts
+  float r = 0.024 * P;
+  return min(lzColN(k, 0.0) * lzSpot(length(p - c1) * P, r) + lzColN(k, 1.0) * lzSpot(length(p - c2) * P, r), vec3(1.0));
 }
 
 // 46 RGB-Spots: fünf breite, weiche Strahlen wandern

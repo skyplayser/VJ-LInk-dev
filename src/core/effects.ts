@@ -55,7 +55,7 @@ export const EFFECTS: readonly EffectDef[] = [
   // Optische Raumeffekte
   e(27, "mirror-ball", "Spiegelkugel", "optical", "generator", "ready", "Tausende drehende Lichtpunkte im Raum."),
   e(28, "uv-glow", "UV / Schwarzlicht", "optical", "generator", "ready", "Fluoreszierende Muster auf Schwarz."),
-  e(29, "laser-sheet", "Laser-Fläche", "optical", "generator", "ready", "Waagerechte Laserebene wie Nebeldecke (Ansicht für Leinwand und LED-Wand)."),
+  e(29, "laser-sheet", "Laser-Fläche", "laser", "generator", "ready", "Gerade Linie über die ganze Breite, pulsiert im Takt: im Nebel eine Lichtdecke. Höhe einstellbar (vorgegeben oberes Drittel).", ["beat"]),
   e(30, "laser-fans", "Laser-Fächer", "optical", "generator", "ready", "Grüne oder RGB-Fächer (Ansicht für Leinwand und LED-Wand).", ["beat"]),
   e(31, "strobe-flash", "Strobe / Blinder", "optical", "master", "ready", "Weiße oder farbige Blitze, taktgebunden (Master- und Ebenen-Strobe).", ["beat"]),
   e(32, "moire", "Moiré-Strahlen", "optical", "generator", "ready", "Überlagerte Reflexionen mit Moiré-Mustern."),
@@ -74,7 +74,7 @@ export const EFFECTS: readonly EffectDef[] = [
   // Lichteffekt-Typen im Nebel: so wirkt der Beamer wie das jeweilige Gerät
   e(43, "beam-moonflower", "Moonflower", "laser", "generator", "ready", "Viele farbige Strahlen aus einem Punkt, drehen sich langsam, wechseln im Takt.", ["beat"]),
   e(44, "beam-derby", "Derby", "laser", "generator", "ready", "Strahlenbündel in mehreren Farben, gegenläufig schwenkend.", ["beat"]),
-  e(45, "beam-scanner", "Scanner", "laser", "generator", "ready", "Ein kräftiger Strahl mit Lichtfläche, fährt Figuren, springt im Takt.", ["beat"]),
+  e(45, "beam-scanner", "Scanner", "laser", "generator", "ready", "Zwei Strahlen über den ganzen Bildschirm: einer fährt von oben nach unten, einer von links nach rechts, im Takt hin und her.", ["beat"]),
   e(46, "beam-spots", "RGB-Spots", "laser", "generator", "ready", "Wenige breite, weiche Strahlen in kräftigen Farben, wandern durch den Raum.", ["beat"]),
   e(47, "beam-snow", "Schneesturm", "laser", "generator", "ready", "Sehr viele feine weiße Strahlen, drehen und funkeln.", ["high"]),
   e(48, "beam-polygon", "Polygon", "laser", "generator", "ready", "Drehendes Vieleck (3–8 Ecken): Lichtflächen wie ein Prisma-Tunnel, dazu Eckstrahlen.", ["beat"]),

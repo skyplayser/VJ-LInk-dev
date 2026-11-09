@@ -6,7 +6,7 @@ import { DmxDecoder, DMX_MODE_STANDARD_CHANNELS, CH, channelListCsv } from "../c
 import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, tickVideoStarts, type ControlContext } from "../core/control";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
 import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
-import { BLEND_MODES, COLOR_SOURCES_ALL, MAX_LAYERS, addClip, addLayer, defaultScenes, removeClip, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
+import { BLEND_MODES, COLOR_SOURCES_ALL, DRIVES, type Drive, MAX_LAYERS, addClip, addLayer, defaultScenes, removeClip, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
 import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
 import { MapMode } from "./mapmode";
 import { LibraryPanel } from "./librarypanel";
@@ -39,6 +39,8 @@ import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
 import { LayerPanel } from "./layerpanel";
 import { ShowLock } from "./lock";
+import { DRIVE_LABEL } from "../core/controls";
+const DRIVE_ICON: Record<Drive, string> = { auto: "◎", bpm: "♩", audio: "∿", static: "—" };
 import { ModMode } from "./modmode";
 import { modulatedShow } from "../core/modulation";
 import { liveBands } from "../core/audio";
@@ -261,7 +263,13 @@ function rebuildGrid(): void {
     for (const b of BLEND_MODES) blend.append(new Option(({ normal: "Normal", add: "Addieren", screen: "Bildschirm", multiply: "Multiplizieren" } as Record<BlendMode, string>)[b], b));
     blend.addEventListener("change", () => { ctx.show.layers[l]!.blend = blend.value as BlendMode; });
     blend.dataset.ctl = `layer.${l + 1}.blend`;
-    name.append(op, color, blend);
+    // Antrieb: woher Pulsieren und Reaktion kommen
+    const drive = el("select", "drive-sel"); drive.ariaLabel = `Antrieb Ebene ${l + 1}`;
+    for (const d of DRIVES) drive.append(new Option(`${DRIVE_ICON[d]} ${DRIVE_LABEL[d]}`, d));
+    drive.title = "Antrieb: Auto (Audio wenn vorhanden, sonst Takt), Takt (BPM), Audio, Statisch (kein Pulsieren)";
+    drive.addEventListener("change", () => { ctx.show.layers[l]!.drive = drive.value as Drive; });
+    drive.dataset.ctl = `layer.${l + 1}.drive`;
+    name.append(op, color, blend, drive);
     row.append(name);
     clipCells[l] = [];
     const clips = layerClips(l);
@@ -882,9 +890,10 @@ function updateUi(now: number, beat: number): void {
     if (!layer) return;
     row.classList.toggle("sel", l === fxPanel.layer);
     const sels = row.querySelectorAll<HTMLSelectElement>("select");
-    const color = sels[0]!, blend = sels[1]!;
+    const color = sels[0]!, blend = sels[1]!, drive = sels[2];
     if (document.activeElement !== color) color.value = layer.colorSource;
     if (document.activeElement !== blend) blend.value = layer.blend;
+    if (drive && document.activeElement !== drive) drive.value = layer.drive ?? "auto";
   });
   (window as unknown as { refreshSlots: () => void }).refreshSlots();
   updateAudioUi();
