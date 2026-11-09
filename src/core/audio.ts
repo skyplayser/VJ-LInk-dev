@@ -132,7 +132,34 @@ export function sampleWave(time: ArrayLike<number>, gain: number): number[] {
 }
 
 /** Was eine Ebene antreibt: Beat (für Muster), Puls (0–1), Bänder und Wellenform. */
-export interface DriveOut { beat: number; pulse: number; bands: number[]; wave: number[] | null }
+export interface DriveOut { beat: number; pulse: number; bands: number[]; wave: number[] | null; rings: number[] }
+
+/** Lebensdauer eines Rings aus einem Bass-Schlag (Sekunden). */
+export const KICK_RING_SEC = 1.2;
+/** Vier Ringe im Takt (wie bisher): alle halben Beats ein neuer, jeder lebt 2 Beats. Phase 0–1. */
+export const beatRings = (beat: number): number[] => [0, 1, 2, 3].map(i => (beat * 0.5 + i * 0.25) % 1);
+/** Ringe aus echten Bass-Schlägen: Phase 0–1, -1 = kein Ring. */
+export function kickRings(kicks: readonly number[] | undefined, nowMs: number): number[] {
+  return [0, 1, 2, 3].map(i => {
+    const t = kicks?.[i];
+    if (t === undefined) return -1;
+    const ph = (nowMs - t) / 1000 / KICK_RING_SEC;
+    return ph >= 0 && ph < 1 ? ph : -1;
+  });
+}
+
+/** Erkennt Bass-Schläge im Pegel (gleitende Schwelle, höchstens alle 180 ms). */
+export class KickDetector {
+  private avg = 0;
+  private last = 0;
+  kicks: number[] = [];
+  feed(bass: number, nowMs: number): boolean {
+    const hit = bass > this.avg * 1.3 + 0.06 && nowMs - this.last > 180;
+    if (hit) { this.last = nowMs; this.kicks = [nowMs, ...this.kicks].slice(0, 4); }
+    this.avg = this.avg * 0.93 + bass * 0.07;
+    return hit;
+  }
+}
 
 const SILENT = { bass: 0, mid: 0, high: 0 };
 
@@ -146,17 +173,19 @@ const SILENT = { bass: 0, mid: 0, high: 0 };
 export function layerDrive(drive: Drive | undefined, audio: AudioState, clip: string | null, beat: number, tSec: number, layerSec: number): DriveOut {
   switch (drive) {
     case "static":
-      return { beat: layerSec * 0.5, pulse: 0, bands: new Array<number>(BAND_COUNT).fill(0.4), wave: null };
+      return { beat: layerSec * 0.5, pulse: 0, bands: new Array<number>(BAND_COUNT).fill(0.4), wave: null, rings: beatRings(layerSec * 0.5) };
     case "bpm":
-      return { beat, pulse: beatPulse(beat), bands: bandsFrom(SILENT, beat, tSec), wave: null };
+      return { beat, pulse: beatPulse(beat), bands: bandsFrom(SILENT, beat, tSec), wave: null, rings: beatRings(beat) };
     case "audio": {
       const bands = liveBands(audio, beat, tSec);
       const bass = Math.max(bands[0] ?? 0, bands[1] ?? 0);
-      return { beat, pulse: Math.min(1, Math.pow(bass, 1.5) * 1.3), bands, wave: audio.mic?.wave ?? null };
+      return { beat, pulse: Math.min(1, Math.pow(bass, 1.5) * 1.3), bands, wave: audio.mic?.wave ?? null, rings: kickRings(audio.kicks, tSec * 1000) };
     }
     default: {
       const mic = micDrives(audio, clip);
-      return { beat, pulse: beatPulse(beat), bands: mic ? audio.mic!.bands : bandsFrom(audio, beat, tSec), wave: mic ? audio.mic!.wave : null };
+      // Live-Audio wirkt: Ringe kommen aus echten Bass-Schlägen, sonst im Takt
+      return { beat, pulse: beatPulse(beat), bands: mic ? audio.mic!.bands : bandsFrom(audio, beat, tSec), wave: mic ? audio.mic!.wave : null,
+        rings: mic ? kickRings(audio.kicks, tSec * 1000) : beatRings(beat) };
     }
   }
 }

@@ -7,7 +7,7 @@ import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAX_LAYERS, SLOT_NAME
 import { EFFECT_BY_ID } from "./effects";
 
 export const DRIVE_LABEL = { auto: "Auto", bpm: "Takt", audio: "Audio", static: "Statisch" } as const;
-const LASER_LABEL = { y: "Höhe", x: "Seite", size: "Größe", thick: "Stärke" } as const;
+const LASER_LABEL = { y: "Y (Höhe)", x: "X (Seite)", size: "Größe", thick: "Stärke" } as const;
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
 export const SCENE_SLOTS = 32;
@@ -105,6 +105,9 @@ export function buildControls(): ControlDef[] {
           const [lo, hi] = LASER_LIMITS[k]; l.laser = { ...(l.laser ?? defaultLaser()), [k]: lo + clamp01(v) * (hi - lo) } as LaserSettings;
         },
       })),
+      { id: `layer.${i + 1}.laser.xy`, label: `E${i + 1} XY-Override`, group: "Ebenen", kind: "toggle", quick: false,
+        get: c => (c.show.layers[i]?.laser?.override ? 1 : 0),
+        set: (c, v) => { const l = c.show.layers[i]; if (l) l.laser = { ...(l.laser ?? defaultLaser()), override: on(v) }; } },
       { id: `layer.${i + 1}.clear`, label: `E${i + 1} Clip aus`, group: "Ebenen", kind: "trigger", quick: false,
         get: c => (c.show.layers[i]?.clip ? 0 : 1), set: (c, v) => { const l = c.show.layers[i]; if (l && on(v)) l.clip = null; } },
     );

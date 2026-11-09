@@ -24,8 +24,10 @@ export interface LaserSettings {
   size: number;
   /** Linien- und Punktstärke, 1 = normal (ca. 4 px Linie, 10 px Punkt bei 1080 Zeilen). */
   thick: number;
+  /** XY-Override: Eigenbewegung aus, nur X/Y bestimmen die Lage (z. B. von der MA). Aus = wie gewohnt. */
+  override?: boolean;
 }
-export const defaultLaser = (): LaserSettings => ({ x: 0, y: 0.3, size: 1, thick: 1 });
+export const defaultLaser = (): LaserSettings => ({ x: 0, y: 0.3, size: 1, thick: 1, override: false });
 export const LASER_LIMITS = { x: [-1, 1], y: [-1, 1], size: [0.2, 2.5], thick: [0.5, 4] } as const;
 export type Rgb = readonly [number, number, number]; // 0–1
 
@@ -155,6 +157,8 @@ export interface AudioState {
   bass: number; mid: number; high: number;
   /** Gesetzt, solange ein Audio-Eingang läuft. */
   mic?: MicData;
+  /** Zeitpunkte (Epoch-ms) der letzten Bass-Schläge, neuester zuerst (aus Live-Audio erkannt). */
+  kicks?: number[];
 }
 
 export interface ShowState {

@@ -138,7 +138,7 @@ function partialLayer(v: unknown): Partial<LayerState> | null {
   if ("drive" in v) out.drive = oneOf(v.drive, DRIVES, "auto");
   if (isObj(v.laser)) {
     const L = LASER_LIMITS, z = v.laser;
-    out.laser = { x: num(z.x, 0, L.x[0], L.x[1]), y: num(z.y, 0.3, L.y[0], L.y[1]), size: num(z.size, 1, L.size[0], L.size[1]), thick: num(z.thick, 1, L.thick[0], L.thick[1]) };
+    out.laser = { x: num(z.x, 0, L.x[0], L.x[1]), y: num(z.y, 0.3, L.y[0], L.y[1]), size: num(z.size, 1, L.size[0], L.size[1]), thick: num(z.thick, 1, L.thick[0], L.thick[1]), override: z.override === true };
   }
   if ("speed" in v) out.speed = num(v.speed, 1, -4, 4);
   if ("strobe" in v) out.strobe = num(v.strobe, 0, 0, 8);

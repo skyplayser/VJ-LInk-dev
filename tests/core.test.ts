@@ -969,7 +969,7 @@ describe("Mehrere Farb-Slots", () => {
     const back = parseProject(JSON.parse(JSON.stringify(serializeProject(c, []))));
     const b = back!.layers[0]!;
     expect(b.drive).toBe("static"); expect(b.colorSource).toBe("multi"); expect(b.colorSlots).toEqual([3, 1, 4]);
-    expect(b.laser).toEqual({ x: -0.2, y: 0.5, size: 1.5, thick: 2.5 });
+    expect(b.laser).toEqual({ x: -0.2, y: 0.5, size: 1.5, thick: 2.5, override: false });
   });
 });
 
@@ -1044,5 +1044,33 @@ describe("Modulation", () => {
     c.mods = [{ target: "master", source: "bass", beats: 4, depth: 0.3, on: true }, { target: "tempo.bpm", source: "sine", beats: 4, depth: 1, on: true }];
     const p = parseProject(serializeProject(c, []))!;
     expect(p.mods).toEqual([{ target: "master", source: "bass", beats: 4, depth: 0.3, on: true }]);
+  });
+});
+
+describe("XY-Override", () => {
+  it("Schalter und Lage per Mapping, wird gespeichert", () => {
+    const c = ctx();
+    setControl(c, "layer.1.laser.xy", 1);
+    setControl(c, "layer.1.laser.x", 0.75);
+    setControl(c, "layer.1.laser.size", 1);
+    const z = c.show.layers[0]!.laser;
+    expect(z.override).toBe(true);
+    expect(z.x).toBeCloseTo(0.5, 6);
+    expect(z.size).toBeCloseTo(2.5, 6);
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.layers[0]!.laser.override).toBe(true);
+  });
+});
+
+describe("Bass-Schläge", () => {
+  it("erkennt Schläge, Ringe folgen ihnen; ohne Audio keine Ringe im Audio-Antrieb", async () => {
+    const { KickDetector, kickRings, layerDrive } = await import("../src/core/audio");
+    const k = new KickDetector();
+    for (let t = 0; t < 1000; t += 16) k.feed(0.05, t);
+    expect(k.feed(0.9, 1000)).toBe(true);
+    expect(k.feed(0.9, 1050)).toBe(false); // zu kurz danach
+    expect(kickRings(k.kicks, 1600)[0]).toBeCloseTo(0.5, 5);
+    expect(layerDrive("audio", { bass: 0, mid: 0, high: 0 }, "pulse-rings", 1, 1, 1).rings.every(r => r < 0)).toBe(true);
+    expect(layerDrive("bpm", { bass: 0, mid: 0, high: 0 }, "pulse-rings", 1, 1, 1).rings.every(r => r >= 0)).toBe(true);
   });
 });

@@ -227,8 +227,10 @@ export class Engine {
     gl.uniform1i(this.loc(g, "uPalN"), Math.min(5, pal.length));
     const lz = l.laser ?? defaultLaser();
     gl.uniform4f(this.loc(g, "uLz"), lz.x, lz.y, lz.size, lz.thick);
+    gl.uniform1f(this.loc(g, "uLzOv"), lz.override ? 1 : 0);
     // Bänder und Wellenform aus dem Antrieb der Ebene
     gl.uniform1fv(this.loc(g, "uBands"), new Float32Array(drv.bands));
+    gl.uniform1fv(this.loc(g, "uRings"), new Float32Array(drv.rings));
     const wave = drv.wave && drv.wave.length === WAVE_POINTS ? drv.wave : null;
     gl.uniform1i(this.loc(g, "uHasWave"), wave ? 1 : 0);
     if (wave) gl.uniform1fv(this.loc(g, "uWave"), new Float32Array(wave));

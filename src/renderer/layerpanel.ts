@@ -18,10 +18,11 @@ const DRIVE_HINT: Record<Drive, string> = {
   static: "Kein Pulsieren: gleichmäßige Bewegung, unabhängig von Takt und Audio.",
 };
 
-interface LaserField { key: keyof LaserSettings; label: string; scale: number; unit: string }
+type NumKey = "x" | "y" | "size" | "thick";
+interface LaserField { key: NumKey; label: string; scale: number; unit: string }
 const LASER_FIELDS: LaserField[] = [
-  { key: "y", label: "Höhe", scale: 100, unit: "" },
-  { key: "x", label: "Seite", scale: 100, unit: "" },
+  { key: "y", label: "Y · Höhe", scale: 100, unit: "" },
+  { key: "x", label: "X · Seite", scale: 100, unit: "" },
   { key: "size", label: "Größe", scale: 100, unit: " %" },
   { key: "thick", label: "Stärke", scale: 100, unit: " %" },
 ];
@@ -30,7 +31,7 @@ const rgbCss = (c: readonly number[]) => `rgb(${c.map(v => Math.round(v * 255)).
 
 export class LayerPanel {
   private sig = "";
-  private ranges = new Map<keyof LaserSettings, { input: HTMLInputElement; val: HTMLElement }>();
+  private ranges = new Map<NumKey, { input: HTMLInputElement; val: HTMLElement }>();
 
   constructor(private ctx: ControlContext, private root: HTMLElement, private layerOf: () => number) {}
 
@@ -42,7 +43,7 @@ export class LayerPanel {
     this.root.hidden = false;
     const isLaser = !!l.clip && EFFECT_BY_ID.get(l.clip)?.category === "laser";
     const slots = this.ctx.show.slots.map(rgbCss).join(";");
-    const sig = `${this.layerOf()}|${l.drive}|${l.colorSource}|${(l.colorSlots ?? []).join(",")}|${isLaser}|${slots}`;
+    const sig = `${this.layerOf()}|${l.laser?.override ? 1 : 0}|${l.drive}|${l.colorSource}|${(l.colorSlots ?? []).join(",")}|${isLaser}|${slots}`;
     if (force || sig !== this.sig) { this.sig = sig; this.build(l, isLaser); }
     const z = l.laser ?? defaultLaser();
     for (const f of LASER_FIELDS) {
@@ -104,6 +105,17 @@ export class LayerPanel {
     // Laser: Lage, Größe, Stärke
     if (!isLaser) return;
     this.root.append(el("h4", "lp-sub", "Laser"));
+    // XY-Override: Eigenbewegung aus, Lage nur über X/Y (z. B. MA per DMX)
+    const ov = !!l.laser?.override;
+    const ovRow = el("div", "lp-row");
+    ovRow.append(el("span", "lp-lab", "XY-Override"));
+    const ovBtn = el("button", `btn small-btn${ov ? " on" : ""}`, ov ? "An: X/Y steuern die Lage" : "Aus: Effekt bewegt sich selbst");
+    ovBtn.dataset.ctl = `layer.${n + 1}.laser.xy`;
+    ovBtn.setAttribute("aria-pressed", String(ov));
+    ovBtn.addEventListener("click", () => { l.laser = { ...(l.laser ?? defaultLaser()), override: !ov }; this.update(true); });
+    ovRow.append(ovBtn);
+    this.root.append(ovRow);
+    if (ov) this.root.append(el("p", "muted small lp-hint", "Die Eigenbewegung ist aus: X und Y setzen die Lage direkt (-100 bis 100 = Bildrand). Per Mapping auf Kanäle der MA legen (MAPPING → DMX), auch Größe und den Schalter selbst."));
     for (const f of LASER_FIELDS) {
       const [lo, hi] = LASER_LIMITS[f.key];
       const row = el("label", "mrow"); row.append(el("span", "", f.label));

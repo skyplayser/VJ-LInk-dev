@@ -43,7 +43,8 @@ import { DRIVE_LABEL } from "../core/controls";
 const DRIVE_ICON: Record<Drive, string> = { auto: "◎", bpm: "♩", audio: "∿", static: "—" };
 import { ModMode } from "./modmode";
 import { modulatedShow } from "../core/modulation";
-import { liveBands } from "../core/audio";
+import { KickDetector, liveBands } from "../core/audio";
+const kickDet = new KickDetector();
 import { LayerClock, TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -832,6 +833,8 @@ function frame(): void {
   // Audio-Eingang: Spektrum und Wellenform in den Show-Zustand (gehen so auch an die Ausgänge)
   const mic = audioIn.sample();
   if (mic) ctx.show.audio.mic = mic; else delete ctx.show.audio.mic;
+  // Bass-Schläge erkennen (Live-Audio oder LJ-Link): z. B. für die Pulsierenden Ringe
+  { const lb = liveBands(ctx.show.audio, ctx.tempo.beatAt(now), now / 1000); kickDet.feed(Math.max(lb[0] ?? 0, lb[1] ?? 0), now); ctx.show.audio.kicks = kickDet.kicks; }
   const beat = ctx.tempo.beatAt(now);
   const lt = layerClock.tick(now, ctx.show.layers);
   // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert

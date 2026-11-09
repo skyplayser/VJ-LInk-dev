@@ -29,6 +29,8 @@ uniform int   uTest;      // Testbild-Muster
 uniform vec3  uPal[5];    // mehrere Slots: Palette
 uniform int   uPalN;      // Anzahl Farben in der Palette (0 = keine)
 uniform vec4  uLz;        // Laser: x, y (-1 … 1), Größe, Stärke
+uniform float uLzOv;
+uniform float uRings[4];  // Pulsierende Ringe: Phase 0–1 je Ring, -1 = keiner (Takt oder echte Bass-Schläge)      // XY-Override: 1 = keine Eigenbewegung, nur X/Y bestimmen die Lage
 uniform int   uColorMode; // 0 original, 1 Slot, 2 Verlauf A→B, 3 Regenbogen
 uniform vec3  uColA;
 uniform vec3  uColB;
@@ -93,10 +95,10 @@ vec3 oscilloscope(vec2 uv){
 vec3 pulseRings(vec2 uv){
   vec2 p = (uv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
   float d = length(p);
-  float t = fract(uBeat * 0.5);
   float acc = 0.0;
   for (int i = 0; i < 4; i++){
-    float ph = fract(t + float(i) * 0.25);
+    float ph = uRings[i];
+    if (ph < 0.0) continue;
     float rr = ph * 0.9;
     acc += smoothstep(0.02 + 0.02 * uBands[0], 0.0, abs(d - rr)) * (1.0 - ph);
   }
@@ -560,7 +562,7 @@ vec3 laserSheet(vec2 uv){
 vec3 laserBeams(vec2 uv){
   vec2 p = lzP(uv); float P = lzPx();
   float spread = 0.6 + 0.45 * sin(uTime * 0.45);
-  vec2 c0 = vec2(sin(uTime * 0.6) * 0.22, sin(uTime * 0.37) * 0.08);
+  vec2 c0 = vec2(sin(uTime * 0.6) * 0.22, sin(uTime * 0.37) * 0.08) * (1.0 - uLzOv);
   float mode = mod(floor(uBeat / 8.0), 3.0), step2 = floor(uBeat * 2.0);
   vec3 acc = vec3(0.0);
   float k = floor(uBeat / 8.0);
@@ -587,7 +589,7 @@ vec3 laserSky(vec2 uv){
 
 // 38 Kegel / Tunnel: Kreis, atmet im Takt, mit drehenden Lücken
 vec3 laserCone(vec2 uv){
-  vec2 c0 = vec2(sin(uTime * 0.31) * 0.18, sin(uTime * 0.23) * 0.06);
+  vec2 c0 = vec2(sin(uTime * 0.31) * 0.18, sin(uTime * 0.23) * 0.06) * (1.0 - uLzOv);
   vec2 d = lzP(uv) - c0; float P = lzPx();
   float r = length(d), a = atan(d.y, d.x);
   float R = 0.17 + 0.05 * uPulse + 0.04 * sin(uTime * 0.5);
@@ -625,7 +627,7 @@ vec3 laserMatrix(vec2 uv){
 
 // 41 Propeller: 2–4 Linien durch die Mitte, drehen sich
 vec3 laserPropeller(vec2 uv){
-  vec2 p = lzP(uv) - vec2(0.0, sin(uTime * 0.3) * 0.06); float P = lzPx();
+  vec2 p = lzP(uv) - vec2(0.0, sin(uTime * 0.3) * 0.06 * (1.0 - uLzOv)); float P = lzPx();
   float K = mod(floor(uBeat / 8.0), 3.0) + 2.0;
   float rot = uTime * 0.8 + uPulse * 0.12;
   vec3 acc = vec3(0.0);
@@ -715,6 +717,11 @@ vec3 beamScanner(vec2 uv){
   float sv = smoothstep(0.0, 1.0, pingPong(uBeat / 2.0)), sh = smoothstep(0.0, 1.0, pingPong(uBeat / 2.0 + 0.5));
   vec2 c1 = vec2(sin(uTime * 0.23) * a * 0.6, mix(h * 0.92, -h * 0.92, sv));   // oben ↔ unten
   vec2 c2 = vec2(mix(-a * 0.92, a * 0.92, sh), cos(uTime * 0.19) * h * 0.6);    // links ↔ rechts
+  if (uLzOv > 0.5) {
+    // XY-Override: Strahl 1 genau auf X/Y, Strahl 2 gespiegelt (wie zwei Scanner im Paar)
+    c1 = vec2(0.0);
+    c2 = vec2(-uLz.x * uRes.x / uRes.y / max(uLz.z, 0.05), 0.0);
+  }
   float r = 0.024 * P;
   return min(lzColN(k, 0.0) * lzSpot(length(p - c1) * P, r) + lzColN(k, 1.0) * lzSpot(length(p - c2) * P, r), vec3(1.0));
 }
@@ -725,7 +732,8 @@ vec3 beamSpots(vec2 uv){
   vec3 acc = vec3(0.0); float k = floor(uBeat / 8.0);
   for (int i = 0; i < 5; i++) {
     float fi = float(i);
-    vec2 q = vec2(sin(uTime * (0.21 + fi * 0.05) + fi * 2.1) * 0.5, sin(uTime * (0.17 + fi * 0.04) + fi * 1.3) * 0.22);
+    vec2 q = uLzOv > 0.5 ? vec2((fi - 2.0) * 0.12, 0.0)
+      : vec2(sin(uTime * (0.21 + fi * 0.05) + fi * 2.1) * 0.5, sin(uTime * (0.17 + fi * 0.04) + fi * 1.3) * 0.22);
     acc += lzColN(k, fi) * lzSpot(length(p - q) * P, (0.05 + 0.012 * uPulse) * P, 0.85);
   }
   return min(acc, vec3(1.0));
