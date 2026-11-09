@@ -120,8 +120,8 @@ describe("DMX", () => {
     d.decode(f, s);
     expect(s.layers[1]!.clip).toBe(READY_GENERATORS[2]!.id);
   });
-  it("Kanalliste hat 70 Zeilen", () => {
-    expect(channelListCsv().trim().split("\n").length).toBe(71);
+  it("Kanalliste hat 91 Zeilen", () => {
+    expect(channelListCsv().trim().split("\n").length).toBe(92);
   });
 });
 
@@ -1318,5 +1318,78 @@ describe("Timeline: Effekte und Helligkeit", () => {
     const c = ctx();
     setControl(c, "blinder", 1);
     expect(c.show.blinder).toBe(1);
+  });
+});
+
+describe("Raster-Verzerrung", () => {
+  it("Raster aus den Ecken, Fläche läuft durch alle Stützpunkte, Netz und Speichern", async () => {
+    const { gridFromCorners, gridCorners, gridPoint, meshTriangles, warpFor, newSurface } = await import("../src/core/layout");
+    const corners: [number, number][] = [[0.1, 0.1], [0.9, 0.2], [0.8, 0.9], [0.2, 0.8]];
+    const g = gridFromCorners(corners, 3);
+    expect(gridCorners(g)).toEqual(corners.map(c => [expect.closeTo(c[0], 9), expect.closeTo(c[1], 9)]));
+    g.pts[4] = [0.6, 0.4];                       // Mitte verschieben
+    const mid = gridPoint(g, 0.5, 0.5);
+    expect(mid[0]).toBeCloseTo(0.6, 9); expect(mid[1]).toBeCloseTo(0.4, 9);
+    const c0 = gridPoint(g, 0, 0); expect(c0[0]).toBeCloseTo(0.1, 9);
+    expect(meshTriangles(g, 8).length).toBe(8 * 8 * 6 * 4);
+    const s = { ...newSurface(5, 1), grid: g };
+    expect(warpFor({ mode: "mapping", screens: [], surfaces: [s] }, 5)![0]!.mesh).toBeInstanceOf(Float32Array);
+    const c = ctx();
+    const p = parseProject(serializeProject(c, [], [], [], { mode: "mapping", screens: [], surfaces: [s] }))!;
+    expect(p.outputs.surfaces![0]!.grid!.n).toBe(3);
+    expect(p.outputs.surfaces![0]!.grid!.pts[4]).toEqual([0.6, 0.4]);
+  });
+});
+
+describe("Ausgabe und Mapping: Masken, Bühnenfoto, feste Bild-Kanäle", () => {
+  it("Maske: Punkt innen/außen, nur im Mapping-Modus und nur für den eigenen Beamer", async () => {
+    const { inMask, masksFor, newMask } = await import("../src/core/layout");
+    const m = newMask(7, 1);
+    expect(inMask(m.pts, 0.5, 0.5)).toBe(true);
+    expect(inMask(m.pts, 0.1, 0.5)).toBe(false);
+    expect(masksFor({ mode: "canvas", screens: [], masks: [m] }, 7)).toEqual([]);
+    expect(masksFor({ mode: "mapping", screens: [], masks: [m] }, 7)).toHaveLength(1);
+    expect(masksFor({ mode: "mapping", screens: [], masks: [m] }, 8)).toHaveLength(0);
+    expect(masksFor({ mode: "mapping", screens: [], masks: [{ ...m, on: false }] }, 7)).toHaveLength(0);
+  });
+  it("Masken und Bühnenfotos überstehen Speichern und Laden; Unfug fällt weg", () => {
+    const c = ctx();
+    const photo = "data:image/jpeg;base64,AAAA";
+    c.photos = { "7": { url: photo, opacity: 0.4 } };
+    const layout = { mode: "mapping" as const, screens: [], masks: [{ id: "m1", screen: 7, name: "Tür", pts: [[0, 0], [1, 0], [1, 1]] as [number, number][], invert: true, feather: 30, on: true }] };
+    const json = serializeProject(c, [], [], [], layout);
+    const p = parseProject(json)!;
+    expect(p.photos?.["7"]).toEqual({ url: photo, opacity: 0.4 });
+    expect(p.outputs?.masks?.[0]).toMatchObject({ name: "Tür", invert: true, feather: 30 });
+    const bad = parseProject(JSON.stringify({ ...JSON.parse(json), photos: { "7": { url: "javascript:alert(1)", opacity: 1 }, x: { url: photo } } }))!;
+    expect(bad.photos).toEqual({});
+  });
+  it("Feste Regler je Bild wirken unabhängig vom bearbeiteten Bild", async () => {
+    const { addImage, selectCanvas, mainLayers, MAIN_STACK } = await import("../src/core/show");
+    const c = ctx();
+    const b = addImage(c.show)!;
+    selectCanvas(c.show, b);
+    setControl(c, "bild.1.e1", 0.25);
+    expect(mainLayers(c.show)[0]!.opacity).toBe(0.25);
+    expect(c.show.stacks![b]![0]!.opacity).not.toBe(0.25);
+    setControl(c, "bild.2.hell", 0.5);
+    expect(c.show.stackGain?.[b]).toBe(0.5);
+    selectCanvas(c.show, MAIN_STACK);
+    setControl(c, "bild.2.bearbeiten", 1);
+    expect(c.show.canvas).toBe(b);
+    expect(resolveControl("bild.3.hell")!.get(c)).toBe(0); // Bild 3 gibt es nicht
+  });
+  it("DMX: Ebenen-Kanäle bleiben bei Bild 1, Bild-Kanäle steuern Helligkeit und Ebenen der anderen Bilder", async () => {
+    const { addImage, selectCanvas, mainLayers } = await import("../src/core/show");
+    const c = ctx();
+    const b = addImage(c.show)!;
+    selectCanvas(c.show, b);
+    const d = new DmxDecoder(1);
+    const f = new Uint8Array(512);
+    f[CH.layerBase - 1] = 51; f[CH.imageGainBase] = 128; f[CH.imageLayerBase - 1] = 255;
+    d.decode(f, c.show);
+    expect(mainLayers(c.show)[0]!.opacity).toBeCloseTo(0.2);
+    expect(c.show.stackGain?.[b]).toBeCloseTo(128 / 255);
+    expect(c.show.stacks![b]![0]!.opacity).toBe(1);
   });
 });

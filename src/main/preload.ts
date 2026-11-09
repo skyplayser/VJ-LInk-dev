@@ -7,6 +7,7 @@ const bridge: VjBridge = {
   onFrame: cb => { ipcRenderer.on("frame", (_e, f: Frame) => cb(f)); },
   listDisplays: () => ipcRenderer.invoke("displays:list"),
   toggleOutput: id => ipcRenderer.invoke("displays:toggle", id),
+  windowOutputSize: (w, h) => ipcRenderer.invoke("displays:windowSize", w, h),
   configure: (c: NetConfig) => { ipcRenderer.send("configure", c); },
   addMedia: p => { ipcRenderer.send("media:add", p); },
   removeMedia: id => { ipcRenderer.send("media:remove", id); },

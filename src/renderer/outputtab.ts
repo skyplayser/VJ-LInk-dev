@@ -17,8 +17,8 @@ export class OutputTab {
   constructor(private get: () => OutputLayout, private set: (l: OutputLayout) => void,
     private displays: () => DisplayInfo[], private onChange: () => void,
     testGrid: { on: () => boolean; toggle: () => void } = { on: () => false, toggle: () => {} },
-    images?: () => { id: string; name: string }[]) {
-    this.mapping = new MappingEditor(get, set, onChange, testGrid, images);
+    images?: () => { id: string; name: string }[], photos?: () => Record<string, { url: string; opacity: number }>) {
+    this.mapping = new MappingEditor(get, set, onChange, testGrid, images, photos);
     document.querySelectorAll<HTMLButtonElement>("#out-mode [data-mode]").forEach(b => b.addEventListener("click", () => {
       this.set({ ...this.get(), mode: b.dataset.mode as OutputLayout["mode"] });
       this.render(); this.onChange();

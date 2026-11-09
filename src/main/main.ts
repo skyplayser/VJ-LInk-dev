@@ -5,7 +5,7 @@ import { Storage } from "./storage";
 import { LinkClient } from "./link";
 import { ProjectFiles } from "./projectfile";
 import { PROJECT_EXT } from "../core/projectfile";
-import type { ControlEvent, DisplayInfo, Frame, NetConfig } from "../core/frame";
+import { WINDOW_OUTPUT, WINDOW_SIZES, type ControlEvent, type DisplayInfo, type Frame, type NetConfig } from "../core/frame";
 
 // Eigenes Protokoll für Videos: streamt aus dem Bibliotheksordner, spulbar, für WebGL freigegeben.
 protocol.registerSchemesAsPrivileged([{ scheme: "vjmedia", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true } }]);
@@ -199,20 +199,42 @@ function displayInfo(d: Display): DisplayInfo {
     scaleFactor: d.scaleFactor, primary: d.id === screen.getPrimaryDisplay().id, open: outputs.has(d.id),
   };
 }
-const listDisplays = (): DisplayInfo[] => screen.getAllDisplays().map(displayInfo);
+/** Fenster-Ausgang: gewünschte Größe in Pixeln (bei offenem Fenster zählt seine echte Größe). */
+let winSize: [number, number] = [1920, 1080];
+function windowInfo(): DisplayInfo {
+  const w = outputs.get(WINDOW_OUTPUT);
+  const sf = w && !w.isDestroyed() ? screen.getDisplayMatching(w.getBounds()).scaleFactor : 1;
+  const [cw, ch] = w && !w.isDestroyed() ? w.getContentSize() : [winSize[0], winSize[1]];
+  return { id: WINDOW_OUTPUT, label: "Fenster-Ausgang", width: w ? cw ?? winSize[0] : winSize[0], height: w ? ch ?? winSize[1] : winSize[1], scaleFactor: w ? sf : 1, primary: false, open: !!w, window: true };
+}
+const listDisplays = (): DisplayInfo[] => [...screen.getAllDisplays().map(displayInfo), windowInfo()];
 
-function toggleOutput(id: number): DisplayInfo[] {
-  const existing = outputs.get(id);
-  if (existing) { existing.close(); return listDisplays(); }
-  const d = screen.getAllDisplays().find(x => x.id === id);
-  if (!d) return listDisplays();
+function setWindowSize(w: number, h: number): DisplayInfo[] {
+  if (!WINDOW_SIZES.some(([a, b]) => a === w && b === h)) return listDisplays();
+  winSize = [w, h];
+  const win = outputs.get(WINDOW_OUTPUT);
+  if (win && !win.isDestroyed()) {
+    const sf = screen.getDisplayMatching(win.getBounds()).scaleFactor;
+    win.setContentSize(Math.round(w / sf), Math.round(h / sf));
+  }
+  return listDisplays();
+}
+
+/** Fenster-Ausgang öffnen: normales, verschiebbares Fenster mit fester Bildgröße (Seitenverhältnis bleibt beim Ziehen). */
+function openWindowOutput(): void {
+  const sf = screen.getPrimaryDisplay().scaleFactor;
   const win = secureWindow({
-    x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height,
-    frame: false, fullscreen: true, show: false, title: `VJ-Link Ausgang ${id}`, skipTaskbar: true,
+    width: Math.round(winSize[0] / sf), height: Math.round(winSize[1] / sf), useContentSize: true,
+    show: false, title: "VJ-Link Fenster-Ausgang", backgroundColor: "#000000",
   });
+  win.setAspectRatio(winSize[0] / winSize[1]);
   win.setMenuBarVisibility(false);
-  // Esc schließt den Ausgang, auch wenn er das Hauptfenster verdeckt.
-  win.webContents.on("before-input-event", (e, input) => { if (input.type === "keyDown" && input.key === "Escape") { e.preventDefault(); win.close(); } });
+  wireOutput(win, WINDOW_OUTPUT);
+  let t: NodeJS.Timeout | undefined;
+  win.on("resize", () => { clearTimeout(t); t = setTimeout(() => control?.webContents.send("displays", listDisplays()), 150); });
+}
+
+function wireOutput(win: BrowserWindow, id: number): void {
   win.loadFile(rendererFile("output.html"), { query: { display: String(id) } });
   win.once("ready-to-show", async () => {
     win.show();
@@ -223,6 +245,22 @@ function toggleOutput(id: number): DisplayInfo[] {
   win.on("closed", () => { outputs.delete(id); control?.webContents.send("displays", listDisplays()); });
   win.webContents.on("did-finish-load", () => win.webContents.setZoomFactor(1));
   outputs.set(id, win);
+}
+
+function toggleOutput(id: number): DisplayInfo[] {
+  const existing = outputs.get(id);
+  if (existing) { existing.close(); return listDisplays(); }
+  if (id === WINDOW_OUTPUT) { openWindowOutput(); return listDisplays(); }
+  const d = screen.getAllDisplays().find(x => x.id === id);
+  if (!d) return listDisplays();
+  const win = secureWindow({
+    x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height,
+    frame: false, fullscreen: true, show: false, title: `VJ-Link Ausgang ${id}`, skipTaskbar: true,
+  });
+  win.setMenuBarVisibility(false);
+  // Esc schließt den Ausgang, auch wenn er das Hauptfenster verdeckt.
+  win.webContents.on("before-input-event", (e, input) => { if (input.type === "keyDown" && input.key === "Escape") { e.preventDefault(); win.close(); } });
+  wireOutput(win, id);
   return listDisplays();
 }
 
@@ -278,6 +316,7 @@ app.whenReady().then(async () => {
   for (const ev of ["display-added", "display-removed", "display-metrics-changed"] as const)
     screen.on(ev as "display-added", () => control?.webContents.send("displays", listDisplays()));
   ipcMain.handle("displays:toggle", (_e, id: unknown) => typeof id === "number" ? toggleOutput(id) : listDisplays());
+  ipcMain.handle("displays:windowSize", (_e, w: unknown, h: unknown) => typeof w === "number" && typeof h === "number" ? setWindowSize(w, h) : listDisplays());
   ipcMain.on("frame", (e, f: Frame) => {
     if (e.sender !== control?.webContents) return; // nur die Hauptoberfläche darf Bilder liefern
     lastFrame = f;

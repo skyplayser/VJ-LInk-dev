@@ -22,6 +22,8 @@ export interface ControlContext {
   bank: number;
   /** Wird bei jedem Szenen-Abruf von Hand, Taste, MIDI, Pult oder OSC gemeldet (Timeline-Aufnahme). */
   onSceneRecall?: (index: number) => void;
+  /** Bühnenfotos je Beamer (Projektionsmapping, nur Hilfe im Editor): Bildschirm-ID → Bild und Deckkraft. */
+  photos?: Record<string, { url: string; opacity: number }>;
   /** Modulationen (LFO, Audio) an Reglern; gehören zum Projekt. */
   mods?: import("./modulation").Modulation[];
 }

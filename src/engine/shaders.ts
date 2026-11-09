@@ -1103,3 +1103,52 @@ precision highp float;
 out vec4 outColor;
 uniform vec4 uColor;
 void main(){ outColor = uColor; }`;
+
+/** Raster-Verzerrung: Dreiecksnetz, Ecken im Bild des Beamers (oben links = 0/0), Inhalt per u/v. */
+export const MESH_VERT = `#version 300 es
+in vec2 aPos;
+in vec2 aUv;
+out vec2 vUv;
+void main(){
+  vUv = aUv;
+  gl_Position = vec4(aPos.x * 2.0 - 1.0, 1.0 - aPos.y * 2.0, 0.0, 1.0);
+}`;
+export const MESH_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uTex;
+uniform vec4 uSrc;
+void main(){
+  vec2 s = uSrc.xy + clamp(vUv, 0.0, 1.0) * uSrc.zw;
+  outColor = texture(uTex, vec2(s.x, 1.0 - s.y));
+}`;
+
+/** Maske: Vieleck schwärzen (umgekehrt: außen schwärzen), mit weicher Kante. */
+export const MASK_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform vec2 uPts[32];
+uniform int uN;
+uniform int uInv;
+uniform float uFeather;  // Pixel
+uniform vec2 uRes;
+float segDist(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-9), 0.0, 1.0); return length(pa - ba * h); }
+void main(){
+  vec2 p = vec2(vUv.x, 1.0 - vUv.y) * uRes;
+  bool inside = false;
+  float d = 1e9;
+  for (int i = 0; i < 32; i++) {
+    if (i >= uN) break;
+    int j = i == 0 ? uN - 1 : i - 1;
+    vec2 a = uPts[i] * uRes, b = uPts[j] * uRes;
+    if ((a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    d = min(d, segDist(p, a, b));
+  }
+  // Abdeckung: 1 = schwarz. Innen schwärzen (bzw. außen bei „umkehren“), weiche Kante nach innen
+  float cover = inside ? 1.0 : 0.0;
+  if (uFeather > 0.5) cover = inside ? smoothstep(0.0, uFeather, d) : 0.0;
+  if (uInv == 1) cover = inside ? 1.0 - cover : 1.0;
+  outColor = vec4(0.0, 0.0, 0.0, cover);
+}`;

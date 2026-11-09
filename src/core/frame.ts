@@ -47,7 +47,14 @@ export interface DisplayInfo {
   scaleFactor: number;
   primary: boolean;
   open: boolean;
+  /** Fenster-Ausgang: normales Fenster statt Vollbild, zum Abgreifen mit OBS, Resolume, NDI-/Syphon-Werkzeugen usw. */
+  window?: boolean;
 }
+
+/** Kennung des Fenster-Ausgangs (kein echter Bildschirm). */
+export const WINDOW_OUTPUT = -1;
+/** Wählbare Größen des Fenster-Ausgangs (Pixel). */
+export const WINDOW_SIZES: [number, number][] = [[1280, 720], [1920, 1080], [2560, 1440], [3840, 2160], [1080, 1920], [1024, 768], [1920, 1200]];
 
 export interface NetConfig { sacnUniverse: number }
 
@@ -67,6 +74,8 @@ export interface VjBridge {
   onFrame(cb: (f: Frame) => void): void;
   listDisplays(): Promise<DisplayInfo[]>;
   toggleOutput(displayId: number): Promise<DisplayInfo[]>;
+  /** Größe des Fenster-Ausgangs in Pixeln festlegen (öffnet ihn nicht). */
+  windowOutputSize(w: number, h: number): Promise<DisplayInfo[]>;
   configure(c: NetConfig): void;
   /** Grafik in der Bibliothek ablegen (wird gespeichert und an alle Ausgänge verteilt). */
   addMedia(p: MediaPayload): void;

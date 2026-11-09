@@ -23,7 +23,7 @@ import { ShowTab } from "./showtab";
 import { AUDIO_CLIPS, micDrives } from "../core/audio";
 import { MidiIn } from "./midi";
 import type { TempoSource } from "../core/tempo";
-import { frameBeat, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
+import { WINDOW_SIZES, frameBeat, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
 import { bridge } from "./bridge";
 import { resolveControl, setControl } from "../core/controls";
 import { buildDeck } from "./deck";
@@ -89,6 +89,8 @@ let netStatus: NetStatus | null = null;
 let lastDmx: Uint8Array | null = null;
 let lastDmxAt = 0;
 let displays: DisplayInfo[] = [];
+/** Bild, dessen Ebenen die Oberfläche gerade zeigt. */
+let uiCanvas = "main";
 
 // ---- Zuweisungen (Mapping) -------------------------------------------------------------
 const mappings = new MappingTable(defaultKeyMappings());
@@ -716,7 +718,7 @@ const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => 
   // Projektionsmapping: Raster-Testbild auf die Leinwände
   on: () => ctx.show.testCard && ctx.show.testPattern === "grid",
   toggle: () => { const on = !(ctx.show.testCard && ctx.show.testPattern === "grid"); ctx.show.testPattern = "grid"; ctx.show.testCard = on; syncTestUi(); },
-}, () => imageList(ctx.show));
+}, () => imageList(ctx.show), () => (ctx.photos ??= {}));
 async function refreshDisplays(): Promise<void> {
   const list = $("displays");
   if (!bridge) {
@@ -735,11 +737,24 @@ function renderDisplays(): void {
     const row = el("div", d.open ? "display open" : "display");
     const info = el("div"); info.append(el("b", "", `${d.label}${d.primary ? " (Hauptbildschirm)" : ""}`));
     info.append(el("small", "", `${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)} Pixel`));
-    const b = el("button", "btn", d.open ? "SCHLIESSEN" : "ALS AUSGANG ÖFFNEN");
+    const b = el("button", "btn", d.open ? "SCHLIESSEN" : d.window ? "FENSTER ÖFFNEN" : "ALS AUSGANG ÖFFNEN");
     b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); outputTab.render(); fitPreview(); });
-    row.append(info, b); list.append(row);
+    if (d.window) {
+      // Fenster-Ausgang: Größe wählen; zum Abgreifen mit OBS, Resolume, Syphon-/NDI-Werkzeugen (Fensteraufnahme)
+      info.querySelector("b")!.title = "Normales Fenster statt Vollbild – zum Abgreifen per Fensteraufnahme (OBS, Syphon Recorder, NDI-Werkzeuge)";
+      info.append(el("small", "muted", "für OBS, NDI, Syphon (Fensteraufnahme)"));
+      const size = el("select"); size.title = "Bildgröße des Fensters";
+      const cur = `${Math.round(d.width * d.scaleFactor)}x${Math.round(d.height * d.scaleFactor)}`;
+      for (const [w, h] of WINDOW_SIZES) size.append(new Option(`${w} × ${h}${h > w ? " (hoch)" : ""}`, `${w}x${h}`));
+      if (!Array.from(size.options).some(o => o.value === cur)) size.append(new Option(`${cur.replace("x", " × ")} (gezogen)`, cur));
+      size.value = cur;
+      size.addEventListener("change", async () => { const [w, h] = size.value.split("x").map(Number); displays = await bridge!.windowOutputSize(w!, h!); renderDisplays(); outputTab.render(); fitPreview(); });
+      size.className = "win-size"; info.append(size);
+      row.append(info, b);
+    } else row.append(info, b);
+    list.append(row);
   }
-  $("output-note").textContent = displays.length > 1 ? "" : "Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darüber verdeckt diese Oberfläche; Taste Esc oder Schließen im Hauptfenster beendet ihn.";
+  $("output-note").textContent = displays.filter(d => !d.window).length > 1 ? "" : "Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darüber verdeckt diese Oberfläche; Taste Esc oder Schließen im Hauptfenster beendet ihn.";
 }
 $<HTMLInputElement>("testpattern").addEventListener("change", e => { ctx.show.testCard = (e.target as HTMLInputElement).checked; syncTestUi(); });
 /** Testbild-Knöpfe und Häkchen auf den aktuellen Stand bringen. */
@@ -908,7 +923,9 @@ function frame(): void {
         white: shown.strobe.white || f.has("white"), whiteFlash: shown.strobe.whiteFlash || f.has("wflash") },
       blackout: shown.blackout || f.has("blackout"),
       blinder: Math.max(shown.blinder ?? 0, f.has("blinder") ? 1 : 0),
-      stackGain: tlo.gains };
+      // Helligkeit je Bild: Regler/Pult × Timeline
+      stackGain: Object.fromEntries([...new Set([...Object.keys(tlo.gains), ...Object.keys(shown.stackGain ?? {})])]
+        .map(id => [id, (tlo.gains[id] ?? 1) * (shown.stackGain?.[id] ?? 1)])) };
   }
   // Projektionsmapping: Live-Vorschauen der Bilder (je Bild abwechselnd eins pro Durchlauf), dann das bearbeitete groß
   const cv = shown.canvas ?? MAIN_STACK;
@@ -1119,6 +1136,8 @@ function syncCanvases(): void {
   // Stapel ohne Bild aufräumen (z. B. nach dem Laden alter Projekte)
   for (const id of Object.keys(st)) if (id !== MAIN_STACK && !images.some(im => im.id === id)) { dropCanvas(s, id); rebuildGrid(); rebuildDeck(); }
   if (!mappingOn() && s.canvas !== MAIN_STACK) { selectCanvas(s, MAIN_STACK); rebuildGrid(); rebuildDeck(); fxPanel.select(0); }
+  // Bearbeitetes Bild von außen gewechselt (MIDI/OSC „bild.N.bearbeiten“): Oberfläche nachziehen
+  if ((s.canvas ?? MAIN_STACK) !== uiCanvas) { uiCanvas = s.canvas ?? MAIN_STACK; editImage(uiCanvas); return; }
   const surfaces = outLayout.surfaces ?? [];
   // Bild-Vorschauen
   const tsig = `${mappingOn()}|${s.canvas}|${images.map(im => `${im.id}:${im.name}`).join(",")}|${armedImageDelete}`;
@@ -1138,7 +1157,15 @@ function syncCanvases(): void {
         nm.title = "Doppelklick oder ✎: umbenennen";
         const pen = el("button", "img-pen", "✎"); pen.title = "Umbenennen";
         pen.addEventListener("click", ev => { ev.stopPropagation(); renameImage(im.id); });
-        t.append(c, nm, pen);
+        // Helligkeit des Bilds (fester Regler „bild.N.hell“, per MIDI/OSC/Pult belegbar)
+        const n = images.indexOf(im) + 1;
+        const gain = el("input", "img-gain"); gain.type = "range"; gain.min = "0"; gain.max = "1"; gain.step = "0.01";
+        gain.value = String(s.stackGain?.[im.id] ?? 1); gain.dataset.ctl = `bild.${n}.hell`; gain.dataset.img = im.id;
+        gain.title = `Helligkeit ${im.name}`; gain.setAttribute("aria-label", `Helligkeit ${im.name}`);
+        gain.addEventListener("click", ev => ev.stopPropagation());
+        gain.addEventListener("input", () => { (s.stackGain ??= {})[im.id] = Number(gain.value); });
+        t.dataset.ctl = `bild.${n}.bearbeiten`;
+        t.append(c, nm, pen, gain);
         t.title = `${im.name} bearbeiten (Clips, Ebenen, Effekte)`;
         t.addEventListener("click", ev => {
           if ((ev.target as HTMLElement).closest(".img-x, .img-pen, .img-rename")) return;
@@ -1171,6 +1198,11 @@ function syncCanvases(): void {
     }
     fitPreview();
   }
+  // Helligkeits-Regler der Bilder nachziehen (MIDI, OSC, Pult)
+  document.querySelectorAll<HTMLInputElement>("#img-tiles .img-gain").forEach(g => {
+    const v = String(s.stackGain?.[g.dataset.img!] ?? 1);
+    if (g.value !== v && document.activeElement !== g) g.value = v;
+  });
   // SHOW: auf welchem Bild der Ablauf läuft (nur im Mapping-Modus mit mehreren Bildern)
   const cueSig = `${mappingOn()}|${ctx.show.cueImage}|${images.map(im => `${im.id}:${im.name}`).join(",")}|${surfaces.map(sf => `${sf.name}:${sf.image}`).join(",")}`;
   if (cueSig !== cueImgSig) {
@@ -1244,7 +1276,7 @@ function renameImage(id: string): void {
 
 /** Bild zum Bearbeiten wählen (Clip-Raster, Ebenen, Effekte, Fader zeigen dann seine Ebenen). */
 function editImage(id: string): void {
-  selectCanvas(ctx.show, id);
+  selectCanvas(ctx.show, id); uiCanvas = id;
   canvasSig = ""; tilesSig = "";
   rebuildGrid(); rebuildDeck(); fxPanel.select(0); libraryPanel.close();
   syncCanvases();

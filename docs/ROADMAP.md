@@ -44,8 +44,9 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 |---|---|---|---|
 | 4.1 | Ausgänge | Freie Auflösung pro Ausgang, Ausschnitt aus der Leinwand (erledigt: Leinwand mit frei angeordneten Bildschirmen, Testbilder zum Ausrichten) | M |
 | 4.2 | Eckpunkte | Projektionsmapping: Leinwände mit vier Ecken je Beamer, perspektivisch verzerrt, Ausschnitt wählbar, Raster zum Ausrichten | M | erledigt |
-| 4.3 | Raster und Masken | 3×3 und 5×5 Punkte, Masken, Bühnenfoto als Hilfe | L |
-| 4.4 | Syphon und Spout | Bild an andere Programme weitergeben | M |
+| 4.3 | Raster und Masken | 3×3 und 5×5 Punkte, Masken, Bühnenfoto als Hilfe | L | erledigt |
+| 4.4 | Syphon und Spout | Bild an andere Programme weitergeben. Erledigt als Fenster-Ausgang (Abgreifen per Fensteraufnahme in OBS, NDI-Werkzeugen, Syphon Recorder). Echtes Syphon/Spout bräuchte ein natives Modul je Plattform; offen | M | teils |
+| 4.5 | Feste Kanäle je Bild | Pult: Helligkeit Bild 1–5 (Kanal 71–75), Deckkraft Ebene 1–4 der Bilder 2–5 (76–91); Ebenen-Kanäle 29–68 immer Bild 1. MIDI/OSC: bild.N.hell, bild.N.eK, bild.N.bearbeiten | S | erledigt |
 
 ## Phase 5: Medien und Text
 

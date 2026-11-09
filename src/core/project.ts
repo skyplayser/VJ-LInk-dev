@@ -36,6 +36,8 @@ export interface ProjectFile {
   mappings?: Mapping[];
   /** Modulationen (LFO, Audio) an Reglern. */
   mods?: Modulation[];
+  /** Bühnenfotos je Beamer (Hilfe im Mapping-Editor). */
+  photos?: Record<string, { url: string; opacity: number }>;
 }
 
 export function serializeProject(c: ControlContext, media: readonly MediaItem[], mappings: readonly Mapping[] = [], videos: readonly VideoItem[] = [], outputs: OutputLayout = defaultLayout()): string {
@@ -50,6 +52,7 @@ export function serializeProject(c: ControlContext, media: readonly MediaItem[],
     outputs,
     mappings: [...mappings],
     mods: [...(c.mods ?? [])],
+    ...(c.photos && Object.keys(c.photos).length ? { photos: c.photos } : {}),
   };
   return JSON.stringify(p);
 }
@@ -142,11 +145,18 @@ function layout(v: unknown): OutputLayout {
       corners: cs.map((c: unknown) => Array.isArray(c) ? [cl(c[0], 0), cl(c[1], 0)] as [number, number] : [0, 0] as [number, number]),
       src: { x: num(src.x, 0, 0, 1), y: num(src.y, 0, 0, 1), w: num(src.w, 1, 0.01, 1), h: num(src.h, 1, 0.01, 1) },
       on: s.on !== false,
+      ...(isObj(s.grid) && (s.grid.n === 3 || s.grid.n === 5) && Array.isArray(s.grid.pts) && s.grid.pts.length === (s.grid.n as number) ** 2
+        ? { grid: { n: s.grid.n as number, pts: (s.grid.pts as unknown[]).map(c => Array.isArray(c) ? [cl(c[0], 0), cl(c[1], 0)] as [number, number] : [0, 0] as [number, number]) } } : {}),
       // Ältere Projekte: „eigene Ebenen“ lagen unter der Leinwand-ID; die wird jetzt ein Bild
       image: s.content === "own" ? str(s.id, "main", 40) : typeof s.image === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(s.image) ? s.image : "main",
     };
   });
-  return { mode: oneOf(v.mode, ["mirror", "canvas", "mapping"] as const, "mirror"), screens, surfaces };
+  const masks = (Array.isArray(v.masks) ? v.masks : []).filter(isObj).slice(0, 64).map((m, i) => ({
+    id: str(m.id, `m${i}`, 40) || `m${i}`, screen: num(m.screen, 0, -1e12, 1e12), name: str(m.name, `Maske ${i + 1}`, 40),
+    pts: (Array.isArray(m.pts) ? m.pts : []).slice(0, 32).map((c: unknown) => Array.isArray(c) ? [cl(c[0], 0.5), cl(c[1], 0.5)] as [number, number] : [0.5, 0.5] as [number, number]),
+    invert: m.invert === true, feather: num(m.feather, 0, 0, 400), on: m.on !== false,
+  })).filter(m => m.pts.length >= 3);
+  return { mode: oneOf(v.mode, ["mirror", "canvas", "mapping"] as const, "mirror"), screens, surfaces, masks };
 }
 
 /** Leinwand-IDs: kurz und schlicht. */
@@ -254,6 +264,9 @@ export function parseProject(json: string): ProjectFile | null {
     ...(isObj(raw.stacks) ? { stacks: Object.fromEntries(Object.entries(raw.stacks).filter(([id, v]) => okStackId(id) && Array.isArray(v) && v.length).slice(0, 64)
       .map(([id, v]) => [id, (v as unknown[]).slice(0, MAX_LAYERS).map(fullLayer)])) } : {}),
     mods: parseMods(raw.mods),
+    ...(isObj(raw.photos) ? { photos: Object.fromEntries(Object.entries(raw.photos).filter(([k, v]) => /^-?\d{1,14}$/.test(k) && isObj(v)
+      && typeof v.url === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(v.url) && v.url.length < 4_000_000).slice(0, 16)
+      .map(([k, v]) => [k, { url: (v as { url: string }).url, opacity: clamp01(num((v as { opacity?: unknown }).opacity, 0.6)) }])) } : {}),
   };
 }
 
@@ -276,6 +289,7 @@ export function applyProject(c: ControlContext, p: ProjectFile): void {
   s.transition = null;
   c.cues.list = p.cues;
   c.cues.run = { active: [], next: 0, current: -1 };
+  c.photos = p.photos ?? {};
   // An Ort und Stelle ersetzen (die Oberfläche hält die Liste)
   if (c.mods) c.mods.splice(0, c.mods.length, ...(p.mods ?? [])); else c.mods = [...(p.mods ?? [])];
 }

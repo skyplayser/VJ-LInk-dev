@@ -4,7 +4,7 @@ import { frameBeat, type Frame } from "../core/frame";
 import { bridge } from "./bridge";
 import { decodeImage } from "./medialib";
 import { VideoPool } from "./videopool";
-import { viewFor, warpFor } from "../core/layout";
+import { masksFor, viewFor, warpFor } from "../core/layout";
 import { layerTimesAt } from "../core/show";
 
 /** Welcher Bildschirm bin ich? (für den Ausschnitt auf der Leinwand) */
@@ -124,7 +124,7 @@ function loop(): void {
     if (key !== testKey) { testKey = key; overlay.style.display = key ? "block" : "none"; if (key) drawOverlay(frame); }
     const lt = frame.layerClock ? layerTimesAt(frame.layerClock, now, frame.show.layers) : null;
     engine.render(frame.show, frameBeat(frame, now), now, frame.bpm, viewFor(frame.layout, frame.openOutputs ?? [], displayId), lt,
-      warpFor(frame.layout, displayId));
+      warpFor(frame.layout, displayId), "", masksFor(frame.layout, displayId));
   } else {
     engine.gl.clearColor(0, 0, 0, 1); engine.gl.clear(engine.gl.COLOR_BUFFER_BIT);
   }

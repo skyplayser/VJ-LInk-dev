@@ -7,9 +7,9 @@ import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
-import type { View, Warp } from "../core/layout";
+import type { Mask, View, Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
-import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG } from "./shaders";
+import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
   original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3, multi: 4,
@@ -45,6 +45,10 @@ export class Engine {
   private img: Program;
   private warp: Program;
   private solid: Program;
+  private meshP: Program;
+  private maskP: Program;
+  private meshVao: WebGLVertexArrayObject;
+  private meshBuf: WebGLBuffer;
   private media = new Map<string, { tex: WebGLTexture; w: number; h: number }>();
   private videoTex = new Map<string, WebGLTexture>();
   private black: WebGLTexture | null = null;
@@ -80,6 +84,16 @@ export class Engine {
     this.img = this.program(IMAGE_FRAG);
     this.warp = this.program(WARP_FRAG);
     this.solid = this.program(SOLID_FRAG);
+    this.meshP = this.program(MESH_FRAG, MESH_VERT);
+    this.maskP = this.program(MASK_FRAG);
+    this.meshVao = gl.createVertexArray()!;
+    this.meshBuf = gl.createBuffer()!;
+    gl.bindVertexArray(this.meshVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.meshBuf);
+    const aPos = gl.getAttribLocation(this.meshP.p, "aPos"), aUv = gl.getAttribLocation(this.meshP.p, "aUv");
+    gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
+    gl.enableVertexAttribArray(aUv); gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 16, 8);
+    gl.bindVertexArray(null);
     this.vao = gl.createVertexArray()!;
   }
 
@@ -90,9 +104,9 @@ export class Engine {
     if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error("Shader-Fehler: " + gl.getShaderInfoLog(sh));
     return sh;
   }
-  private program(frag: string): Program {
+  private program(frag: string, vert = VERT): Program {
     const gl = this.gl, p = gl.createProgram()!;
-    gl.attachShader(p, this.compile(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(p, this.compile(gl.VERTEX_SHADER, vert));
     gl.attachShader(p, this.compile(gl.FRAGMENT_SHADER, frag));
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error("Link-Fehler: " + gl.getProgramInfoLog(p));
@@ -327,7 +341,8 @@ export class Engine {
    * Dann wird die ganze Leinwand gerechnet und der eigene Teil ausgegeben, damit alles nahtlos passt.
    */
   render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null, layerTimes: readonly number[] | null = null, warps: readonly Warp[] | null = null,
-    /** Eigener Schlüssel für Zwischenbilder, Feedback und Video-Abspieler (z. B. je Bild-Vorschau). */ key = ""): void {
+    /** Eigener Schlüssel für Zwischenbilder, Feedback und Video-Abspieler (z. B. je Bild-Vorschau). */ key = "",
+    /** Masken dieses Ausgangs (Projektionsmapping). */ masks: readonly Mask[] = []): void {
     const t0 = performance.now();
     const gl = this.gl;
     const sec = nowMs / 1000;
@@ -392,6 +407,19 @@ export class Engine {
         const own = wp.stack ? srcOf.get(wp.stack) : undefined;
         this.bindTex(0, own ?? dest);
         this.bindTarget(null, 0, 0, outW, outH);
+        if (wp.mesh) {
+          // Raster-Verzerrung: Dreiecksnetz zeichnen
+          gl.useProgram(this.meshP.p);
+          gl.uniform1i(this.loc(this.meshP, "uTex"), 0);
+          gl.uniform4f(this.loc(this.meshP, "uSrc"), wp.src[0], wp.src[1], wp.src[2], wp.src[3]);
+          gl.bindVertexArray(this.meshVao);
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.meshBuf);
+          gl.bufferData(gl.ARRAY_BUFFER, wp.mesh, gl.STREAM_DRAW);
+          gl.drawArrays(gl.TRIANGLES, 0, wp.mesh.length / 4);
+          gl.bindVertexArray(this.vao);
+          gl.useProgram(this.warp.p);
+          continue;
+        }
         gl.uniformMatrix3fv(this.loc(this.warp, "uHinv"), false, wp.hinv);
         gl.uniform4f(this.loc(this.warp, "uSrc"), wp.src[0], wp.src[1], wp.src[2], wp.src[3]);
         this.draw();
@@ -399,6 +427,7 @@ export class Engine {
       gl.disable(gl.BLEND);
     }
     if (show.testCard && !spanTest && !mapping) this.drawTestCard(show, beat, nowMs, outW, outH, null);
+    if (masks.length) this.drawMasks(masks, outW, outH);
     this.dropStaleFeedback();
 
     const ms = performance.now() - t0;
@@ -521,6 +550,25 @@ export class Engine {
     this.bindTex(0, from); this.bindTex(1, t.to);
     this.bindTarget(dest, 0, 0, w, h);
     this.draw();
+  }
+
+  /** Masken über das fertige Bild des Ausgangs legen. */
+  private drawMasks(masks: readonly Mask[], w: number, h: number): void {
+    const gl = this.gl, m = this.maskP;
+    gl.useProgram(m.p);
+    this.bindTarget(null, 0, 0, w, h);
+    gl.uniform2f(this.loc(m, "uRes"), w, h);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    for (const mk of masks) {
+      const pts = new Float32Array(64);
+      mk.pts.slice(0, 32).forEach((p, i) => { pts[i * 2] = p[0]; pts[i * 2 + 1] = p[1]; });
+      gl.uniform2fv(this.loc(m, "uPts"), pts);
+      gl.uniform1i(this.loc(m, "uN"), Math.min(32, mk.pts.length));
+      gl.uniform1i(this.loc(m, "uInv"), mk.invert ? 1 : 0);
+      gl.uniform1f(this.loc(m, "uFeather"), mk.feather);
+      this.draw();
+    }
+    gl.disable(gl.BLEND);
   }
 
   /** Strobe (Abdunkeln), White und Blinder über das fertige Bild inklusive Cues legen. */

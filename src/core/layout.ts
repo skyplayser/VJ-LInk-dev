@@ -23,9 +23,25 @@ export interface Surface {
   image?: string;
   /** Alt (vor den Bildern): „own“ hieß eigene Ebenen unter der Leinwand-ID. */
   content?: "main" | "own";
+  /** Raster-Verzerrung: n × n Stützpunkte (3 oder 5), zeilenweise, im Bild des Beamers (0–1). Fehlt = 4 Ecken. */
+  grid?: Grid;
 }
 
-export interface OutputLayout { mode: OutputMode; screens: ScreenRect[]; surfaces?: Surface[] }
+export interface Grid { n: number; pts: [number, number][] }
+
+/** Maske im Bild eines Beamers (Projektionsmapping): Vieleck, das schwärzt (umgekehrt: nur innen zeigen). */
+export interface Mask {
+  id: string; screen: number; name: string;
+  /** Punkte im Bild des Beamers (0–1, oben links = 0/0), mindestens 3. */
+  pts: [number, number][];
+  /** true = nur innerhalb zeigen, außen schwarz. */
+  invert: boolean;
+  /** Weiche Kante in Pixeln des Ausgangs. */
+  feather: number;
+  on: boolean;
+}
+
+export interface OutputLayout { mode: OutputMode; screens: ScreenRect[]; surfaces?: Surface[]; masks?: Mask[] }
 
 export const defaultLayout = (): OutputLayout => ({ mode: "mirror", screens: [], surfaces: [] });
 
@@ -69,7 +85,11 @@ export function applyH(m: readonly number[], x: number, y: number): [number, num
 }
 
 /** Für den Shader: Inverse (Bildpunkt → Leinwand-Koordinate) spaltenweise, dazu der Ausschnitt. */
-export interface Warp { hinv: number[]; src: [number, number, number, number]; /** Leinwand mit eigenen Ebenen: ihr Stapel. */ stack?: string }
+export interface Warp {
+  hinv: number[]; src: [number, number, number, number];
+  /** Leinwand mit eigenen Ebenen: ihr Stapel. */ stack?: string;
+  /** Raster-Verzerrung: Dreiecke (x, y, u, v; oben links = 0/0), statt der Perspektive. */ mesh?: Float32Array;
+}
 
 /** Leinwände dieses Ausgangs (nur im Mapping-Modus), sonst null. */
 export function warpFor(layout: OutputLayout | undefined, screen: number): Warp[] | null {
@@ -81,7 +101,8 @@ export function warpFor(layout: OutputLayout | undefined, screen: number): Warp[
     if (!inv) continue;
     // spaltenweise für uniformMatrix3fv
     out.push({ hinv: [inv[0]!, inv[3]!, inv[6]!, inv[1]!, inv[4]!, inv[7]!, inv[2]!, inv[5]!, inv[8]!], src: [s.src.x, s.src.y, s.src.w, s.src.h],
-      ...(s.image && s.image !== "main" ? { stack: s.image } : {}) });
+      ...(s.image && s.image !== "main" ? { stack: s.image } : {}),
+      ...(s.grid && s.grid.pts.length === s.grid.n * s.grid.n ? { mesh: cachedMesh(s.grid) } : {}) });
   }
   return out;
 }
@@ -150,4 +171,95 @@ export function snapRect(r: ScreenRect, others: readonly ScreenRect[], tol: numb
     return d <= tol ? best : Math.round(v);
   };
   return { ...r, x: pick(r.x, r.w, xs), y: pick(r.y, r.h, ys) };
+}
+
+// ---- Raster-Verzerrung (3×3 / 5×5 Stützpunkte, weich interpoliert) -----------------------------
+
+/** Raster aus der Perspektive der vier Ecken (Umschalten ohne Sprung). */
+export function gridFromCorners(corners: readonly (readonly [number, number])[], n: number): Grid {
+  const H = squareToQuad(corners);
+  const pts: [number, number][] = [];
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) pts.push(applyH(H, i / (n - 1), j / (n - 1)));
+  return { n, pts };
+}
+
+/** Vier Ecken eines Rasters (oben links, oben rechts, unten rechts, unten links). */
+export function gridCorners(g: Grid): [number, number][] {
+  const n = g.n, p = g.pts;
+  return [[...p[0]!], [...p[n - 1]!], [...p[n * n - 1]!], [...p[n * (n - 1)]!]] as [number, number][];
+}
+
+const cr = (a: number, b: number, c: number, d: number, t: number) =>
+  0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+
+/** Stützpunkt (i, j); außerhalb des Rasters gerade weitergeführt, damit die Ränder nicht abknicken. */
+function gp(g: Grid, i: number, j: number): [number, number] {
+  const n = g.n, at = (x: number, y: number) => g.pts[y * n + x]!;
+  const ci = Math.max(0, Math.min(n - 1, i)), cj = Math.max(0, Math.min(n - 1, j));
+  let p = at(ci, cj);
+  if (i < 0) { const q = at(1, cj); p = [2 * p[0] - q[0], 2 * p[1] - q[1]]; }
+  if (i > n - 1) { const q = at(n - 2, cj); p = [2 * p[0] - q[0], 2 * p[1] - q[1]]; }
+  if (j < 0) { const q = at(ci, 1); p = [2 * p[0] - q[0], 2 * p[1] - q[1]]; }
+  if (j > n - 1) { const q = at(ci, n - 2); p = [2 * p[0] - q[0], 2 * p[1] - q[1]]; }
+  return p;
+}
+
+/** Punkt der weichen Fläche an (u, v) ∈ [0, 1]² (Catmull-Rom durch alle Stützpunkte). */
+export function gridPoint(g: Grid, u: number, v: number): [number, number] {
+  const n = g.n, x = Math.max(0, Math.min(1, u)) * (n - 1), y = Math.max(0, Math.min(1, v)) * (n - 1);
+  const i = Math.min(n - 2, Math.floor(x)), j = Math.min(n - 2, Math.floor(y)), tu = x - i, tv = y - j;
+  const row = (jj: number): [number, number] => {
+    const a = gp(g, i - 1, jj), b = gp(g, i, jj), c = gp(g, i + 1, jj), d = gp(g, i + 2, jj);
+    return [cr(a[0], b[0], c[0], d[0], tu), cr(a[1], b[1], c[1], d[1], tu)];
+  };
+  const r0 = row(j - 1), r1 = row(j), r2 = row(j + 1), r3 = row(j + 2);
+  return [cr(r0[0], r1[0], r2[0], r3[0], tv), cr(r0[1], r1[1], r2[1], r3[1], tv)];
+}
+
+/** Dreiecksnetz der Fläche: je Dreieckspunkt x, y (Bild des Beamers) und u, v (Inhalt), oben links = 0/0. */
+export function meshTriangles(g: Grid, steps = 32): Float32Array {
+  const m = steps + 1, P: [number, number][] = [];
+  for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) P.push(gridPoint(g, i / steps, j / steps));
+  const out = new Float32Array(steps * steps * 6 * 4);
+  let k = 0;
+  const put = (i: number, j: number) => { const p = P[j * m + i]!; out[k++] = p[0]; out[k++] = p[1]; out[k++] = i / steps; out[k++] = j / steps; };
+  for (let j = 0; j < steps; j++) for (let i = 0; i < steps; i++) {
+    put(i, j); put(i + 1, j); put(i + 1, j + 1);
+    put(i, j); put(i + 1, j + 1); put(i, j + 1);
+  }
+  return out;
+}
+
+const meshCache = new Map<string, Float32Array>();
+function cachedMesh(g: Grid): Float32Array {
+  const key = `${g.n}:${g.pts.map(p => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(";")}`;
+  let m = meshCache.get(key);
+  if (!m) { m = meshTriangles(g); if (meshCache.size > 64) meshCache.clear(); meshCache.set(key, m); }
+  return m;
+}
+
+// ---- Masken ---------------------------------------------------------------------------------
+
+export const MAX_MASK_POINTS = 32;
+
+/** Neue Maske: Rechteck in der Mitte. */
+export function newMask(screen: number, n: number): Mask {
+  return { id: `m${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, screen, name: `Maske ${n}`,
+    pts: [[0.4, 0.4], [0.6, 0.4], [0.6, 0.6], [0.4, 0.6]], invert: false, feather: 0, on: true };
+}
+
+/** Masken dieses Ausgangs (nur im Mapping-Modus). */
+export function masksFor(layout: OutputLayout | undefined, screen: number): Mask[] {
+  if (!layout || layout.mode !== "mapping") return [];
+  return (layout.masks ?? []).filter(m => m.screen === screen && m.on && m.pts.length >= 3);
+}
+
+/** Punkt in einer Maske? (gerade/ungerade Regel, wie im Shader) */
+export function inMask(pts: readonly (readonly [number, number])[], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i]!, [xj, yj] = pts[j]!;
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }

@@ -1,15 +1,17 @@
 // DMX-Belegung „Standard“ (68 Kanäle) laut Konzept. Das Pult sendet, VJ-Link liest.
 import { READY_GENERATORS } from "./effects";
 import {
-  BLEND_MODES, COLOR_SOURCES, DMX_LAYERS, clamp01, type Scene, type ShowState,
+  BLEND_MODES, COLOR_SOURCES, DMX_LAYERS, MAX_IMAGES, clamp01, imageList, mainLayers, type Scene, type ShowState,
 } from "./show";
 
-export const DMX_MODE_STANDARD_CHANNELS = 70;
+export const DMX_MODE_STANDARD_CHANNELS = 91;
 export const CH = {
   master: 1, strobe: 2, scene: 3, transition: 4, tempoFactor: 5, fxMaster: 6, autoVj: 7, blackout: 8,
   slotBase: 9, layerBase: 29, layerSize: 10,
   /** Nach den vier Ebenen (29–68). */
   strobeIntensity: 69, strobeSync: 70,
+  /** Projektionsmapping: Helligkeit Bild 1–5 (71–75), dann je Bild 2–5 Deckkraft Ebene 1–4 (76–91). */
+  imageGainBase: 71, imageLayerBase: 76,
 } as const;
 /** Offsets innerhalb einer Ebene. */
 export const LAYER_CH = { opacity: 0, bank: 1, clip: 2, color: 3, speed: 4, fx1: 5, fx2: 6, fx3: 7, strobe: 8, blend: 9 } as const;
@@ -82,6 +84,17 @@ export class DmxDecoder {
       case CH.autoVj: s.autoVj = v >= 128; return;
       case CH.blackout: s.blackout = v >= 250; return;
     }
+    // Bilder (Projektionsmapping): feste Kanäle je Bild, unabhängig davon, welches gerade bearbeitet wird
+    if (rel >= CH.imageGainBase && rel < CH.imageGainBase + MAX_IMAGES) {
+      const im = imageList(s)[rel - CH.imageGainBase]; if (!im) return;
+      (s.stackGain ??= {})[im.id] = f; return;
+    }
+    if (rel >= CH.imageLayerBase && rel < CH.imageLayerBase + (MAX_IMAGES - 1) * DMX_LAYERS) {
+      const im = imageList(s)[1 + Math.floor((rel - CH.imageLayerBase) / DMX_LAYERS)];
+      const l = im ? s.stacks?.[im.id]?.[(rel - CH.imageLayerBase) % DMX_LAYERS] : undefined;
+      if (l) l.opacity = f;
+      return;
+    }
     if (rel >= CH.slotBase && rel < CH.layerBase) {
       const slot = Math.floor((rel - CH.slotBase) / 4), c = (rel - CH.slotBase) % 4;
       const raw = this.slotRaw[slot]; if (!raw) return;
@@ -93,7 +106,8 @@ export class DmxDecoder {
     if (rel >= CH.layerBase) {
       const li = Math.floor((rel - CH.layerBase) / CH.layerSize);
       const off = (rel - CH.layerBase) % CH.layerSize;
-      const l = s.layers[li]; if (!l || li >= DMX_LAYERS) return;
+      // Ebenen-Kanäle gehören immer zu Bild 1 (nicht zum gerade bearbeiteten Bild)
+      const l = mainLayers(s)[li]; if (!l || li >= DMX_LAYERS) return;
       switch (off) {
         case LAYER_CH.opacity: l.opacity = f; break;
         case LAYER_CH.bank: this.bank.set(li, Math.max(1, v)); break;
@@ -122,5 +136,8 @@ export function channelListCsv(startAddress = 1): string {
   const names = ["Deckkraft", "Clip-Bank", "Clip", "Farbquelle", "Geschwindigkeit", "Effekt 1", "Effekt 2", "Effekt 3", "Strobe", "Mischmodus"];
   rows.push([CH.strobeIntensity, "Strobe Intensität"], [CH.strobeSync, "Strobe Modus (0-127 Takt, 128-255 Hz)"]);
   for (let l = 0; l < DMX_LAYERS; l++) names.forEach((n, j) => rows.push([CH.layerBase + l * CH.layerSize + j, `Ebene ${l + 1} ${n}`]));
+  for (let i = 0; i < MAX_IMAGES; i++) rows.push([CH.imageGainBase + i, `Bild ${i + 1} Helligkeit (Projektionsmapping)`]);
+  for (let i = 1; i < MAX_IMAGES; i++) for (let l = 0; l < DMX_LAYERS; l++) rows.push([CH.imageLayerBase + (i - 1) * DMX_LAYERS + l, `Bild ${i + 1} Ebene ${l + 1} Deckkraft`]);
+  rows.sort((a, b) => a[0] - b[0]);
   return "Kanal;Funktion\n" + rows.map(([ch, n]) => `${startAddress + ch - 1};${n}`).join("\n") + "\n";
 }

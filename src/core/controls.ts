@@ -3,7 +3,7 @@
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
 import { STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
-import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAX_LAYERS, SLOT_NAMES, clamp01, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
+import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAIN_STACK, MAX_IMAGES, MAX_LAYERS, SLOT_NAMES, allStacks, clamp01, imageList, selectCanvas, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
 
 export const DRIVE_LABEL = { auto: "Auto", bpm: "Takt", audio: "Audio", static: "Statisch" } as const;
@@ -23,7 +23,7 @@ export type ControlKind = "fader" | "toggle" | "hold" | "trigger";
 export interface ControlDef {
   id: string;
   label: string;
-  group: "Master" | "Strobe" | "Ebenen" | "Effekt" | "Tempo" | "Szenen" | "Clips" | "Farben" | "Show";
+  group: "Master" | "Strobe" | "Ebenen" | "Effekt" | "Tempo" | "Szenen" | "Clips" | "Farben" | "Show" | "Bilder";
   kind: ControlKind;
   /** Erscheint in der Leiste unten. Alles andere ist über MIDI und OSC erreichbar. */
   quick: boolean;
@@ -166,7 +166,30 @@ export function buildControls(): ControlDef[] {
   return list;
 }
 
-export const CONTROLS: readonly ControlDef[] = buildControls();
+/**
+ * Feste Regler je Bild (Projektionsmapping): wirken immer auf dasselbe Bild, egal welches gerade bearbeitet wird.
+ * „bild.N.hell“ Helligkeit, „bild.N.eK“ Deckkraft Ebene K, „bild.N.bearbeiten“ Bild zum Bearbeiten wählen.
+ */
+function imageControls(): ControlDef[] {
+  const list: ControlDef[] = [];
+  const imgId = (c: ControlContext, n: number): string | undefined => imageList(c.show)[n]?.id;
+  for (let n = 0; n < MAX_IMAGES; n++) {
+    list.push({ id: `bild.${n + 1}.hell`, label: `Bild ${n + 1} Helligkeit`, group: "Bilder", kind: "fader", quick: false,
+      get: c => { const id = imgId(c, n); return id ? c.show.stackGain?.[id] ?? 1 : 0; },
+      set: (c, v) => { const id = imgId(c, n); if (id) (c.show.stackGain ??= {})[id] = clamp01(v); } });
+    list.push({ id: `bild.${n + 1}.bearbeiten`, label: `Bild ${n + 1} bearbeiten`, group: "Bilder", kind: "trigger", quick: false,
+      get: c => (c.show.canvas ?? MAIN_STACK) === imgId(c, n) ? 1 : 0,
+      set: (c, v) => { const id = imgId(c, n); if (id && on(v)) selectCanvas(c.show, id); } });
+    for (let k = 0; k < MAX_LAYERS; k++) {
+      list.push({ id: `bild.${n + 1}.e${k + 1}`, label: `Bild ${n + 1} E${k + 1}`, group: "Bilder", kind: "fader", quick: false,
+        get: c => { const id = imgId(c, n); return (id ? allStacks(c.show)[id]?.[k]?.opacity : 0) ?? 0; },
+        set: (c, v) => { const id = imgId(c, n); const l = id ? allStacks(c.show)[id]?.[k] : undefined; if (l) l.opacity = clamp01(v); } });
+    }
+  }
+  return list;
+}
+
+export const CONTROLS: readonly ControlDef[] = [...buildControls(), ...imageControls()];
 export const CONTROL_BY_ID: ReadonlyMap<string, ControlDef> = new Map(CONTROLS.map(c => [c.id, c]));
 
 /** BPM-Bereich für den Regler „tempo.bpm“ (MIDI/DMX 0–1). OSC kann auch die BPM-Zahl direkt senden. */

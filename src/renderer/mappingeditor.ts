@@ -1,7 +1,7 @@
 // AUSGABE → Projektionsmapping: auf das Bild eines Beamers Leinwände legen (Vierecke mit vier Ecken).
 // Ecke ziehen = verzerren (Trapez, Objekt), Mitte ziehen = verschieben, Pfeiltasten = pixelgenau.
 // Jede Leinwand zeigt das ganze Bild oder einen Ausschnitt; außerhalb bleibt der Beamer schwarz.
-import { applyH, newSurface, snapCorner, squareToQuad, type OutputLayout, type Surface } from "../core/layout";
+import { MAX_MASK_POINTS, applyH, gridCorners, gridFromCorners, gridPoint, newMask, newSurface, snapCorner, squareToQuad, type Mask, type OutputLayout, type Surface } from "../core/layout";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -15,6 +15,13 @@ function svg<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string,
 
 export interface OpenScreen { id: number; label: string; w: number; h: number }
 
+/** Ziehbare Punkte einer Leinwand: die 4 Ecken oder alle Rasterpunkte. */
+const handles = (s: Surface): [number, number][] => (s.grid ? s.grid.pts : s.corners);
+/** Nach dem Ändern von Rasterpunkten die Ecken nachführen (für Umriss und Perspektive). */
+const syncCorners = (s: Surface) => { if (s.grid) s.corners = gridCorners(s.grid); };
+/** Punkt an (u, v) der Leinwand: weich durchs Raster bzw. perspektivisch durch die Ecken. */
+const surfPoint = (s: Surface, u: number, v: number): [number, number] => (s.grid ? gridPoint(s.grid, u, v) : applyH(squareToQuad(s.corners), u, v));
+
 export class MappingEditor {
   private screen: number | null = null;
   private sel: string | null = null;
@@ -26,11 +33,16 @@ export class MappingEditor {
 
   constructor(private get: () => OutputLayout, private set: (l: OutputLayout) => void, private onChange: () => void,
     private testGrid: { on: () => boolean; toggle: () => void },
-    private images: () => { id: string; name: string }[] = () => [{ id: "main", name: "Bild 1" }]) {}
+    private images: () => { id: string; name: string }[] = () => [{ id: "main", name: "Bild 1" }],
+    /** Bühnenfotos je Beamer (Hilfe im Editor, nicht auf dem Beamer). */
+    private photos: () => Record<string, { url: string; opacity: number }> = () => ({})) {}
 
   private surfaces(): Surface[] { const l = this.get(); return (l.surfaces ??= []); }
   private mine(): Surface[] { return this.surfaces().filter(s => s.screen === this.screen); }
   private cur(): Surface | undefined { return this.mine().find(s => s.id === this.sel); }
+  private masks(): Mask[] { const l = this.get(); return (l.masks ??= []); }
+  private myMasks(): Mask[] { return this.masks().filter(m => m.screen === this.screen); }
+  private curMask(): Mask | undefined { return this.myMasks().find(m => m.id === this.sel); }
   private changed(): void { this.set({ ...this.get(), surfaces: [...this.surfaces()] }); this.onChange(); }
 
   render(stage: HTMLElement, tools: HTMLElement, hint: HTMLElement, open: OpenScreen[]): void {
@@ -57,27 +69,35 @@ export class MappingEditor {
   }
 
   private drawStage(): void {
-    const st = this.stage!;
+    const st = this.stage;
+    // Ausgang inzwischen geschlossen (z. B. während des Ziehens): nichts zeichnen, die Ansicht baut sich neu auf
+    if (!st || !this.open.some(o => o.id === this.screen)) return;
     st.replaceChildren();
     const f = this.frame();
     const root = svg("svg", { class: "mp-svg", width: st.clientWidth, height: st.clientHeight });
     root.append(svg("rect", { x: f.x, y: f.y, width: f.w, height: f.h, class: "mp-frame" }));
+    // Bühnenfoto als Hilfe im Hintergrund
+    const photo = this.photos()[String(this.screen)];
+    if (photo) root.append(svg("image", { href: photo.url, x: f.x, y: f.y, width: f.w, height: f.h, preserveAspectRatio: "none", opacity: photo.opacity, class: "mp-photo" }));
     const lab = svg("text", { x: f.x + 6, y: f.y - 8, class: "mp-label" }); lab.textContent = `${f.scr.label} · ${f.scr.w} × ${f.scr.h}`;
     root.append(lab);
     const P = (p: [number, number]) => [f.x + p[0] * f.w, f.y + p[1] * f.h] as const;
     for (const s of this.mine()) {
       const sel = s.id === this.sel;
       const g = svg("g", { class: `mp-surf${sel ? " sel" : ""}${s.on ? "" : " off"}` });
-      const pts = s.corners.map(c => P(c).join(",")).join(" ");
-      const poly = svg("polygon", { points: pts, class: "mp-poly" });
+      // Umriss (beim Raster als Kurve) und Hilfslinien in der Form der Leinwand
+      const N = 24, outline: string[] = [];
+      for (const [u0, v0, du, dv] of [[0, 0, 1, 0], [1, 0, 0, 1], [1, 1, -1, 0], [0, 1, 0, -1]] as const)
+        for (let k = 0; k < N; k++) outline.push(P(surfPoint(s, u0 + du * k / N, v0 + dv * k / N)).join(","));
+      const poly = svg("polygon", { points: outline.join(" "), class: "mp-poly" });
       g.append(poly);
-      // Hilfsraster in der Perspektive der Leinwand
-      const H = squareToQuad(s.corners);
-      for (let i = 1; i < 4; i++) {
-        const t = i / 4;
-        for (const [a, b] of [[[t, 0], [t, 1]], [[0, t], [1, t]]] as [[number, number], [number, number]][]) {
-          const A = P(applyH(H, a[0], a[1])), B = P(applyH(H, b[0], b[1]));
-          g.append(svg("line", { x1: A[0], y1: A[1], x2: B[0], y2: B[1], class: "mp-grid" }));
+      const lines = s.grid ? s.grid.n - 1 : 4;
+      for (let i = 1; i < lines; i++) {
+        const t = i / lines;
+        for (const horiz of [false, true]) {
+          const pts: string[] = [];
+          for (let k = 0; k <= N; k++) pts.push(P(horiz ? surfPoint(s, k / N, t) : surfPoint(s, t, k / N)).join(","));
+          g.append(svg("polyline", { points: pts.join(" "), class: "mp-grid" }));
         }
       }
       const cx = s.corners.reduce((a, c) => a + c[0], 0) / 4, cy = s.corners.reduce((a, c) => a + c[1], 0) / 4;
@@ -85,9 +105,27 @@ export class MappingEditor {
       g.append(name);
       poly.addEventListener("pointerdown", e => this.drag(e, s, null));
 
-      s.corners.forEach((c, i) => {
-        const h = svg("circle", { cx: P(c)[0], cy: P(c)[1], r: sel ? 8 : 6, class: `mp-corner${sel && this.selCorner === i ? " sel" : ""}` });
+      handles(s).forEach((c, i) => {
+        const h = svg("circle", { cx: P(c)[0], cy: P(c)[1], r: sel ? (s.grid ? 6 : 8) : 5, class: `mp-corner${sel && this.selCorner === i ? " sel" : ""}` });
         h.addEventListener("pointerdown", e => this.drag(e, s, i));
+        g.append(h);
+      });
+      root.append(g);
+    }
+    // Masken (über den Leinwänden): rot gestrichelt, Punkte ziehbar, Doppelklick auf eine Kante = Punkt einfügen
+    for (const m of this.myMasks()) {
+      const sel = m.id === this.sel;
+      const g = svg("g", { class: `mp-mask${sel ? " sel" : ""}${m.on ? "" : " off"}${m.invert ? " inv" : ""}` });
+      const poly = svg("polygon", { points: m.pts.map(p => P(p).join(",")).join(" "), class: "mp-mpoly" });
+      poly.addEventListener("pointerdown", e => this.dragMask(e, m, null));
+      g.append(poly);
+      const cx = m.pts.reduce((a, p) => a + p[0], 0) / m.pts.length, cy = m.pts.reduce((a, p) => a + p[1], 0) / m.pts.length;
+      const name = svg("text", { x: P([cx, cy])[0], y: P([cx, cy])[1], class: "mp-name", "text-anchor": "middle" });
+      name.textContent = `${m.name}${m.invert ? " (nur innen)" : ""}`;
+      g.append(name);
+      m.pts.forEach((p, i) => {
+        const h = svg("circle", { cx: P(p)[0], cy: P(p)[1], r: sel ? 6 : 4, class: `mp-mcorner${sel && this.selCorner === i ? " sel" : ""}` });
+        h.addEventListener("pointerdown", e => this.dragMask(e, m, i));
         g.append(h);
       });
       root.append(g);
@@ -114,17 +152,19 @@ export class MappingEditor {
     this.sel = s.id; this.selCorner = corner;
     this.stage?.focus();
     const f = this.frame();
-    const start = s.corners.map(c => [...c] as [number, number]);
+    const start = handles(s).map(c => [...c] as [number, number]);
     const sx = e.clientX, sy = e.clientY;
     const tol = 10 / Math.min(f.w, f.h);
-    const others = this.mine().filter(o => o.id !== s.id).flatMap(o => o.corners);
+    const others = this.mine().filter(o => o.id !== s.id).flatMap(o => handles(o));
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - sx) / f.w, dy = (ev.clientY - sy) / f.h;
-      if (corner === null) s.corners = start.map(c => [c[0] + dx, c[1] + dy] as [number, number]);
+      const hs = handles(s);
+      if (corner === null) start.forEach((c, i) => { hs[i] = [c[0] + dx, c[1] + dy]; });
       else {
         const p: [number, number] = [start[corner]![0] + dx, start[corner]![1] + dy];
-        s.corners[corner] = this.snap && !ev.altKey ? snapCorner(p, [...others, ...start.filter((_, i) => i !== corner)], tol) : p;
+        hs[corner] = this.snap && !ev.altKey ? snapCorner(p, [...others, ...start.filter((_, i) => i !== corner)], tol) : p;
       }
+      syncCorners(s);
       this.drawStage();
     };
     const up = () => {
@@ -137,17 +177,77 @@ export class MappingEditor {
     if (first) this.drawTools(document.getElementById("cv-tools")!);
   }
 
+  /** Masken-Punkt (i) oder ganze Maske (null) ziehen; Doppelklick auf die Fläche fügt an der nächsten Kante einen Punkt ein. */
+  private dragMask(e: PointerEvent, m: Mask, i: number | null): void {
+    e.preventDefault(); e.stopPropagation();
+    const f = this.frame();
+    const at: [number, number] = [(e.clientX - this.stage!.getBoundingClientRect().left - f.x) / f.w, (e.clientY - this.stage!.getBoundingClientRect().top - f.y) / f.h];
+    const now = performance.now();
+    if (i === null && this.lastDown.id === m.id && now - this.lastDown.at < 350) {
+      this.lastDown = { id: "", at: 0 };
+      if (m.pts.length < MAX_MASK_POINTS) {
+        // nächste Kante suchen und dort einfügen
+        let best = 0, bd = Infinity;
+        m.pts.forEach((a, k) => {
+          const b = m.pts[(k + 1) % m.pts.length]!, dx = b[0] - a[0], dy = b[1] - a[1];
+          const t = Math.max(0, Math.min(1, ((at[0] - a[0]) * dx + (at[1] - a[1]) * dy) / Math.max(1e-9, dx * dx + dy * dy)));
+          const d = Math.hypot(at[0] - (a[0] + dx * t), at[1] - (a[1] + dy * t));
+          if (d < bd) { bd = d; best = k; }
+        });
+        m.pts.splice(best + 1, 0, at);
+        this.selCorner = best + 1;
+        this.changed(); this.drawStage(); this.drawTools(document.getElementById("cv-tools")!);
+      }
+      return;
+    }
+    this.lastDown = { id: i === null ? m.id : "", at: now };
+    const first = this.sel !== m.id;
+    this.sel = m.id; this.selCorner = i;
+    this.stage?.focus();
+    const start = m.pts.map(p => [...p] as [number, number]);
+    const sx = e.clientX, sy = e.clientY, tol = 10 / Math.min(f.w, f.h);
+    const others = [...this.mine().flatMap(o => handles(o)), ...this.myMasks().filter(o => o !== m).flatMap(o => o.pts)];
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - sx) / f.w, dy = (ev.clientY - sy) / f.h;
+      if (i === null) start.forEach((p, k) => { m.pts[k] = [p[0] + dx, p[1] + dy]; });
+      else {
+        const p: [number, number] = [start[i]![0] + dx, start[i]![1] + dy];
+        m.pts[i] = this.snap && !ev.altKey ? snapCorner(p, [...others, ...start.filter((_, k) => k !== i)], tol) : p;
+      }
+      this.drawStage();
+    };
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); this.changed(); if (first) this.drawTools(document.getElementById("cv-tools")!); };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+    this.drawStage();
+    if (first) this.drawTools(document.getElementById("cv-tools")!);
+  }
+
   private key(e: KeyboardEvent): void {
+    const mk = this.curMask();
+    if (mk) {
+      const d = ({ ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] } as Record<string, [number, number]>)[e.key];
+      if ((e.key === "Delete" || e.key === "Backspace") && this.selCorner !== null && mk.pts.length > 3) { e.preventDefault(); mk.pts.splice(this.selCorner, 1); this.selCorner = null; this.drawStage(); this.changed(); return; }
+      if (!d) return;
+      e.preventDefault();
+      const scr = this.open.find(o => o.id === this.screen)!, step = e.shiftKey ? 10 : 1;
+      const dx = d[0] * step / scr.w, dy = d[1] * step / scr.h;
+      if (this.selCorner === null) mk.pts.forEach((p, k) => { mk.pts[k] = [p[0] + dx, p[1] + dy]; });
+      else mk.pts[this.selCorner] = [mk.pts[this.selCorner]![0] + dx, mk.pts[this.selCorner]![1] + dy];
+      this.drawStage(); this.changed();
+      return;
+    }
     const s = this.cur(); if (!s) return;
     const d = ({ ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] } as Record<string, [number, number]>)[e.key];
-    if (e.key === "Tab" && !e.shiftKey && this.selCorner !== null) { e.preventDefault(); this.selCorner = (this.selCorner + 1) % 4; this.drawStage(); return; }
+    if (e.key === "Tab" && !e.shiftKey && this.selCorner !== null) { e.preventDefault(); this.selCorner = (this.selCorner + 1) % handles(s).length; this.drawStage(); return; }
     if (!d) return;
     e.preventDefault();
     const scr = this.open.find(o => o.id === this.screen)!;
     const step = e.shiftKey ? 10 : 1;
     const dx = d[0] * step / scr.w, dy = d[1] * step / scr.h;
-    if (this.selCorner === null) s.corners = s.corners.map(c => [c[0] + dx, c[1] + dy] as [number, number]);
-    else s.corners[this.selCorner] = [s.corners[this.selCorner]![0] + dx, s.corners[this.selCorner]![1] + dy];
+    const hs = handles(s);
+    if (this.selCorner === null) hs.forEach((c, i) => { hs[i] = [c[0] + dx, c[1] + dy]; });
+    else hs[this.selCorner] = [hs[this.selCorner]![0] + dx, hs[this.selCorner]![1] + dy];
+    syncCorners(s);
     this.drawStage(); this.changed();
   }
 
@@ -179,7 +279,67 @@ export class MappingEditor {
       try { localStorage.setItem("vjlink.mapSnap", this.snap ? "1" : "0"); } catch { /* ohne Speicher */ }
       snap.classList.toggle("on", this.snap); snap.textContent = this.snap ? "Einrasten an" : "Einrasten aus";
     });
-    tools.append(add, grid, snap);
+    const addMask = el("button", "btn small-btn", "+ Maske");
+    addMask.title = "Bereich schwärzen (z. B. Tür, Fenster, Person) – Punkte ziehen, Doppelklick auf die Maske fügt einen Punkt ein";
+    addMask.addEventListener("click", () => {
+      const m = newMask(this.screen!, this.myMasks().length + 1);
+      this.masks().push(m); this.sel = m.id; this.selCorner = null;
+      this.changed(); this.drawStage(); this.drawTools(tools);
+    });
+    // Bühnenfoto laden (vom Standort des Beamers fotografiert): Hilfe zum Anlegen der Leinwände
+    const ph = this.photos()[String(this.screen)];
+    const photoBtn = el("button", "btn small-btn", ph ? "Foto ersetzen" : "Bühnenfoto …");
+    photoBtn.title = "Foto der Bühne (am besten vom Beamer aus) als Hilfe hinter die Leinwände legen; geht nicht an den Beamer";
+    const file = el("input"); file.type = "file"; file.accept = "image/png,image/jpeg,image/webp"; file.hidden = true;
+    photoBtn.addEventListener("click", () => file.click());
+    file.addEventListener("change", async () => {
+      const f = file.files?.[0]; if (!f) return;
+      file.value = "";
+      // Als data:-URL lesen (blob: ist in der Oberfläche gesperrt)
+      const src = await new Promise<string>(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result)); fr.onerror = () => r(""); fr.readAsDataURL(f); });
+      const img = new Image(); img.src = src;
+      try { await img.decode(); } catch { photoBtn.textContent = "Foto nicht lesbar"; return; }
+      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = el("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+      this.photos()[String(this.screen)] = { url: c.toDataURL("image/jpeg", 0.85), opacity: ph?.opacity ?? 0.6 };
+      this.changed(); this.drawStage(); this.drawTools(tools);
+    });
+    tools.append(add, addMask, grid, snap, photoBtn, file);
+    if (ph) {
+      const ol = el("label", "", "Foto");
+      const op = el("input"); op.type = "range"; op.min = "5"; op.max = "100"; op.value = String(Math.round(ph.opacity * 100));
+      op.addEventListener("input", () => { ph.opacity = Number(op.value) / 100; this.drawStage(); });
+      op.addEventListener("change", () => this.changed());
+      const rm = el("button", "icon", "×"); rm.title = "Foto entfernen";
+      rm.addEventListener("click", () => { delete this.photos()[String(this.screen)]; this.changed(); this.drawStage(); this.drawTools(tools); });
+      ol.append(op, rm); tools.append(ol);
+    }
+    const mk = this.curMask();
+    if (mk) {
+      const nameLab = el("label", "", "Name");
+      const nm = el("input", "mp-nm"); nm.value = mk.name; nm.maxLength = 40; nm.id = "mp-name";
+      nm.addEventListener("change", () => { mk.name = nm.value.trim() || mk.name; this.changed(); this.drawStage(); });
+      nameLab.append(nm);
+      const inv = el("button", `btn small-btn${mk.invert ? " on" : ""}`, mk.invert ? "Nur innen zeigen" : "Innen schwärzen");
+      inv.title = "Umschalten: Bereich schwärzen ↔ nur diesen Bereich zeigen";
+      inv.addEventListener("click", () => { mk.invert = !mk.invert; this.changed(); this.drawStage(); this.drawTools(tools); });
+      const fl = el("label", "", "Weiche Kante");
+      const fr = el("input"); fr.type = "range"; fr.min = "0"; fr.max = "120"; fr.value = String(mk.feather);
+      const fv = el("small", "muted", `${mk.feather} px`);
+      fr.addEventListener("input", () => { mk.feather = Number(fr.value); fv.textContent = `${fr.value} px`; this.changed(); });
+      fl.append(fr, fv);
+      const delPt = el("button", "btn small-btn", "Punkt löschen");
+      delPt.disabled = this.selCorner === null || mk.pts.length <= 3;
+      delPt.addEventListener("click", () => { if (this.selCorner !== null && mk.pts.length > 3) { mk.pts.splice(this.selCorner, 1); this.selCorner = null; this.changed(); this.drawStage(); this.drawTools(tools); } });
+      const tog = el("button", `btn small-btn${mk.on ? " on" : ""}`, mk.on ? "An" : "Aus");
+      tog.addEventListener("click", () => { mk.on = !mk.on; this.changed(); this.drawStage(); this.drawTools(tools); });
+      const del = el("button", "btn small-btn", "Maske löschen");
+      del.addEventListener("click", () => { const l = this.get(); l.masks = this.masks().filter(x => x !== mk); this.sel = null; this.selCorner = null; this.changed(); this.drawStage(); this.drawTools(tools); });
+      tools.append(nameLab, inv, fl, delPt, tog, del,
+        el("small", "muted", "Doppelklick auf die Maske: Punkt einfügen · Punkt wählen + Entf: löschen"));
+      return;
+    }
     const s = this.cur();
     if (!s) return;
     const nameLab = el("label", "", "Name");
@@ -222,8 +382,28 @@ export class MappingEditor {
       const xs = s.corners.map(c => c[0]), ys = s.corners.map(c => c[1]);
       const a = Math.min(...xs), b = Math.max(...xs), c = Math.min(...ys), d = Math.max(...ys);
       s.corners = [[a, c], [b, c], [b, d], [a, d]];
+      if (s.grid) s.grid = gridFromCorners(s.corners, s.grid.n);
       this.changed(); this.drawStage();
     });
+    // Raster-Verzerrung für gewölbte oder unebene Flächen
+    const gridSel = el("select"); gridSel.setAttribute("aria-label", "Raster-Verzerrung");
+    gridSel.title = "Raster: mehr Punkte zum Ziehen, die Fläche wird weich gebogen (Säulen, Kuppeln, unebene Wände)";
+    gridSel.append(new Option("Form: 4 Ecken", "0"), new Option("Form: Raster 3×3", "3"), new Option("Form: Raster 5×5", "5"));
+    gridSel.value = String(s.grid?.n ?? 0);
+    gridSel.addEventListener("change", () => {
+      const n = Number(gridSel.value);
+      if (!n) { if (s.grid) { s.corners = gridCorners(s.grid); delete s.grid; } }
+      else if (s.grid) {
+        // Andere Punktzahl: aus der jetzigen Form neu abtasten
+        const g = s.grid, pts: [number, number][] = [];
+        for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) pts.push(gridPoint(g, i / (n - 1), j / (n - 1)));
+        s.grid = { n, pts };
+      } else s.grid = gridFromCorners(s.corners, n);
+      this.selCorner = null;
+      syncCorners(s);
+      this.changed(); this.drawStage();
+    });
+    tools.append(gridSel);
     const tog = el("button", `btn small-btn${s.on ? " on" : ""}`, s.on ? "An" : "Aus");
     tog.addEventListener("click", () => { s.on = !s.on; this.changed(); this.drawStage(); this.drawTools(tools); });
     const del = el("button", "btn small-btn", "Löschen");
