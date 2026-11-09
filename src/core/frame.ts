@@ -135,6 +135,12 @@ export interface VjBridge {
   /** Status an LJ-Link melden (nur über den eigenen Endpunkt /vjlink). */
   ljStatus(s: VjStatus): void;
   /** Weboberfläche von LJ-Link im Browser öffnen. */
+  /** Updates: prüfen (force = Stunden-Puffer übergehen), laden und installieren, Zustand mitlesen. */
+  updateCheck(force?: boolean): Promise<import("./update").UpdateState | null>;
+  updateInstall(): Promise<import("./update").UpdateState | null>;
+  onUpdate(cb: (s: import("./update").UpdateState) => void): void;
+  /** Bekannte Seite im Browser öffnen (Instagram, GitHub). */
+  openWeb(url: string): void;
   openLj(): void;
 }
 

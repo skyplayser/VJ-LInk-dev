@@ -1,5 +1,8 @@
 // Hauptfenster: Show-Zustand, Eingänge und Oberfläche.
 import { StartScreen } from "./startscreen";
+import { changeLang, initLang } from "./lang";
+import { t } from "../core/i18n";
+import { UpdateUi } from "./updatepanel";
 import { Gallery } from "./gallery";
 import { isCamClip, camIdOf } from "../core/camera";
 import { CameraPool } from "./campool";
@@ -60,6 +63,9 @@ import { timelineOverride } from "../core/video";
 import { KickDetector, liveBands } from "../core/audio";
 const kickDet = new KickDetector();
 import { LayerClock, TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
+
+// Sprache zuerst, damit alle Texte gleich in der richtigen Sprache entstehen
+initLang();
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] => {
@@ -612,15 +618,16 @@ const tcPanel = new TcPanel(tcClock, settings.tc, saveSettings, {
 });
 ctx.tc = tcClock;
 const setBox = $("settings");
-const SEC_TITLE: Record<string, string> = { audio: "Audio", timecode: "Timecode", midi: "MIDI", dmx: "DMX und Netzwerk", ui: "Oberfläche" };
+const SEC_TITLE: Record<string, string> = { audio: t("set.audio"), timecode: t("set.timecode"), midi: t("set.midi"), dmx: t("set.dmx"), ui: t("set.ui"), update: t("set.update") };
 function openSettings(sec = "audio"): void {
   setBox.hidden = false;
   setBox.querySelectorAll<HTMLButtonElement>(".set-nav [data-sec]").forEach(b => b.classList.toggle("on", b.dataset.sec === sec));
   setBox.querySelectorAll<HTMLElement>(".set-sec").forEach(x => { x.hidden = x.dataset.sec !== sec; });
-  $("set-title").textContent = SEC_TITLE[sec] ?? "Einstellungen";
+  $("set-title").textContent = SEC_TITLE[sec] ?? t("set.title");
   if (sec === "audio") { void fillAudioDevices(); void fillAudioOuts(); }
   if (sec === "timecode") tcPanel.build($("set-tc"));
   if (sec === "midi") buildMidiSection();
+  if (sec === "update") { updates.mount($("set-update")); void updates.check(); }
 }
 const closeSettings = () => { setBox.hidden = true; };
 setBox.querySelectorAll<HTMLButtonElement>(".set-nav [data-sec]").forEach(b => b.addEventListener("click", () => openSettings(b.dataset.sec)));
@@ -1132,6 +1139,9 @@ bridge?.onMenu((cmd, arg) => {
 });
 if (!bridge) projBtn.hidden = true;
 
+// ---- Updates (wie bei LJ-Link) -----------------------------------------------------------
+const updates = new UpdateUi(bridge ?? null, "0.1.0");
+
 // ---- Startbildschirm --------------------------------------------------------------------
 const startScreen = new StartScreen({
   projectName: () => projName,
@@ -1142,7 +1152,10 @@ const startScreen = new StartScreen({
   goTab: tab => document.querySelector<HTMLButtonElement>(`.tabs [data-tab="${tab}"]`)?.click(),
   openSettings: () => openSettings(),
   openMapping: () => { mapMenu.hidden = false; mapBtn.setAttribute("aria-expanded", "true"); },
-  version: "0.1",
+  version: () => updates.state?.current ?? "0.1.0",
+  mountUpdate: box => { updates.mount(box, true); void updates.check(); },
+  setLang: l => changeLang(l),
+  openWeb: url => { if (bridge) bridge.openWeb(url); else window.open(url, "_blank", "noopener"); },
 });
 $("proj-start").addEventListener("click", () => { closeProjMenu(); void startScreen.show(); });
 

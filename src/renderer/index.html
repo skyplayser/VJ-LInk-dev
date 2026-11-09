@@ -22,11 +22,11 @@
     </div>
   </div>
   <nav class="tabs" role="tablist">
-    <button role="tab" data-tab="visuals" class="on">VISUALS</button>
-    <button role="tab" data-tab="show">SHOW</button>
-    <button role="tab" data-tab="build">GALERIE</button>
-    <button role="tab" data-tab="output">AUSGABE</button>
-    <button role="tab" data-tab="connect">VERBINDEN</button>
+    <button role="tab" data-tab="visuals" class="on" data-i18n="tab.visuals">VISUALS</button>
+    <button role="tab" data-tab="show" data-i18n="tab.show">SHOW</button>
+    <button role="tab" data-tab="build" data-i18n="tab.build">GALERIE</button>
+    <button role="tab" data-tab="output" data-i18n="tab.output">AUSGABE</button>
+    <button role="tab" data-tab="connect" data-i18n="tab.connect">VERBINDEN</button>
   </nav>
   <div class="map-wrap">
     <button class="btn" id="map-btn" aria-haspopup="menu" aria-expanded="false">MAPPING ▾</button>
@@ -192,15 +192,16 @@
 <div class="settings" id="settings" role="dialog" aria-modal="true" aria-label="Einstellungen" hidden>
   <div class="set-box">
     <nav class="set-nav" aria-label="Bereiche">
-      <b>Einstellungen</b>
-      <button data-sec="audio" class="on">Audio</button>
-      <button data-sec="timecode">Timecode</button>
-      <button data-sec="midi">MIDI</button>
-      <button data-sec="dmx">DMX und Netzwerk</button>
-      <button data-sec="ui">Oberfläche</button>
+      <b data-i18n="set.title">Einstellungen</b>
+      <button data-sec="audio" class="on" data-i18n="set.audio">Audio</button>
+      <button data-sec="timecode" data-i18n="set.timecode">Timecode</button>
+      <button data-sec="midi" data-i18n="set.midi">MIDI</button>
+      <button data-sec="dmx" data-i18n="set.dmx">DMX und Netzwerk</button>
+      <button data-sec="ui" data-i18n="set.ui">Oberfläche</button>
+      <button data-sec="update" data-i18n="set.update">Update</button>
     </nav>
     <div class="set-main">
-      <div class="set-head"><h2 id="set-title">Audio</h2><button class="btn small-btn" id="set-close">Schließen (Esc)</button></div>
+      <div class="set-head"><h2 id="set-title">Audio</h2><button class="btn small-btn" id="set-close" data-i18n="set.close">Schließen (Esc)</button></div>
       <section class="set-sec" data-sec="audio">
         <h3>Eingang</h3>
         <p class="am-hint">Mikrofon oder Line-In für Equalizer, Oszilloskop & Co.</p>
@@ -229,6 +230,7 @@
           </select>
         </label>
         <p class="am-hint">Automatisch passt alles dem Fenster an, auch auf großen Bildschirmen.</p></div></section>
+      <section class="set-sec" data-sec="update" hidden><div id="set-update"></div></section>
     </div>
   </div>
 </div>

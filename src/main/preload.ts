@@ -34,5 +34,9 @@ const bridge: VjBridge = {
   ljFetch: path => ipcRenderer.invoke("lj:fetch", path),
   ljStatus: s => { ipcRenderer.send("lj:status", s); },
   openLj: () => { ipcRenderer.send("lj:open"); },
+  updateCheck: force => ipcRenderer.invoke("update:check", force),
+  updateInstall: () => ipcRenderer.invoke("update:install"),
+  onUpdate: cb => { ipcRenderer.on("update", (_e, st) => cb(st)); },
+  openWeb: url => { ipcRenderer.send("web:open", url); },
 };
 contextBridge.exposeInMainWorld("vj", bridge);

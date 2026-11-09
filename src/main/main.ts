@@ -5,6 +5,7 @@ import { Network } from "./network";
 import { Storage } from "./storage";
 import { LinkClient } from "./link";
 import { ProjectFiles } from "./projectfile";
+import { Updater } from "./updater";
 import { PROJECT_EXT } from "../core/projectfile";
 import { WINDOW_OUTPUT, WINDOW_SIZES, type ControlEvent, type DisplayInfo, type Frame, type MediaEvent, type NetConfig } from "../core/frame";
 
@@ -17,6 +18,7 @@ let net: Network | null = null;
 let lastFrame: Frame | null = null;
 let storage: Storage | null = null;
 let files: ProjectFiles | null = null;
+const updater = new Updater(st => { if (control && !control.isDestroyed()) control.webContents.send("update", st); });
 /** Live-Grafiken (nicht gespeichert): zuletzt gesendeter Stand je ID, für neu geöffnete Ausgänge. */
 const liveMedia = new Map<string, MediaEvent>();
 const LIVE_IDS = new Set(["nowplaying", "djwave"]);
@@ -390,6 +392,24 @@ app.whenReady().then(async () => {
     if (json.length < 4000) net?.sendLj(json);
   });
   ipcMain.on("lj:open", e => { if (fromControl(e) && net) void shell.openExternal(net.ljWebUrl()); });
+  // Updates (Einstellungen und Startbildschirm)
+  ipcMain.handle("update:check", async (e, force: unknown) => (fromControl(e) ? updater.check(force === true) : null));
+  ipcMain.handle("update:install", async e => {
+    if (!fromControl(e)) return null;
+    return updater.install(async () => {
+      if (!control) return false;
+      const r = await dialog.showMessageBox(control, {
+        type: "info", buttons: ["Jetzt installieren", "Später"], defaultId: 0, cancelId: 1,
+        message: "Update ist geladen", detail: "VJ-Link wird beendet, aktualisiert und startet von selbst neu. Das Projekt ist automatisch gesichert.",
+      });
+      return r.response === 0;
+    });
+  });
+  // Nur bekannte Seiten öffnen (Instagram, Veröffentlichungen auf GitHub)
+  ipcMain.on("web:open", (e, url: unknown) => {
+    if (!fromControl(e) || typeof url !== "string") return;
+    if (/^https:\/\/(www\.)?(instagram\.com|github\.com)\//.test(url)) void shell.openExternal(url);
+  });
   ipcMain.on("configure", (e, c: NetConfig) => {
     if (e.sender !== control?.webContents) return;
     if (Number.isFinite(c?.sacnUniverse)) net?.joinSacn(c.sacnUniverse);

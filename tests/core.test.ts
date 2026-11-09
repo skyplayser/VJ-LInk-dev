@@ -1629,3 +1629,40 @@ describe("Demo-Projekt", () => {
     expect(p.cues[1]!.marks?.length).toBe(6);
   });
 });
+
+import { assetName, isNewer, pickRelease } from "../src/core/update";
+import { detectLang, entry, I18N_KEYS, setLang, t } from "../src/core/i18n";
+describe("Updates", () => {
+  it("vergleicht Versionen wie LJ-Link", () => {
+    expect(isNewer("0.2.0", "0.1.0")).toBe(true);
+    expect(isNewer("v1.10.0", "1.9.9")).toBe(true);
+    expect(isNewer("1.0.0", "1.0.0")).toBe(false);
+    expect(isNewer("0.9.9", "1.0.0")).toBe(false);
+    expect(isNewer("", "1.0.0")).toBe(false);
+  });
+  it("wählt das passende Paket je Rechner", () => {
+    expect(assetName("darwin", "arm64")).toBe("VJ-Link-macos-arm64.dmg");
+    expect(assetName("darwin", "x64")).toBe("VJ-Link-macos-intel.dmg");
+    expect(assetName("win32", "x64")).toBe("VJ-Link-windows.exe");
+    const rel = pickRelease({ tag_name: "v0.2.0", html_url: "https://github.com/skyplayser/VJ-LINK/releases/tag/v0.2.0", body: "Neu:\n- Demo\n",
+      assets: [{ name: "VJ-Link-macos-arm64.dmg", browser_download_url: "https://github.com/x/y.dmg", size: 1234 }] }, "darwin", "arm64")!;
+    expect(rel.version).toBe("0.2.0");
+    expect(rel.url).toBe("https://github.com/x/y.dmg");
+    expect(rel.size).toBe(1234);
+    expect(pickRelease({ tag_name: "v0.2.0", assets: [] }, "win32", "x64")!.url).toBeNull();
+    expect(pickRelease("Quatsch", "darwin", "arm64")).toBeNull();
+  });
+});
+describe("Sprache", () => {
+  it("erkennt die Systemsprache und übersetzt", () => {
+    expect(detectLang(["de-DE", "en-US"])).toBe("de");
+    expect(detectLang(["fr-FR", "en-GB"])).toBe("en");
+    expect(detectLang(["ja-JP"])).toBe("en");
+    setLang("en"); expect(t("start.demo")).toBe("Open demo");
+    expect(t("upd.available", { v: "1.2" })).toBe("Version 1.2 is available.");
+    setLang("de"); expect(t("start.demo")).toBe("Demo öffnen");
+  });
+  it("hat für jeden Text Deutsch und Englisch", () => {
+    for (const k of I18N_KEYS()) { const e = entry(k)!; expect(e.de, k).toBeTruthy(); expect(e.en, k).toBeTruthy(); }
+  });
+});
