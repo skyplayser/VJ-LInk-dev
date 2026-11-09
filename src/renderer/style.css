@@ -632,3 +632,6 @@ body.mapping [data-ctl][data-mapped][data-map-sel]{outline:3px solid #fff!import
 .map-dup{color:var(--warn)}
 .map-sub{font:600 9.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-top:4px}
 .map-row.sel{background:rgba(34,197,94,.22)}
+.tlv-len{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--dim)}
+.tlv-len input{width:56px}
+.tlv-warn{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--warn);background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.35);border-radius:5px;padding:5px 8px}

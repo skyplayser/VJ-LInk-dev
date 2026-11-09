@@ -210,7 +210,8 @@ let lastSweep = 0;
 const cueEnv: CueEnv = {
   duration: m => (m && isVideoClip(m) ? videoLib.duration(videoIdOf(m)) : 0),
   // Szenen-Marker der Timeline: „nur andere Bilder“ lässt das Bild des SHOW-Ablaufs unberührt
-  recallScene: (i, othersOnly) => { recallScene(ctx, i, Date.now(), othersOnly ? [showImage()] : [], true); },
+  // „nur andere Bilder“ gibt es nur, wenn es mehrere Bilder gibt (Projektionsmapping); sonst wirkt die Szene immer
+  recallScene: (i, othersOnly) => { recallScene(ctx, i, Date.now(), othersOnly && multiImage() ? [showImage()] : [], true); },
   timecode: () => tcClock.now(Date.now()),
   currentScene: () => ctx.show.scene,
   tcCommand: (action, target) => {
@@ -899,7 +900,7 @@ function frame(): void {
   // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert
   let shown = modulatedShow(ctx, ctx.mods ?? [], beat, liveBands(ctx.show.audio, beat, now / 1000));
   // Timeline: Effekt-Blöcke (Strobe, Flash, White, W-Flash, Blinder, Blackout) und Helligkeit je Bild
-  const tlo = timelineOverride(ctx.cues, now, cueEnv, imageList(ctx.show).map(im => im.id), showImage());
+  const tlo = timelineOverride(ctx.cues, now, cueEnv, imageList(ctx.show).map(im => im.id), multiImage() ? showImage() : "");
   if (tlo) {
     const f = tlo.fx;
     shown = { ...shown,
@@ -1001,6 +1002,7 @@ const videoPanel = new VideoPanel(ctx, videoLib, $("video-panel"), () => fxPanel
 const showTab = new ShowTab({
   ctx, env: cueEnv, videos: videoLib, images: library, importFiles: f => importToLibrary(f), toast,
   tcNow: () => tcClock.now(Date.now()), tcFps: () => tcClock.fps,
+  multiImage: () => multiImage(),
 });
 const scenePanel = new ScenePanel(ctx, $("scenes"), $<HTMLButtonElement>("scene-auto"), $<HTMLButtonElement>("scene-add"));
 rebuildGrid(); buildSidebar(); buildCatalog(); bindSettings();
@@ -1247,6 +1249,9 @@ function editImage(id: string): void {
   rebuildGrid(); rebuildDeck(); fxPanel.select(0); libraryPanel.close();
   syncCanvases();
 }
+
+/** Gibt es mehrere Bilder (Projektionsmapping)? Nur dann bedeutet „nur andere Bilder“ etwas. */
+function multiImage(): boolean { return mappingOn() && imageList(ctx.show).length > 1; }
 
 /** Bild, auf dem der SHOW-Ablauf läuft (nur im Mapping-Modus wählbar). */
 function showImage(): string {

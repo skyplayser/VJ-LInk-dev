@@ -1096,3 +1096,10 @@ void main(){
   vec2 s = uSrc.xy + clamp(uv, 0.0, 1.0) * uSrc.zw;
   outColor = texture(uTex, vec2(s.x, 1.0 - s.y)) * m;
 }`;
+
+/** Einfarbige Fläche (für Strobe und Blinder über den Cues). */
+export const SOLID_FRAG = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform vec4 uColor;
+void main(){ outColor = uColor; }`;

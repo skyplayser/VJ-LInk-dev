@@ -33,6 +33,8 @@ export interface ShowDeps {
   /** Laufender Timecode (oder null) und seine Bildrate. */
   tcNow(): TcNow | null;
   tcFps(): TcFps;
+  /** Mehrere Bilder (Projektionsmapping)? Nur dann gibt es „nur andere Bilder“. */
+  multiImage?(): boolean;
 }
 
 export class ShowTab {
@@ -287,7 +289,8 @@ export class ShowTab {
     // Timeline: Cue als Zeitleiste bearbeiten (großer Editor unter der Liste)
     if (c.kind === "video" || c.kind === "image" || c.kind === "black") {
       mk(c.timeline ? "Timeline schließen" : "In Timeline umwandeln", () => {
-        if (!c.timeline && c.kind !== "video" && !(c.hold > 0)) { this.d.toast("Für eine Timeline braucht der Cue eine Dauer (oben „Dauer“ einstellen)."); return; }
+        // Bild/Schwarz ohne Dauer: 30 s vorgeben (in der Timeline oben änderbar)
+        if (!c.timeline && c.kind !== "video" && !(c.hold > 0)) { c.hold = 30; this.d.toast("Timeline mit 30 s Länge angelegt – oben in der Timeline änderbar."); }
         c.timeline = !c.timeline; this.update(true);
       });
     }
@@ -341,7 +344,7 @@ export class ShowTab {
       const r = bar.getBoundingClientRect();
       const t = Math.round(((e.clientX - r.left) / r.width) * d * 10) / 10;
       const last = marks.filter(m => m.t <= t).pop();
-      marks.push({ t, scene: Math.min(this.d.ctx.scenes.length || 1, (last?.scene ?? 0) + 1), others: true });
+      marks.push({ t, scene: Math.min(this.d.ctx.scenes.length || 1, (last?.scene ?? 0) + 1), others: this.d.multiImage?.() ?? false });
       marks.sort((a, b) => a.t - b.t);
       this.selMark = marks.findIndex(m => m.t === t);
       this.update(true);
@@ -363,7 +366,9 @@ export class ShowTab {
     oth.addEventListener("click", () => { m.others = !m.others; this.update(true); });
     const del = el("button", "btn small-btn", "Löschen");
     del.addEventListener("click", () => { marks.splice(marks.indexOf(m), 1); this.selMark = -1; this.update(true); });
-    w.append(tIn, el("small", "muted", "s"), sc, oth, del);
+    w.append(tIn, el("small", "muted", "s"), sc);
+    if (this.d.multiImage?.()) w.append(oth);
+    w.append(del);
     r1.append(w); box.append(r1);
   }
 
@@ -381,6 +386,7 @@ export class ShowTab {
     this.tl ??= new TimelineView(document.getElementById("cue-timeline")!, {
       ctx: this.d.ctx, env: this.d.env, toast: m => this.d.toast(m),
       indexOf: cc => this.d.ctx.cues.list.indexOf(cc), changed: () => this.update(true),
+      multiImage: () => this.d.multiImage?.() ?? false,
     });
     this.tl.update(s.list[this.selected] ?? null, force);
     // Timeline: Abspielposition des gewählten Videos

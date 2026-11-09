@@ -18,6 +18,8 @@ export interface TimelineDeps {
   /** Index des Cues in der Liste (für „Abspielen“). */
   indexOf(c: Cue): number;
   changed(): void;
+  /** Mehrere Bilder (Projektionsmapping)? Sonst gibt es kein „nur andere Bilder“. */
+  multiImage(): boolean;
 }
 
 export class TimelineView {
@@ -63,7 +65,7 @@ export class TimelineView {
   private place(c: Cue, t: number, scene: number): number {
     const marks = (c.marks ??= []);
     const near = marks.find(m => Math.abs(m.t - t) < 0.05);
-    if (near) near.scene = scene; else marks.push({ t: Math.round(t * 100) / 100, scene, others: true });
+    if (near) near.scene = scene; else marks.push({ t: Math.round(t * 100) / 100, scene, others: this.d.multiImage() });
     marks.sort((a, b) => a.t - b.t);
     return marks.findIndex(m => Math.abs(m.t - t) < 0.051);
   }
@@ -78,7 +80,7 @@ export class TimelineView {
     if (c !== this.cue) { this.cue = c; this.sel = -1; this.cursorT = timelineSpan(c, this.d.env.duration(c.media))[0]; }
     const span = timelineSpan(c, this.d.env.duration(c.media));
     const live = this.liveT(c) !== null;
-    const sig = `${JSON.stringify(c.marks ?? [])}|${JSON.stringify(c.fx ?? [])}|${this.selFx}|${span.join(",")}|${this.sel}|${this.recording}|${live}|${this.d.ctx.scenes.map(s => s.name).join(",")}|${c.name}`;
+    const sig = `${JSON.stringify(c.marks ?? [])}|${JSON.stringify(c.fx ?? [])}|${this.selFx}|${span.join(",")}|${this.sel}|${this.recording}|${live}|${this.d.multiImage()}|${this.d.ctx.scenes.map(s => s.name).join(",")}|${c.name}`;
     if (!this.dragging && (force || sig !== this.sig)) { this.sig = sig; this.span = span; this.build(c); }
     this.tick(c);
   }
@@ -129,7 +131,14 @@ export class TimelineView {
       if (undo.dataset.armed !== "1") { undo.dataset.armed = "1"; undo.textContent = "Wirklich alle löschen?"; return; }
       c.marks = []; this.sel = -1; d.changed();
     });
-    head.append(this.timeEl, el("span", "grow"), playBtn, rec, undo);
+    head.append(this.timeEl);
+    if (c.kind !== "video") {
+      const dur = el("input", "tc-in"); dur.value = String(c.hold || 0); dur.setAttribute("aria-label", "Länge der Timeline in Sekunden");
+      dur.addEventListener("change", () => { const v = Number(dur.value.replace(",", ".")); if (Number.isFinite(v) && v >= 1) c.hold = Math.min(36000, v); d.changed(); });
+      const lab = el("label", "tlv-len", "Länge"); lab.append(dur, el("small", "muted", "s"));
+      head.append(lab);
+    }
+    head.append(el("span", "grow"), playBtn, rec, undo);
     r.append(head);
     if (b <= a) { r.append(el("p", "muted small", c.kind === "video" ? "Länge wird noch gemessen …" : "Für eine Timeline braucht der Cue eine Dauer (Details → Dauer).")); return; }
 
@@ -145,6 +154,7 @@ export class TimelineView {
     const vid = el("div", "tlv-video", c.kind === "video" ? `▶ ${c.name}` : c.kind === "image" ? "Bild" : "Schwarz");
     const lane = el("div", "tlv-lane"); this.lane = lane;
     const pctOf = (t: number) => ((t - a) / len) * 100;
+    const multi = d.multiImage();
     marks.forEach((m, k) => {
       const end = this.endOf(marks, k, b);
       const blk = el("div", `tlv-block${k === this.sel ? " sel" : ""}${m.len === undefined ? " open" : ""}`);
@@ -152,7 +162,7 @@ export class TimelineView {
       blk.style.left = `${pctOf(Math.max(a, m.t))}%`;
       blk.style.width = `${Math.max(0.4, pctOf(Math.min(b, end)) - pctOf(Math.max(a, m.t)))}%`;
       blk.style.setProperty("--c", sceneColor(m.scene));
-      blk.append(el("b", "", `${m.scene} · ${sc?.name ?? "?"}`), el("small", "", `${fmt1(end - m.t)}${m.len === undefined ? " · bis zur nächsten" : ""} · ${m.others ? "andere Bilder" : "alle Bilder"}${m.level !== undefined && m.level < 1 ? ` · ${Math.round(m.level * 100)} %` : ""}`));
+      blk.append(el("b", "", `${m.scene} · ${sc?.name ?? "?"}`), el("small", "", `${fmt1(end - m.t)}${m.len === undefined ? " · bis zur nächsten" : ""}${multi ? (m.others ? " · andere Bilder" : " · alle Bilder") : ""}${m.level !== undefined && m.level < 1 ? ` · ${Math.round(m.level * 100)} %` : ""}${multi && m.others && !Object.keys(sc?.stacks ?? {}).length ? " · ⚠ Szene kennt keine anderen Bilder" : ""}`));
       blk.title = `${fmt1(m.t - a)} · Szene ${m.scene}. Mitte ziehen verschiebt, Ränder ziehen ändert die Länge (⌥ ohne Einrasten), Entf löscht.`;
       const hl = el("span", "tlv-h l"), hr = el("span", "tlv-h r");
       hl.title = "Anfang ziehen"; hr.title = "Ende ziehen (Länge)";
@@ -195,6 +205,16 @@ export class TimelineView {
     vid.addEventListener("click", seekAt);
     lane.addEventListener("click", e => { if (e.target === lane) { this.sel = -1; this.selFx = -1; seekAt(e); d.changed(); } });
     r.append(ruler, tracks);
+    // Ein Bild/Video „statt Visuals“ deckt alles ab: Szenenwechsel der Timeline wären dann unsichtbar
+    if (marks.length && c.over === "replace" && !d.multiImage()) {
+      const warn = el("div", "tlv-warn");
+      warn.append(el("span", "", `Der Cue liegt deckend über den Visuals („Visuals aus“) – die Szenenwechsel passieren unsichtbar dahinter.`));
+      const fix = el("button", "btn small-btn", "Cue darüber legen");
+      fix.title = "Das Bild bzw. Video liegt dann über den Visuals; dunkle oder durchsichtige Stellen zeigen die Szenen";
+      fix.addEventListener("click", () => { c.over = "over"; d.changed(); });
+      warn.append(fix);
+      r.append(warn);
+    }
 
     // Szenen-Palette
     const pal = el("div", "tlv-pal");
@@ -256,8 +276,9 @@ export class TimelineView {
       const lvv = el("small", "muted", `${lv.value} %`);
       lv.addEventListener("input", () => { lvv.textContent = `${lv.value} %`; });
       lv.addEventListener("change", () => { const v = Number(lv.value) / 100; if (v >= 0.995) delete m.level; else m.level = v; d.changed(); });
-      row.append(el("span", "muted small", "Block:"), tIn, el("small", "muted", "s ab"), lenIn, el("small", "muted", "s lang"), open, sc, oth,
-        el("span", "muted small", "Helligkeit"), lv, lvv, del);
+      row.append(el("span", "muted small", "Block:"), tIn, el("small", "muted", "s ab"), lenIn, el("small", "muted", "s lang"), open, sc);
+      if (d.multiImage()) row.append(oth);
+      row.append(el("span", "muted small", "Helligkeit"), lv, lvv, del);
       r.append(row);
     } else if (!marks.length) {
       r.append(el("p", "muted small", "Szenen aus der Palette auf die Spur ziehen und die Länge an den Rändern ziehen – wie im Schnittprogramm. Oder Video abspielen und Szenen antippen bzw. „Aufnehmen“. In Lücken gilt die Szene, die beim Start lief."));

@@ -9,7 +9,7 @@ import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
 import { mediaTransform } from "../core/media";
 import type { View, Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
-import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, VERT, WARP_FRAG } from "./shaders";
+import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
   original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3, multi: 4,
@@ -44,6 +44,7 @@ export class Engine {
   private fin: Program;
   private img: Program;
   private warp: Program;
+  private solid: Program;
   private media = new Map<string, { tex: WebGLTexture; w: number; h: number }>();
   private videoTex = new Map<string, WebGLTexture>();
   private black: WebGLTexture | null = null;
@@ -78,6 +79,7 @@ export class Engine {
     this.fin = this.program(FINAL_FRAG);
     this.img = this.program(IMAGE_FRAG);
     this.warp = this.program(WARP_FRAG);
+    this.solid = this.program(SOLID_FRAG);
     this.vao = gl.createVertexArray()!;
   }
 
@@ -344,11 +346,13 @@ export class Engine {
     // Projektionsmapping: erst das ganze Bild in Ausgangsgröße, dann jede Leinwand verzerrt daraus zeichnen
     const mapping = !view && !!warps;
     const dest = view || mapping ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
-    // Hauptbild (bei Leinwänden mit eigenen Ebenen rechnet jede ihren Stapel unten selbst)
-    this.composeStack(show, mainLayers(show), show.transition?.from ?? null, key, dest, w, h, beat, sec, bpm, nowMs, show.stackGain?.main ?? 1);
     // SHOW-Ablauf: im Projektionsmapping auf dem gewählten Bild, sonst auf dem Hauptbild
     const cueImg = mapping ? (show.cueImage ?? "main") : "main";
-    if (!show.blackout && show.cues.length && cueImg === "main") this.drawCues(show.cues, nowMs, w, h, dest);
+    const mainCues = !show.blackout && show.cues.length > 0 && cueImg === "main";
+    // Hauptbild (bei Leinwänden mit eigenen Ebenen rechnet jede ihren Stapel unten selbst).
+    // Laufen Cues, kommen Strobe, White und Blinder erst danach, damit sie auch auf Video und Bild wirken.
+    this.composeStack(show, mainLayers(show), show.transition?.from ?? null, key, dest, w, h, beat, sec, bpm, nowMs, show.stackGain?.main ?? 1, mainCues);
+    if (mainCues) { this.drawCues(show.cues, nowMs, w, h, dest); this.flashAfter(show, beat, sec, bpm, dest, w, h); }
     // „Raster über alle“: auf der ganzen Leinwand rechnen, jeder Ausgang zeigt seinen Teil wie bei den Visuals
     const spanTest = show.testCard && show.testPattern === "span" && !!dest;
     if (spanTest) this.drawTestCard(show, beat, nowMs, w, h, dest);
@@ -373,8 +377,9 @@ export class Engine {
         if (!wp.stack || !own || srcOf.has(wp.stack)) continue;
         const st = this.target(this.surfT.get(wp.stack) ?? null, w, h);
         this.surfT.set(wp.stack, st);
-        this.composeStack(show, own, show.transition?.fromStacks?.[wp.stack] ?? null, `S${wp.stack}:`, st, w, h, beat, sec, bpm, nowMs, show.stackGain?.[wp.stack] ?? 1);
-        if (!show.blackout && show.cues.length && cueImg === wp.stack) this.drawCues(show.cues, nowMs, w, h, st);
+        this.composeStack(show, own, show.transition?.fromStacks?.[wp.stack] ?? null, `S${wp.stack}:`, st, w, h, beat, sec, bpm, nowMs, show.stackGain?.[wp.stack] ?? 1,
+          !show.blackout && show.cues.length > 0 && cueImg === wp.stack);
+        if (!show.blackout && show.cues.length && cueImg === wp.stack) { this.drawCues(show.cues, nowMs, w, h, st); this.flashAfter(show, beat, sec, bpm, st, w, h); }
         if (show.testCard && !spanTest) this.drawTestCard(show, beat, nowMs, w, h, st);
         srcOf.set(wp.stack, st);
       }
@@ -488,7 +493,8 @@ export class Engine {
 
   /** Einen Ebenen-Stapel mischen (mit Überblendung, Master, Strobe) und nach `dest` (null = Bildschirm) zeichnen. */
   private composeStack(show: ShowState, layers: readonly LayerState[], fromLayers: readonly LayerState[] | null, key: string,
-    dest: Target | null, w: number, h: number, beat: number, sec: number, bpm: number, nowMs: number, gain = 1): void {
+    dest: Target | null, w: number, h: number, beat: number, sec: number, bpm: number, nowMs: number, gain = 1,
+    /** Strobe/White/Blinder später (nach den Cues) anwenden. */ deferFlash = false): void {
     const gl = this.gl;
     if (show.blackout) { this.bindTarget(dest, 0, 0, w, h); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); return; }
     const pulse = beatPulse(beat);
@@ -509,12 +515,25 @@ export class Engine {
     gl.uniform1i(this.loc(this.fin, "uTo"), 1);
     gl.uniform1f(this.loc(this.fin, "uMix"), mix);
     gl.uniform1i(this.loc(this.fin, "uDip"), show.transition?.style === "black" ? 1 : 0);
-    gl.uniform1f(this.loc(this.fin, "uGain"), show.master * gain * strobeGain(show.strobe, beat, sec, bpm));
+    gl.uniform1f(this.loc(this.fin, "uGain"), show.master * gain * (deferFlash ? 1 : strobeGain(show.strobe, beat, sec, bpm)));
     // Strobe White und Blinder wirken auch bei Master 0, aber nicht bei Blackout
-    gl.uniform1f(this.loc(this.fin, "uWhite"), Math.max(strobeWhite(show.strobe, beat, sec, bpm), show.blinder ?? 0));
+    gl.uniform1f(this.loc(this.fin, "uWhite"), deferFlash ? 0 : Math.max(strobeWhite(show.strobe, beat, sec, bpm), show.blinder ?? 0));
     this.bindTex(0, from); this.bindTex(1, t.to);
     this.bindTarget(dest, 0, 0, w, h);
     this.draw();
+  }
+
+  /** Strobe (Abdunkeln), White und Blinder über das fertige Bild inklusive Cues legen. */
+  private flashAfter(show: ShowState, beat: number, sec: number, bpm: number, dest: Target | null, w: number, h: number): void {
+    const gl = this.gl;
+    const g = strobeGain(show.strobe, beat, sec, bpm), white = Math.max(strobeWhite(show.strobe, beat, sec, bpm), show.blinder ?? 0);
+    if (g >= 0.999 && white <= 0.001) return;
+    gl.useProgram(this.solid.p);
+    this.bindTarget(dest, 0, 0, w, h);
+    gl.enable(gl.BLEND);
+    if (g < 0.999) { gl.blendFunc(gl.ZERO, gl.SRC_COLOR); gl.uniform4f(this.loc(this.solid, "uColor"), g, g, g, 1); this.draw(); }
+    if (white > 0.001) { gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.uniform4f(this.loc(this.solid, "uColor"), 1, 1, 1, Math.min(1, white)); this.draw(); }
+    gl.disable(gl.BLEND);
   }
 
   private drawTestCard(show: ShowState, beat: number, nowMs: number, w: number, h: number, dest: Target | null): void {
