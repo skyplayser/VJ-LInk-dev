@@ -53,10 +53,12 @@ export class Gallery {
     this.render();
   }
 
-  /** Probe-Show: eine neutrale Ebene, damit jedes Visual so aussieht, wie es gebaut ist. */
-  private probeShow(): ShowState {
+  /** Probe-Show: eine neutrale Ebene, damit jedes Visual so aussieht, wie es gebaut ist.
+   *  Eigene Medien (Grafik, Video, Text) stehen still, statt im Takt zu pulsieren. */
+  private probeShow(clip: string | null = null): ShowState {
     const s = this.d.ctx.show;
-    const l = { ...defaultLayer(), effects: [], colorSource: "original" as const };
+    const own = !!clip && !READY_GENERATORS.some(g => g.id === clip);
+    const l = { ...defaultLayer(), effects: [], colorSource: "original" as const, ...(own ? { drive: "static" as const } : {}) };
     return { ...s, layers: [l], blackout: false, master: 1 } as ShowState;
   }
 
@@ -64,12 +66,12 @@ export class Gallery {
   tick(nowMs: number): void {
     if (!this.engine || !this.root.offsetParent) return;
     const beat = this.d.ctx.tempo.beatAt(nowMs);
-    const show = this.probeShow();
+    const show = this.probeShow(this.section === "effects" ? null : this.selected);
     // Ein Vorschaubild pro Bild nachziehen, damit die Oberfläche flüssig bleibt
     const next = this.queue.shift();
     if (next) {
       this.engine.resize(256, 144);
-      this.engine.renderThumbs(show, beat + 0.37, nowMs + 1500, [{ layer: 0, col: 0, clip: next, x: 0, y: 0, w: 256, h: 144 }]);
+      this.engine.renderThumbs(this.probeShow(next), beat + 0.37, nowMs + 1500, [{ layer: 0, col: 0, clip: next, x: 0, y: 0, w: 256, h: 144 }]);
       try { this.thumbs.set(next, this.live.toDataURL("image/jpeg", 0.8)); } catch { /* ohne Bild */ }
       const img = this.root.querySelector<HTMLImageElement>(`img[data-thumb="${CSS.escape(next)}"]`);
       if (img) img.src = this.thumbs.get(next) ?? "";
