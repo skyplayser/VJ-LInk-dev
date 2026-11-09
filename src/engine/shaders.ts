@@ -1,7 +1,8 @@
 // GLSL ES 3.00. Ein Programm, Generator per Nummer gewählt (uGen).
 export const GEN_IDS = ["bar-spectrum", "radial-eq", "oscilloscope", "pulse-rings", "tunnel", "synth-grid", "starfield", "plasma",
   "lissajous", "vu-meter", "dot-matrix", "plexus", "hypercube", "vector-gobos", "bokeh", "burst", "lightning", "ripples", "fire", "liquid-light", "mirror-ball", "uv-glow", "laser-sheet", "laser-fans", "moire", "flower", "co2-jet", "testcard",
-  "laser-beams", "laser-sky", "laser-cone", "laser-wave", "laser-matrix", "laser-propeller", "laser-scan"] as const;
+  "laser-beams", "laser-sky", "laser-cone", "laser-wave", "laser-matrix", "laser-propeller", "laser-scan",
+  "beam-moonflower", "beam-derby", "beam-scanner", "beam-spots", "beam-snow", "beam-polygon", "beam-burst"] as const;
 export type GenId = typeof GEN_IDS[number];
 
 export const VERT = `#version 300 es
@@ -662,6 +663,121 @@ vec3 laserScan(vec2 uv){
   return lzCol(floor(uBeat / 8.0) + 5.0, 0.0) * lzLine(best * P);
 }
 
+// ---- Lichteffekt-Typen im Nebel (Moonflower, Derby, Scanner …) ---------------------------
+/** Weicher Fleck = breiter Strahl. d und r in Pixeln, soft 0–1 (Anteil des weichen Rands). Stärke-Regler vergrößert. */
+float lzSpot(float d, float r, float soft){ r *= clamp(uLz.w, 0.25, 6.0); return smoothstep(r, r * (1.0 - soft), d); }
+float lzSpot(float d, float r){ return lzSpot(d, r, 0.55); }
+/** Mehrfarbig auch ohne Slots: jedes Element eine andere Laserfarbe. */
+vec3 lzColN(float k, float i){
+  if (uColorMode == 4 && uPalN > 0) return uPal[int(mod(k + i, float(uPalN)))];
+  return laserColor(k + i);
+}
+
+// 43 Moonflower: drei Ringe farbiger Strahlen, gegenläufig drehend
+vec3 beamMoonflower(vec2 uv){
+  vec2 p = lzP(uv); float P = lzPx();
+  vec3 acc = vec3(0.0); float k = floor(uBeat / 4.0);
+  float rot = uTime * 0.35;
+  for (int ring = 0; ring < 3; ring++) {
+    float fr = float(ring), n = 6.0 + fr * 4.0, R = (0.07 + fr * 0.075) * (1.0 + 0.12 * uPulse);
+    float dir = mod(fr, 2.0) < 0.5 ? 1.0 : -1.0;
+    for (int i = 0; i < 14; i++) {
+      if (float(i) >= n) break;
+      float a = float(i) / n * 6.28318 + rot * dir + fr;
+      acc += lzColN(k, float(i) + fr) * lzSpot(length(p - vec2(cos(a), sin(a)) * R) * P, (0.017 - fr * 0.003) * P);
+    }
+  }
+  return min(acc, vec3(1.0));
+}
+
+// 44 Derby: vier Bündel aus je sechs Strahlen, schwenken gegeneinander
+vec3 beamDerby(vec2 uv){
+  vec2 p = lzP(uv); float P = lzPx();
+  vec3 acc = vec3(0.0); float k = floor(uBeat / 8.0);
+  for (int c = 0; c < 4; c++) {
+    float fc = float(c);
+    float base = fc * 1.5708 + sin(uTime * 0.6 + fc * 1.7) * 0.9 * (mod(fc, 2.0) < 0.5 ? 1.0 : -1.0);
+    float R = 0.17 + 0.05 * sin(uTime * 0.4 + fc);
+    for (int i = 0; i < 6; i++) {
+      float a = base + (float(i) - 2.5) * 0.12;
+      acc += lzColN(k, fc) * lzSpot(length(p - vec2(cos(a), sin(a)) * R) * P, 0.009 * P, 0.4);
+    }
+  }
+  return min(acc, vec3(1.0)) * (0.75 + 0.25 * uPulse);
+}
+
+// 45 Scanner: ein kräftiger Strahl fährt eine Acht, dazu eine drehende Lichtfläche; neue Figur alle 4 Beats
+vec3 beamScanner(vec2 uv){
+  vec2 p = lzP(uv); float P = lzPx(); float k = floor(uBeat / 4.0);
+  float t = uTime * 0.8 + k * 1.3;
+  vec2 c = vec2(sin(t) * 0.42, sin(t * 2.0) * 0.16);
+  float spot = lzSpot(length(p - c) * P, 0.022 * P);
+  float an = uTime * 0.5 + k; vec2 dir = vec2(cos(an), sin(an)), d = p - c;
+  float along = abs(dot(d, dir)), perp = abs(dot(d, vec2(-dir.y, dir.x)));
+  float sheet = mod(k, 2.0) < 0.5 ? lzLine((along < 0.18 ? perp : length(vec2(along - 0.18, perp))) * P) : 0.0;
+  return lzCol(k, 0.0) * max(spot, sheet);
+}
+
+// 46 RGB-Spots: fünf breite, weiche Strahlen wandern
+vec3 beamSpots(vec2 uv){
+  vec2 p = lzP(uv); float P = lzPx();
+  vec3 acc = vec3(0.0); float k = floor(uBeat / 8.0);
+  for (int i = 0; i < 5; i++) {
+    float fi = float(i);
+    vec2 q = vec2(sin(uTime * (0.21 + fi * 0.05) + fi * 2.1) * 0.5, sin(uTime * (0.17 + fi * 0.04) + fi * 1.3) * 0.22);
+    acc += lzColN(k, fi) * lzSpot(length(p - q) * P, (0.05 + 0.012 * uPulse) * P, 0.85);
+  }
+  return min(acc, vec3(1.0));
+}
+
+// 47 Schneesturm: viele feine Strahlen, drehen, funkeln (Höhen machen dichter)
+vec3 beamSnow(vec2 uv){
+  vec2 p = lzP(uv); float P = lzPx();
+  float a = uTime * 0.12;
+  p = mat2(cos(a), -sin(a), sin(a), cos(a)) * p;
+  float cell = 0.045;
+  vec2 id = floor(p / cell), f = fract(p / cell) - 0.5;
+  vec2 o = vec2(hash(id), hash(id + 7.3)) - 0.5;
+  float tw = step(0.3, hash(id + floor(uTime * 3.0 + hash(id) * 5.0)));
+  float on = step(hash(id + 3.1), 0.55 + 0.4 * uBands[6]) * tw;
+  vec3 col = uColorMode == 4 && uPalN > 0 ? uPal[int(mod(floor(hash(id + 9.0) * 17.0), float(uPalN)))] : vec3(1.0);
+  return col * on * lzSpot(length(f - o * 0.7) * cell * P, 0.0045 * P, 0.4) * smoothstep(0.75, 0.6, length(p));
+}
+
+// 48 Polygon: drehendes Vieleck (Lichtflächen wie ein Prisma-Tunnel), inneres gegenläufig, Eckstrahlen
+float polyDist(vec2 p, float n, float R, float rot){
+  float seg = 6.28318 / n;
+  float a = mod(atan(p.y, p.x) - rot + seg * 0.5, seg) - seg * 0.5;
+  return abs(cos(a) * length(p) - R);
+}
+vec3 beamPolygon(vec2 uv){
+  vec2 p = lzP(uv); float P = lzPx(); float k = floor(uBeat / 8.0);
+  float n = 3.0 + mod(k, 6.0), seg = 6.28318 / n;
+  float R = 0.2 * (1.0 + 0.08 * uPulse), rot = uTime * 0.45;
+  float outer = lzLine(polyDist(p, n, R, rot) * P);
+  float inner = lzLine(polyDist(p, n, R * 0.5, -rot * 1.3) * P);
+  float corners = 0.0;
+  for (int i = 0; i < 8; i++) {
+    if (float(i) >= n) break;
+    float a = rot + (float(i) + 0.5) * seg;
+    corners += lzSpot(length(p - vec2(cos(a), sin(a)) * R / cos(seg * 0.5)) * P, 0.012 * P, 0.4);
+  }
+  return min(lzCol(k, 0.0) * outer + lzCol(k + 2.0, 1.0) * inner + lzColN(k + 4.0, 0.0) * min(corners, 1.0), vec3(1.0));
+}
+
+// 49 Laser-Burst: auf jedem Beat 40 feine Strahlen an neuen Stellen, verglühen bis zum nächsten
+vec3 beamBurst(vec2 uv){
+  vec2 p = lzP(uv); float P = lzPx(); float b = floor(uBeat);
+  float acc = 0.0;
+  for (int i = 0; i < 40; i++) {
+    float fi = float(i);
+    float a = hash(vec2(fi, b)) * 6.28318, r = sqrt(hash(vec2(b, fi + 3.0))) * 0.42;
+    acc += lzSpot(length(p - vec2(cos(a) * 1.4, sin(a)) * r) * P, 0.0055 * P, 0.4);
+  }
+  // voll an bis zur Beat-Mitte, dann verglühen
+  return lzCol(0.0, 0.0) * min(acc, 1.0) * (1.0 - smoothstep(0.45, 1.0, fract(uBeat)));
+}
+
 void main(){
   vec2 uv = vUv;
   vec3 c;
@@ -700,6 +816,13 @@ void main(){
   else if (uGen == 32) c = laserMatrix(uv);
   else if (uGen == 33) c = laserPropeller(uv);
   else if (uGen == 34) c = laserScan(uv);
+  else if (uGen == 35) c = beamMoonflower(uv);
+  else if (uGen == 36) c = beamDerby(uv);
+  else if (uGen == 37) c = beamScanner(uv);
+  else if (uGen == 38) c = beamSpots(uv);
+  else if (uGen == 39) c = beamSnow(uv);
+  else if (uGen == 40) c = beamPolygon(uv);
+  else if (uGen == 41) c = beamBurst(uv);
   else c = vec3(0.0);
 
   // Laser: Helligkeit = stärkster Kanal (ein blauer Strahl ist voll hell, nicht dunkel)

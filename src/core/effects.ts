@@ -55,8 +55,8 @@ export const EFFECTS: readonly EffectDef[] = [
   // Optische Raumeffekte
   e(27, "mirror-ball", "Spiegelkugel", "optical", "generator", "ready", "Tausende drehende Lichtpunkte im Raum."),
   e(28, "uv-glow", "UV / Schwarzlicht", "optical", "generator", "ready", "Fluoreszierende Muster auf Schwarz."),
-  e(29, "laser-sheet", "Laser-Fläche (Ansicht)", "laser", "generator", "ready", "Laserebene von der Seite gesehen, für Leinwand und LED-Wand."),
-  e(30, "laser-fans", "Laser-Fächer (Ansicht)", "laser", "generator", "ready", "Strahlenfächer von der Seite gesehen, für Leinwand und LED-Wand.", ["beat"]),
+  e(29, "laser-sheet", "Laser-Fläche", "optical", "generator", "ready", "Waagerechte Laserebene wie Nebeldecke (Ansicht für Leinwand und LED-Wand)."),
+  e(30, "laser-fans", "Laser-Fächer", "optical", "generator", "ready", "Grüne oder RGB-Fächer (Ansicht für Leinwand und LED-Wand).", ["beat"]),
   e(31, "strobe-flash", "Strobe / Blinder", "optical", "master", "ready", "Weiße oder farbige Blitze, taktgebunden (Master- und Ebenen-Strobe).", ["beat"]),
   e(32, "moire", "Moiré-Strahlen", "optical", "generator", "ready", "Überlagerte Reflexionen mit Moiré-Mustern."),
   e(33, "flower", "Blumen-Strahlen", "optical", "generator", "ready", "Gegenläufig drehende Strahlenkränze.", ["beat"]),
@@ -71,6 +71,14 @@ export const EFFECTS: readonly EffectDef[] = [
   e(40, "laser-matrix", "Strahlen-Matrix", "laser", "generator", "ready", "Raster aus Punkten: viele Einzelstrahlen, blinken, laufen, funkeln im Takt.", ["beat"]),
   e(41, "laser-propeller", "Propeller", "laser", "generator", "ready", "Drehende Linien durch die Mitte: im Nebel rotierende Lichtflächen.", ["beat"]),
   e(42, "laser-scan", "Laser-Figuren", "laser", "generator", "ready", "Lissajous-Figuren wie ein Laserscanner, wechseln alle 8 Beats.", ["beat"]),
+  // Lichteffekt-Typen im Nebel: so wirkt der Beamer wie das jeweilige Gerät
+  e(43, "beam-moonflower", "Moonflower", "laser", "generator", "ready", "Viele farbige Strahlen aus einem Punkt, drehen sich langsam, wechseln im Takt.", ["beat"]),
+  e(44, "beam-derby", "Derby", "laser", "generator", "ready", "Strahlenbündel in mehreren Farben, gegenläufig schwenkend.", ["beat"]),
+  e(45, "beam-scanner", "Scanner", "laser", "generator", "ready", "Ein kräftiger Strahl mit Lichtfläche, fährt Figuren, springt im Takt.", ["beat"]),
+  e(46, "beam-spots", "RGB-Spots", "laser", "generator", "ready", "Wenige breite, weiche Strahlen in kräftigen Farben, wandern durch den Raum.", ["beat"]),
+  e(47, "beam-snow", "Schneesturm", "laser", "generator", "ready", "Sehr viele feine weiße Strahlen, drehen und funkeln.", ["high"]),
+  e(48, "beam-polygon", "Polygon", "laser", "generator", "ready", "Drehendes Vieleck (3–8 Ecken): Lichtflächen wie ein Prisma-Tunnel, dazu Eckstrahlen.", ["beat"]),
+  e(49, "beam-burst", "Laser-Burst", "laser", "generator", "ready", "Feine grüne Strahlen, die auf jedem Beat neu aufblitzen.", ["beat"]),
 ];
 
 export const EFFECT_BY_ID: ReadonlyMap<string, EffectDef> = new Map(EFFECTS.map(x => [x.id, x]));

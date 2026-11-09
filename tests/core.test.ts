@@ -156,10 +156,10 @@ describe("Steuerung", () => {
 
 describe("Effekt-Katalog", () => {
   it("enthält die 35 Visuals der Wunschliste und 7 Laser mit eindeutigen IDs", () => {
-    expect(EFFECTS.length).toBe(42);
-    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(42);
-    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 42 }, (_, i) => i + 1));
-    expect(EFFECTS.filter(e => e.category === "laser").length).toBe(9);
+    expect(EFFECTS.length).toBe(49);
+    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(49);
+    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 49 }, (_, i) => i + 1));
+    expect(EFFECTS.filter(e => e.category === "laser").length).toBe(14);
   });
 });
 
@@ -727,7 +727,7 @@ describe("Bibliothek der Visuals", () => {
   it("jeder fertige Generator existiert im Shader, Start-Clips stehen vorn", () => {
     for (const g of READY_GENERATORS) expect(GEN_IDS as readonly string[]).toContain(g.id);
     expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
-    expect(READY_GENERATORS.length).toBe(34);
+    expect(READY_GENERATORS.length).toBe(41);
     expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual(["silhouette"]);
   });
 });
