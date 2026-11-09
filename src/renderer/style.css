@@ -652,3 +652,5 @@ body.mapping [data-ctl][data-mapped][data-map-sel]{outline:3px solid #fff!import
 .lj-host input{width:200px}
 .cell .vbadge.cam{background:#ff3b3b;color:#fff}
 .cam-menu{z-index:60;min-width:260px}
+.cam-help{display:grid;gap:6px;padding:4px 2px}
+.cam-menu .cam-help .btn{justify-self:start}

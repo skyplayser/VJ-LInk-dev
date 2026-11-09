@@ -21,8 +21,9 @@ function electronBinary() {
   const plist = (app) => join(app, "Contents", "Info.plist");
   const get = (file, key) => { try { return execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, file], { encoding: "utf8" }).trim(); } catch { return ""; } };
   if (!existsSync(src)) return electron;
-  // Neu anlegen, wenn es fehlt oder Electron aktualisiert wurde
-  const fresh = !existsSync(plist(dst)) || get(plist(dst), "CFBundleVersion") !== get(plist(src), "CFBundleVersion");
+  // Neu anlegen, wenn es fehlt, Electron aktualisiert wurde oder die Signatur nicht stimmt
+  const signed = (app) => { try { execFileSync("codesign", ["--verify", "--deep", "--strict", app], { stdio: "ignore" }); return true; } catch { return false; } };
+  const fresh = !existsSync(plist(dst)) || get(plist(dst), "CFBundleVersion") !== get(plist(src), "CFBundleVersion") || !signed(dst);
   if (fresh) {
     rmSync(dst, { recursive: true, force: true });
     try { execFileSync("cp", ["-cR", src, dst]); } catch { execFileSync("cp", ["-R", src, dst]); }
@@ -32,6 +33,9 @@ function electronBinary() {
     }
     const icon = join(root, "build", "icon.icns");
     if (existsSync(icon)) copyFileSync(icon, join(dst, "Contents", "Resources", "electron.icns"));
+    // Nach dem Ändern von Info.plist und Symbol neu signieren (ad hoc). Ohne gültige Signatur fragt macOS
+    // gar nicht erst nach Kamera-Zugriff und lehnt sofort ab.
+    try { execFileSync("codesign", ["--force", "--deep", "--sign", "-", dst], { stdio: "ignore" }); } catch (e) { console.warn("Signieren fehlgeschlagen:", e.message); }
     try { execFileSync("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", ["-f", dst]); } catch { /* nicht schlimm */ }
     console.log(`Entwicklungs-App „${name}.app“ angelegt.`);
   }
@@ -39,7 +43,16 @@ function electronBinary() {
 }
 
 const bin = electronBinary();
-if (run) {
+if (run && process.platform === "darwin" && bin.includes(".app/")) {
+  // Über LaunchServices starten: So ist VJ-Link selbst für Kamera und Mikrofon zuständig. Direkt aus einem
+  // Terminal oder Werkzeug gestartet, rechnet macOS die Anfrage dem Aufrufer zu und lehnt sie oft ungefragt ab.
+  const app = bin.slice(0, bin.indexOf(".app/") + 4);
+  const log = join(root, "dist", "vj-link.log");
+  const extra = process.argv.slice(2).filter(a => a !== "--run");
+  console.log(`VJ-Link startet (Ausgaben: ${log})`);
+  const child = spawn("open", ["-W", "-n", "-a", app, "--stdout", log, "--stderr", log, "--args", root, ...extra], { stdio: "inherit" });
+  child.on("exit", code => process.exit(code ?? 0));
+} else if (run) {
   const child = spawn(bin, [root, ...process.argv.slice(2).filter(a => a !== "--run")], { stdio: "inherit" });
   child.on("exit", code => process.exit(code ?? 0));
   for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));

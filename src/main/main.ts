@@ -338,6 +338,11 @@ app.whenReady().then(async () => {
     if (systemPreferences.getMediaAccessStatus("camera") === "granted") return true;
     return systemPreferences.askForMediaAccess("camera");
   });
+  // Systemeinstellungen → Datenschutz öffnen (Kamera bzw. Mikrofon)
+  ipcMain.on("privacy:open", (e, kind: unknown) => {
+    if (e.sender !== control?.webContents || process.platform !== "darwin") return;
+    void shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${kind === "microphone" ? "Privacy_Microphone" : "Privacy_Camera"}`);
+  });
   ipcMain.on("ui:scale", (e, v: unknown) => {
     if (e.sender !== control?.webContents) return;
     uiScale = v === "auto" ? "auto" : typeof v === "number" && v >= 0.5 && v <= 3 ? v : "auto";

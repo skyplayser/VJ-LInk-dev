@@ -114,6 +114,8 @@ export interface VjBridge {
   askMicrophone(): Promise<boolean>;
   /** Kamera-Zugriff beim System anfragen (macOS). */
   askCamera(): Promise<boolean>;
+  /** macOS: Systemeinstellungen → Datenschutz → Kamera bzw. Mikrofon öffnen. */
+  openPrivacy(kind: "camera" | "microphone"): void;
   loadProject(): Promise<ProjectLoad>;
   /** Projektdatei: neu, öffnen, speichern, speichern unter (fragt bei ungespeicherten Änderungen nach). */
   projectFile(cmd: ProjectFileCmd, json: string, filePath?: string): Promise<{ ok: boolean; name?: string; message?: string }>;

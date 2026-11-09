@@ -17,6 +17,7 @@ const bridge: VjBridge = {
   setUiScale: v => { ipcRenderer.send("ui:scale", v); },
   askMicrophone: () => ipcRenderer.invoke("audio:ask"),
   askCamera: () => ipcRenderer.invoke("camera:ask"),
+  openPrivacy: kind => { ipcRenderer.send("privacy:open", kind); },
   pathForFile: f => webUtils.getPathForFile(f),
   addVideo: (p, n) => ipcRenderer.invoke("video:add", p, n),
   removeVideo: id => { ipcRenderer.send("video:remove", id); },

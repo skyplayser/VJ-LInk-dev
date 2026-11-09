@@ -1,6 +1,6 @@
 // Bibliothek: Clips für eine Ebene an- und abwählen (Visuals nach Kategorie, eigene Grafiken).
 import { camClip, ensureCamera } from "../core/camera";
-import { cameraDevices } from "./camchooser";
+import { cameraDevices, cameraHelp } from "./camchooser";
 import type { CamDevice } from "./campool";
 import type { ControlContext } from "../core/control";
 import { EFFECTS, type EffectCategory } from "../core/effects";
@@ -23,7 +23,7 @@ export class LibraryPanel {
   layer = 0;
   /** Gefundene Kameras (erst nach „Kameras suchen“, damit nicht ungefragt die Kamera-Freigabe kommt). */
   private camDevices: CamDevice[] = [];
-  private camHint = "";
+  private camSearched = false;
   private armedDelete = "";
 
   constructor(private ctx: ControlContext, private lib: MediaLibrary, private videos: VideoLibrary, private onChange: () => void, private onImport: (layer: number) => void, private onText: (layer: number) => void = () => {}) {
@@ -107,9 +107,9 @@ export class LibraryPanel {
     }
     const find = el("button", "lib-chip add", this.camDevices.length ? "Kameras neu suchen" : "Kameras suchen");
     find.title = "Fragt einmal nach der Kamera-Freigabe und listet alle Video-Eingänge";
-    find.addEventListener("click", async () => { this.camDevices = await cameraDevices(); if (!this.camDevices.length) this.camHint = "Keine Kamera gefunden. OBS: „Virtuelle Kamera starten“, dann neu suchen."; this.render(); });
+    find.addEventListener("click", async () => { this.camDevices = await cameraDevices(); this.camSearched = true; this.render(); });
     cg.append(find);
-    if (this.camHint && !this.camDevices.length) cg.append(el("p", "lib-hint", this.camHint));
+    if (this.camSearched && !this.camDevices.length) { const h = cameraHelp(); h.style.gridColumn = "1 / -1"; cg.append(h); }
     body.append(cg);
 
     body.append(el("h4", "", "Eigene Videos"));
