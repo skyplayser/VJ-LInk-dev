@@ -2,7 +2,7 @@
 // Ablauf pro Bild: jede Ebene → Generator in eine Textur → Effekt-Stapel (Ping-Pong)
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
-import { CAM_LOOKS, camIdOf, isCamClip, isMaskLook } from "../core/camera";
+import { CAM_LOOKS, camIdOf, isCamClip, isMaskLook, usesFigure } from "../core/camera";
 import { WAVE_POINTS, bandsFrom, beatPulse, layerDrive, strobeGain, strobeGate, strobeWhite } from "../core/audio";
 import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
@@ -62,6 +62,8 @@ export class Engine {
   videoSource: VideoProvider | null = null;
   /** Kamerabilder kommen aus dem Fenster (siehe CameraPool). */
   camSource: ((camId: string) => { el: TexImageSource; w: number; h: number } | null) | null = null;
+  /** Personen-Maske zu einer Kamera (Erkennung im Fenster), null = noch keine bzw. nicht verfügbar. */
+  camMask: ((camId: string, video: TexImageSource) => { el: TexImageSource; w: number; h: number } | null) | null = null;
   /** Gemerkter Hintergrund je Kamera (für die Silhouette). */
   private camRef = new Map<string, { tex: WebGLTexture; stamp: number }>();
   /** Länge eines Videos in Sekunden (aus der Bibliothek). */
@@ -220,12 +222,16 @@ export class Engine {
       }
     }
     let camLayer = false;
+    let camMaskTex: WebGLTexture | null = null;
     if (isCamClip(l.clip)) {
       const cid = camIdOf(l.clip);
       const src = this.camSource?.(cid) ?? null;
       if (!src) return null;
       media = this.uploadVideo("cam:" + cid, src);
       if (l.cam.bgStamp > 0) this.captureRef(cid, src.el, l.cam.bgStamp);
+      // Personen-Erkennung nur, wenn der Look die Person braucht
+      const m = usesFigure(l.cam.look, l.cam.onlyFig) ? this.camMask?.(cid, src.el) ?? null : null;
+      camMaskTex = m ? this.uploadVideo("mask:" + cid, m).tex : null;
       isVideo = true; camLayer = true;
     }
     if (isVideoClip(l.clip)) {
@@ -282,6 +288,9 @@ export class Engine {
       gl.uniform1f(this.loc(im, "uCells"), l.cam.cells ?? 48);
       gl.uniform1i(this.loc(im, "uOnlyFig"), l.cam.onlyFig ? 1 : 0);
       gl.uniform2f(this.loc(im, "uTexel"), 1 / Math.max(1, media.w), 1 / Math.max(1, media.h));
+      gl.uniform1i(this.loc(im, "uHasMask"), camMaskTex ? 1 : 0);
+      gl.uniform1i(this.loc(im, "uMask"), 2);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, camMaskTex ?? media.tex);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ref?.tex ?? media.tex);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, media.tex);
       this.bindTarget(this.work[0]);

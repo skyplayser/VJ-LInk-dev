@@ -6,6 +6,7 @@ import { UpdateUi } from "./updatepanel";
 import { Gallery } from "./gallery";
 import { isCamClip, camIdOf } from "../core/camera";
 import { CameraPool } from "./campool";
+import { PersonMasks } from "./segment";
 import { CamPanel } from "./campanel";
 import { Engine } from "../engine/engine";
 import { GEN_IDS } from "../engine/shaders";
@@ -929,11 +930,14 @@ function vjStatus(): VjStatus {
     outputs: displays.filter(d => d.open).length, nowPlaying: djLink.showing,
   };
 }
+/** Personen-Erkennung für Silhouette, Umriss und Masken (ein Modell für Vorschau und Clip-Raster). */
+const personMasks = new PersonMasks();
 const monHome = $("mon-box").parentElement!;
 try {
   engine = new Engine(preview);
   engine.videoSource = (key, id, t, rate, o) => previewPool.get(key, id, t, rate, o);
   engine.camSource = id => { camPool.sources = ctx.show.cameras; return camPool.get(id); };
+  engine.camMask = (id, v) => personMasks.mask(id, v);
   engine.videoDuration = id => videoLib.duration(id);
 } catch (e) {
   $("mon-info").textContent = (e as Error).message;
@@ -955,7 +959,7 @@ function frame(): void {
   tickVideoStarts(ctx, now);
   cueTick(ctx.cues, now, cueEnv);
   ctx.show.cues = cueRenders(ctx.cues, now, cueEnv);
-  if (now - lastSweep > 1000) { lastSweep = now; previewPool.sweep(); camPool.sweep(); }
+  if (now - lastSweep > 1000) { lastSweep = now; previewPool.sweep(); camPool.sweep(); personMasks.sweep(); }
   // Testbild per Mapping umgeschaltet: Knöpfe nachziehen
   if (`${ctx.show.testCard}|${ctx.show.testPattern}` !== testUiKey) syncTestUi();
   // Audio-Eingang: Spektrum und Wellenform in den Show-Zustand (gehen so auch an die Ausgänge)
@@ -1071,7 +1075,7 @@ const fxPanel = new FxPanel(ctx, $("fx-title"), $("fx-list"), $<HTMLSelectElemen
 const layerPanel = new LayerPanel(ctx, $("layer-panel"), () => fxPanel.layer, () => { rebuildGrid(); rebuildDeck(); });
 const mediaPanel = new MediaPanel(ctx, library, $("media-panel"), () => fxPanel.layer, () => rebuildGrid());
 const videoPanel = new VideoPanel(ctx, videoLib, $("video-panel"), () => fxPanel.layer, () => rebuildGrid());
-const camPanel = new CamPanel(ctx, $("cam-panel"), () => fxPanel.layer);
+const camPanel = new CamPanel(ctx, $("cam-panel"), () => fxPanel.layer, () => personMasks.state);
 const showTab = new ShowTab({
   ctx, env: cueEnv, videos: videoLib, images: library, importFiles: f => importToLibrary(f), toast,
   tcNow: () => tcClock.now(Date.now()), tcFps: () => tcClock.fps,
@@ -1093,6 +1097,7 @@ if (thumbs.gl) {
   thumbs.gl.videoSource = (_key, id) => { const p = videoLib.posters.get(id); return p ? { el: p, w: p.width, h: p.height } : null; };
   thumbs.gl.videoDuration = id => videoLib.duration(id);
   thumbs.gl.camSource = id => camPool.get(id);
+  thumbs.gl.camMask = (id, v) => personMasks.mask(id, v);
 }
 
 // ---- Projekt laden und automatisch speichern -----------------------------------------

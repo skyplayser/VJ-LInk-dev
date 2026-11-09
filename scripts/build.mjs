@@ -19,3 +19,7 @@ await cp("src/renderer/index.html", "dist/renderer/index.html");
 await cp("src/renderer/output.html", "dist/renderer/output.html");
 await cp("src/renderer/style.css", "dist/renderer/style.css");
 await cp("build/icon.png", "dist/icon.png");
+// Personen-Erkennung (MediaPipe, Apache-2.0): Laufzeit aus node_modules, Modell aus vendor/
+await mkdir("dist/renderer/vendor/mediapipe", { recursive: true });
+for (const f of ["vision_wasm_internal.js", "vision_wasm_internal.wasm"]) await cp(`node_modules/@mediapipe/tasks-vision/wasm/${f}`, `dist/renderer/vendor/mediapipe/${f}`);
+await cp("vendor/mediapipe/selfie_segmenter.tflite", "dist/renderer/vendor/mediapipe/selfie_segmenter.tflite");

@@ -18,14 +18,15 @@ export class CamPanel {
   private mirror = el("button", "btn small-btn");
   private only = el("button", "btn small-btn");
   private onlyRow = el("div", "mrow3");
-  private tol = el("input"); private tolV = el("span", "mval"); private tolRow = el("label", "mrow");
+  private tol = el("input"); private tolV = el("span", "mval"); private tolRow = el("label", "mrow"); private tolLabel = el("span", "", "Schwelle");
   private cells = el("input"); private cellsV = el("span", "mval"); private cellsRow = el("label", "mrow");
   private bg = el("button", "btn small-btn");
   private bgClear = el("button", "btn small-btn");
   private bgRow = el("div", "inline wrap");
   private hint = el("p", "muted small");
 
-  constructor(private ctx: ControlContext, private root: HTMLElement, private layerOf: () => number) {
+  constructor(private ctx: ControlContext, private root: HTMLElement, private layerOf: () => number,
+    /** Zustand der Personen-Erkennung in diesem Fenster. */ private person: () => string = () => "idle") {
     root.replaceChildren();
     for (const lk of CAM_LOOKS) {
       const b = el("button", `look-btn${isMaskLook(lk) ? " mask" : ""}`, CAM_LOOK_LABEL[lk]); b.dataset.v = lk;
@@ -42,7 +43,7 @@ export class CamPanel {
     this.only.addEventListener("click", () => { const c = this.cam(); if (c) c.onlyFig = !c.onlyFig; });
     this.tol.type = "range"; this.tol.min = "5"; this.tol.max = "90"; this.tol.setAttribute("aria-label", "Schwelle");
     this.tol.addEventListener("input", () => { const c = this.cam(); if (c) c.tol = Number(this.tol.value) / 100; });
-    this.tolRow.append(el("span", "", "Schwelle"), this.tol, this.tolV);
+    this.tolRow.append(this.tolLabel, this.tol, this.tolV);
     this.cells.type = "range"; this.cells.min = "12"; this.cells.max = "140"; this.cells.setAttribute("aria-label", "Rastergröße");
     this.cells.addEventListener("input", () => { const c = this.cam(); if (c) c.cells = Number(this.cells.value); });
     this.cellsRow.append(el("span", "", "Raster"), this.cells, this.cellsV);
@@ -79,7 +80,10 @@ export class CamPanel {
     if (document.activeElement !== this.cells) this.cells.value = String(c.cells);
     this.cellsV.textContent = String(Math.round(c.cells));
     const fig = usesFigure(c.look, c.onlyFig);
-    this.tolRow.hidden = !fig; this.bgRow.hidden = !fig;
+    // Mit Personen-Erkennung braucht es keinen gemerkten Hintergrund; der Regler bestimmt dann, wie eng die Kontur ist
+    const ai = this.person();
+    this.tolRow.hidden = !fig; this.bgRow.hidden = !fig || ai === "ready" || ai === "loading";
+    this.tolLabel.textContent = ai === "ready" || ai === "loading" ? "Kontur" : "Schwelle";
     if (document.activeElement !== this.tol) this.tol.value = String(Math.round(c.tol * 100));
     this.tolV.textContent = `${Math.round(c.tol * 100)} %`;
     this.bg.textContent = c.bgStamp > 0 ? "Hintergrund neu merken" : "Hintergrund merken";
@@ -87,7 +91,11 @@ export class CamPanel {
     const top = this.layerOf() === this.ctx.show.layers.length - 1;
     this.hint.textContent = isMaskLook(c.look)
       ? (top ? "Maske wirkt auf alle Ebenen darunter." : "Tipp: Für die Maske diese Ebene ganz nach oben legen, sie wirkt auf alle Ebenen darunter.")
-      : fig
+      : fig && ai === "ready"
+        ? "Person wird automatisch erkannt (läuft lokal, ohne Internet). Kontur höher = enger an der Person, niedriger = weicher und großzügiger."
+        : fig && ai === "loading"
+        ? "Personen-Erkennung startet …"
+        : fig
         ? (c.bgStamp > 0 ? "Person = Unterschied zum gemerkten Hintergrund. Schwelle höher = weniger Rauschen."
           : "Person = dunkel vor hellem Hintergrund (Gegenlicht). Besser: leere Bühne → „Hintergrund merken“.")
         : "Webcam, Capture-Karte oder OBS Virtual Camera. Farbe der Ebene färbt Silhouette, Umriss, Raster und Duoton.";

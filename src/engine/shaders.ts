@@ -2506,10 +2506,18 @@ uniform vec3  uFig2;     // zweite Farbe (Duoton hell)
 uniform float uCells;    // Zellen über die Bildhöhe
 uniform int   uOnlyFig;  // stilisierte Looks nur auf der Person
 uniform vec2  uTexel;    // 1 / Größe des Kamerabilds
+uniform sampler2D uMask; // Personen-Maske aus der Erkennung (Einheit 2), Person = hell
+uniform int   uHasMask;
 
 float camLum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
-// Gehört dieser Bildpunkt zur Person? Mit gemerktem Hintergrund: Unterschied, sonst Gegenlicht (dunkel vor hell)
+// Gehört dieser Bildpunkt zur Person? Mit Personen-Erkennung: deren Maske (Schwelle = wie streng).
+// Sonst mit gemerktem Hintergrund der Unterschied, ohne beides Gegenlicht (dunkel vor hell).
 float camFig(vec2 tc, vec3 col){
+  if (uHasMask == 1) {
+    float m = texture(uMask, tc).r;
+    float thr = mix(0.2, 0.8, uSilTol);
+    return smoothstep(thr - 0.1, thr + 0.1, m);
+  }
   if (uHasRef == 1) {
     float d = length(col - texture(uRef, tc).rgb) / 1.732;
     return smoothstep(uSilTol * 0.5, uSilTol * 0.5 + 0.06, d);
@@ -2558,7 +2566,7 @@ void main(){
     } else if (uLook == 9) {               // Maske negativ: Loch in der Person
       c = vec4(0.0, 0.0, 0.0, fig);
     } else if (uLook == 2) {               // Umriss: Kanten der Personenmaske (bzw. des Bildes)
-      vec2 e = uTexel * 2.0;
+      vec2 e = uHasMask == 1 ? vec2(0.004, 0.006) : uTexel * 2.0;
       float m = 0.0;
       for (int k = 0; k < 8; k++) {
         float an = float(k) * 0.7854;

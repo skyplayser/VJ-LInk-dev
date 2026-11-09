@@ -5,6 +5,7 @@ import { bridge } from "./bridge";
 import { decodeImage } from "./medialib";
 import { VideoPool } from "./videopool";
 import { CameraPool } from "./campool";
+import { PersonMasks } from "./segment";
 import { masksFor, viewFor, warpFor } from "../core/layout";
 import { layerTimesAt } from "../core/show";
 
@@ -20,7 +21,10 @@ const durations = new Map<string, number>();
 engine.videoSource = (key, id, t, rate, o) => videos.get(key, id, t, rate, o);
 const cams = new CameraPool();
 engine.camSource = id => cams.get(id);
-setInterval(() => cams.sweep(), 1000);
+// Personen-Erkennung für Silhouette, Umriss und Masken (jedes Fenster erkennt selbst, wie es die Kamera selbst öffnet)
+const masks = new PersonMasks();
+engine.camMask = (id, v) => masks.mask(id, v);
+setInterval(() => { cams.sweep(); masks.sweep(); }, 1000);
 engine.videoDuration = id => durations.get(id) ?? 0;
 setInterval(() => videos.sweep(), 1000);
 bridge?.onFrame(f => { frame = f; cams.sources = f.show.cameras ?? []; for (const [id, d] of Object.entries(f.videoDurations ?? {})) durations.set(id, d); });

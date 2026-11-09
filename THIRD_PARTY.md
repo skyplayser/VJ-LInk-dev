@@ -6,6 +6,8 @@ Stand: Grundgerüst 0.1.0. Vor jeder Veröffentlichung mit `npm ls --all` und de
 |---|---|---|
 | Electron | Desktop-Rahmen (enthält Chromium und Node.js) | MIT |
 | ws | WebSocket-Server für LJ-Link | MIT |
+| MediaPipe Tasks Vision (@mediapipe/tasks-vision) | Personen-Erkennung für Kamera-Looks (Silhouette, Umriss, Masken), läuft lokal | Apache-2.0 |
+| MediaPipe Selfie Segmenter (Modell `vendor/mediapipe/selfie_segmenter.tflite`) | Modell der Personen-Erkennung | Apache-2.0 |
 | esbuild | Bauen (nur Entwicklung) | MIT |
 | TypeScript | Typprüfung (nur Entwicklung) | Apache-2.0 |
 | Vitest | Tests (nur Entwicklung) | MIT |

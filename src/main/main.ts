@@ -10,7 +10,11 @@ import { PROJECT_EXT } from "../core/projectfile";
 import { WINDOW_OUTPUT, WINDOW_SIZES, type ControlEvent, type DisplayInfo, type Frame, type MediaEvent, type NetConfig } from "../core/frame";
 
 // Eigenes Protokoll für Videos: streamt aus dem Bibliotheksordner, spulbar, für WebGL freigegeben.
-protocol.registerSchemesAsPrivileged([{ scheme: "vjmedia", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true } }]);
+protocol.registerSchemesAsPrivileged([
+  { scheme: "vjmedia", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true } },
+  // Mitgelieferte Laufzeit und Modell der Personen-Erkennung (nur der Ordner dist/renderer/vendor)
+  { scheme: "vjasset", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+]);
 
 let control: BrowserWindow | null = null;
 const outputs = new Map<number, BrowserWindow>();
@@ -320,6 +324,17 @@ app.whenReady().then(async () => {
   app.setAboutPanelOptions({ applicationName: "VJ-Link", applicationVersion: app.getVersion() });
   buildMenu();
   protocol.handle("vjmedia", req => storage!.serveVideo(req));
+  protocol.handle("vjasset", async req => {
+    const root = path.join(__dirname, "..", "renderer", "vendor");
+    const rel = decodeURIComponent(new URL(req.url).pathname).replace(/^\/+/, "");
+    const file = path.normalize(path.join(root, rel));
+    if (!file.startsWith(root + path.sep) || rel.includes("..")) return new Response("nicht erlaubt", { status: 403 });
+    try {
+      const data = await fsp.readFile(file);
+      const type = file.endsWith(".wasm") ? "application/wasm" : file.endsWith(".js") ? "text/javascript" : "application/octet-stream";
+      return new Response(data, { headers: { "Content-Type": type, "Access-Control-Allow-Origin": "*" } });
+    } catch { return new Response("nicht gefunden", { status: 404 }); }
+  });
   if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(ICON));
   createControl();
   net = new Network((e: ControlEvent) => { control?.webContents.send("control", e); });
