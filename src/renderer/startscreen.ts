@@ -14,6 +14,7 @@ const ICONS: Record<string, string> = {
   mapping: '<path d="M6 4v16M12 4v16M18 4v16"/><rect x="4" y="13" width="4" height="3" rx="1"/><rect x="10" y="7" width="4" height="3" rx="1"/><rect x="16" y="11" width="4" height="3" rx="1"/>',
   gallery: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  demo: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/><path d="M5 16l.6 1.4L7 18l-1.4.6L5 20l-.6-1.4L3 18l1.4-.6z"/>',
   file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>',
 };
 function icon(name: string): SVGSVGElement {
@@ -31,6 +32,8 @@ export interface StartDeps {
   clearRecent: () => Promise<void>;
   /** Neu, Öffnen (Dialog) oder eine bestimmte Datei: lädt die Oberfläche neu. */
   file: (cmd: "new" | "open" | "openPath", path?: string) => Promise<void>;
+  /** Demo-Projekt öffnen (alle Funktionen auf einen Blick). */
+  demo: () => Promise<void>;
   goTab: (tab: string) => void;
   openSettings: () => void;
   openMapping: () => void;
@@ -89,6 +92,7 @@ export class StartScreen {
     btn("play", "Weiterarbeiten", this.d.projectName(), () => this.continue(), true);
     btn("new", "Neues Projekt", "Start-Aufbau mit sechs Ebenen", () => { this.markStarted(); void this.d.file("new"); });
     btn("open", "Projekt laden", ".vjlink-Datei öffnen", () => { this.markStarted(); void this.d.file("open"); });
+    btn("demo", "Demo öffnen", "Fertige Show: 8 Ebenen, 10 Szenen, Auto", () => { this.continue(); void this.d.demo(); });
     btn("gallery", "Galerie", "Visuals, Effekte, Medien", () => { this.continue(); this.d.goTab("build"); });
     btn("output", "Ausgänge einrichten", "Beamer, LED-Wand, Mapping", () => { this.continue(); this.d.goTab("output"); });
     btn("mapping", "Controller zuweisen", "MIDI, DMX, OSC, Tastatur", () => { this.continue(); this.d.openMapping(); });

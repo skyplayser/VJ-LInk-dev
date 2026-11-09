@@ -1588,3 +1588,44 @@ describe("Shader-Zweige", () => {
     POST_IDS.forEach((id, i) => { if (id !== "tint") expect(POST_FRAG, id).toContain(`uEffect == ${i})`); });
   });
 });
+
+import { applyDemo } from "../src/core/demo";
+describe("Demo-Projekt", () => {
+  const media = { title: "img:aaaaaa11", label: "img:bbbbbb22", logo: "img:cccccc33" };
+  it("baut acht Ebenen, zehn Szenen, Modulationen und einen SHOW-Ablauf mit Timeline", () => {
+    const c = ctx();
+    applyDemo(c, media);
+    expect(c.show.layers.length).toBe(8);
+    expect(c.scenes.length).toBe(10);
+    expect(c.mods!.length).toBeGreaterThanOrEqual(5);
+    expect(c.cues.list.some(q => q.timeline && (q.marks?.length ?? 0) > 3 && (q.fx?.length ?? 0) > 3)).toBe(true);
+    expect(c.show.autoVj).toBe(true);
+    expect(c.show.scene).toBe(1);
+    expect(c.show.layers[7]!.clip).toBe(media.logo);
+    // Jeder Clip ist ein bekanntes Visual oder eine der Grafiken, jeder Effekt existiert
+    const known = new Set<string>([...GEN_IDS, ...Object.values(media)]);
+    for (const l of c.show.layers) {
+      for (const id of l.clips) expect(known.has(id), id).toBe(true);
+      for (const e of l.effects) expect(POST_IDS as readonly string[]).toContain(e.id);
+      expect(l.effects.length).toBeLessThanOrEqual(6);
+    }
+    for (const sc of c.scenes) for (const l of sc.layers) {
+      if (l?.clip) expect(known.has(l.clip), `${sc.name}: ${l.clip}`).toBe(true);
+      for (const e of l?.effects ?? []) expect(POST_IDS as readonly string[], sc.name).toContain(e.id);
+    }
+  });
+  it("übersteht Speichern und Laden unverändert", () => {
+    const c = ctx();
+    applyDemo(c, media);
+    const json = serializeProject(c, []);
+    const p = parseProject(json)!;
+    expect(p).not.toBeNull();
+    expect(p.layers.length).toBe(8);
+    expect(p.layers.map(l => l.clips.length)).toEqual(c.show.layers.map(l => l.clips.length));
+    expect(p.layers.map(l => l.effects.map(e => e.id))).toEqual(c.show.layers.map(l => l.effects.map(e => e.id)));
+    expect(p.scenes.map(s => s.name)).toEqual(c.scenes.map(s => s.name));
+    expect(p.mods?.length).toBe(c.mods!.length);
+    expect(p.cues.length).toBe(4);
+    expect(p.cues[1]!.marks?.length).toBe(6);
+  });
+});

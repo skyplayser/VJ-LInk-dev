@@ -47,6 +47,7 @@ import { LayerPanel } from "./layerpanel";
 import { MAIN_STACK, MAX_IMAGES, addImage, addLayer as addShowLayer, dropCanvas, imageList, layerName, removeImage, selectCanvas, syncStacks, type ShowState } from "../core/show";
 import { ShowLock } from "./lock";
 import vjlinkLogo from "../../assets/logo-for-dark.png";
+import { applyDemo, DEMO_NAME } from "../core/demo";
 import { drawText } from "./texteditor";
 import { defaultText } from "../core/text";
 import { TextEditor } from "./texteditor";
@@ -1137,6 +1138,7 @@ const startScreen = new StartScreen({
   recent: async () => (bridge ? bridge.projectRecent() : []),
   clearRecent: async () => { await bridge?.clearRecent(); projRecent = []; showProjName(); },
   file: (cmd, p) => runFileCmd(cmd, p),
+  demo: () => openDemo(),
   goTab: tab => document.querySelector<HTMLButtonElement>(`.tabs [data-tab="${tab}"]`)?.click(),
   openSettings: () => openSettings(),
   openMapping: () => { mapMenu.hidden = false; mapBtn.setAttribute("aria-expanded", "true"); },
@@ -1190,6 +1192,38 @@ async function setupStarterProject(): Promise<void> {
   if (litem) { bridge?.addMedia(lp); L[5]!.clips = [mediaClip(lp.id)]; L[5]!.clip = mediaClip(lp.id); }
   Object.assign(L[5]!.media, { scale: 0.08, x: 0.77, y: -0.84, rotation: 0, anim: "none", keyMode: "none" });
   L[5]!.opacity = 1;
+}
+/** Demo-Projekt: Titel, Show-Einblendung und Logo als Grafiken anlegen, dann alles Weitere aus core/demo. */
+const DEMO_FLAG = "vjlink.demo";
+async function setupDemoProject(): Promise<void> {
+  const textClip = async (name: string, spec: ReturnType<typeof defaultText>): Promise<string | null> => {
+    const cv = document.createElement("canvas"); drawText(cv, spec);
+    const p = { id: newMediaId(), name, dataUrl: cv.toDataURL("image/png") };
+    const item = await library.load(p);
+    if (!item) return null;
+    item.text = spec; bridge?.addMedia(p);
+    return mediaClip(p.id);
+  };
+  const title = await textClip("VJ-LINK", { ...defaultText(), text: "VJ-LINK", size: 260, letterSpacing: 18, glow: { on: true, color: "#ff3b8a", blur: 40 } });
+  const label = await textClip("Demo-Show", { ...defaultText(), text: "DEMO-SHOW", size: 54, letterSpacing: 10, align: "left", valign: "bottom",
+    glow: { on: true, color: "#22d3ee", blur: 18 }, box: { on: true, color: "#000000", opacity: 0.45, padding: 24, radius: 10 } });
+  const lp = { id: newMediaId(), name: "VJ-Link-Logo", dataUrl: vjlinkLogo };
+  const logo = (await library.load(lp)) ? (bridge?.addMedia(lp), mediaClip(lp.id)) : null;
+  applyDemo(ctx, { title, label, logo });
+  projName = DEMO_NAME;
+}
+/** „Demo öffnen“: neues Projekt anlegen (fragt bei ungespeicherten Änderungen), danach baut loadProject die Demo. */
+async function openDemo(): Promise<void> {
+  if (showLock.locked) { showLock.hint(); return; }
+  if (!bridge) {
+    await setupDemoProject();
+    rebuildGrid(); rebuildDeck(); fxPanel.select(0); scenePanel.update(true); showProjName();
+    toast("Demo geladen: Auto spielt die Szenen von selbst durch.");
+    return;
+  }
+  try { sessionStorage.setItem(DEMO_FLAG, "1"); } catch { /* egal */ }
+  const r = await bridge.projectFile("new", currentJson());
+  if (!r.ok) try { sessionStorage.removeItem(DEMO_FLAG); } catch { /* egal */ }
 }
 // ---- Projektionsmapping: Bilder (bis 5) und welche Leinwand welches Bild zeigt -----------
 let canvasSig = "", tilesSig = "", tileTurn = 0, cueImgSig = "";
@@ -1393,7 +1427,10 @@ async function loadProject(): Promise<void> {
     }
     const p = json ? parseProject(json) : null;
     // Leeres bzw. neues Projekt: Start-Aufbau mit sechs Ebenen, Text und Logo
-    if (!p) await setupStarterProject();
+    let demo = false;
+    try { demo = sessionStorage.getItem(DEMO_FLAG) === "1"; sessionStorage.removeItem(DEMO_FLAG); } catch { /* egal */ }
+    if (!p) { if (demo) await setupDemoProject(); else await setupStarterProject(); }
+    if (!p && demo) toast("Demo geladen: Auto spielt die zehn Szenen von selbst durch. SHOW-Tab: Timeline-Show mit WEITER starten.");
     if (p) {
       applyProject(ctx, p);
       outLayout = p.outputs;
@@ -1432,4 +1469,5 @@ requestAnimationFrame(frame);
   addVideo: async (v: { id: string; name: string; ext: string }) => { await videoLib.add({ ...v, duration: 0, width: 0, height: 0 }); rebuildGrid(); },
   importFiles: (f: File[]) => importToLibrary(f),
   rebuild: () => { rebuildGrid(); rebuildDeck(); },
+  scene: (i: number) => recallScene(ctx, i),
 };
