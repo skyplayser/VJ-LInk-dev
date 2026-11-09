@@ -99,9 +99,14 @@ export class Network {
   joinSacn(universe: number): void {
     const s = this.sacn; if (!s) return;
     const addr = sacnMulticastAddress(Math.max(1, Math.min(63999, universe)));
-    s.once("listening", () => this.join(s, addr));
-    try { this.join(s, addr); } catch { /* Socket noch nicht gebunden: 'listening' erledigt es */ }
+    // Erst nach dem Binden anmelden: addMembership auf einem ungebundenen Socket bindet ihn unter macOS
+    // an einen Zufalls-Port, danach scheitert bind(5568) mit EINVAL und sACN kommt nie an.
+    let bound = false;
+    try { s.address(); bound = true; } catch { /* noch nicht gebunden */ }
+    if (bound) this.join(s, addr);
+    else { this.pendingSacn = addr; s.once("listening", () => { if (this.pendingSacn) this.join(s, this.pendingSacn); this.pendingSacn = null; }); }
   }
+  private pendingSacn: string | null = null;
   private join(s: dgram.Socket, addr: string): void {
     if (this.joined === addr) return;
     try {
