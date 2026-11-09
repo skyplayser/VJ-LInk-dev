@@ -373,10 +373,12 @@ app.whenReady().then(async () => {
     void shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${kind === "microphone" ? "Privacy_Microphone" : "Privacy_Camera"}`);
   });
   // Sprache der Oberfläche: Menü und Dialoge folgen ihr, gemerkt für den nächsten Start
-  ipcMain.on("ui:lang", (e, l: unknown) => {
+  // Sprachwechsel: neu laden macht der Hauptprozess (location.reload() blockiert der will-navigate-Schutz)
+  ipcMain.on("ui:lang", (e, l: unknown, reload: unknown) => {
     if (e.sender !== control?.webContents || !LANGS.some(x => x.id === l)) return;
     setLang(l as Lang); buildMenu(); updateTitle();
     void fsp.writeFile(langFile(), String(l)).catch(() => { /* egal */ });
+    if (reload === true) control.webContents.reload();
   });
   ipcMain.on("ui:scale", (e, v: unknown) => {
     if (e.sender !== control?.webContents) return;

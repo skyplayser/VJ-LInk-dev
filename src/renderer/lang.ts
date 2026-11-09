@@ -1,5 +1,6 @@
 // Sprache beim Start festlegen und feste Texte (data-i18n) übersetzen.
 import { getLang, LANG_KEY, setLang, t, type Lang } from "../core/i18n";
+import { bridge } from "./bridge";
 
 /** Gespeicherte Wahl, sonst Systemsprache (i18n.ts legt sie schon beim Laden fest). */
 export function initLang(): Lang {
@@ -31,5 +32,6 @@ export function translateStatic(root: ParentNode = document): void {
 export function changeLang(l: Lang): void {
   if (l === getLang()) return;
   try { localStorage.setItem(LANG_KEY, l); } catch { /* egal */ }
-  location.reload();
+  // In der App lädt der Hauptprozess neu (er blockiert Navigation aus der Seite, auch location.reload()).
+  if (bridge) bridge.setLang(l, true); else location.reload();
 }
