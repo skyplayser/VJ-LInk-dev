@@ -20,7 +20,19 @@ export interface LjDeck {
   /** Nur gesetzt, wenn LJ-Link nicht im Privatsphäre-Modus ist. */
   title?: string;
   artist?: string;
+  /** Feste Kennung des Tracks (z. B. rekordbox-ID). */
+  trackId?: string;
+  /** Cover: Pfad bei LJ-Link (z. B. "/api/deck/1/art?v=3"); fehlt im Privatsphäre-Modus. */
+  art?: string;
+  /** Wellenform: Pfad bei LJ-Link, 4 Byte je Frame bei 150 Frames/s. */
+  detail?: string;
+  /** „color“: Höhe, R, G, B · „threeband“: tief, mittel, hoch. */
+  detailStyle?: "color" | "threeband";
+  durationMs?: number;
 }
+
+/** Wellenform-Auflösung von rekordbox (Frames je Sekunde). */
+export const WAVE_FPS = 150;
 
 export type LjMessage =
   | { t: "hello"; version: number; privacy: boolean; app?: string }
@@ -32,7 +44,9 @@ export type LjMessage =
   | { t: "event"; kind: "loop"; deck: number; active: boolean; beats?: number }
   | { t: "wave"; deck: number; bass: number; mid: number; high: number }
   /** Deck ist weg (Player aus dem Netz). */
-  | { t: "gone"; deck: number };
+  | { t: "gone"; deck: number }
+  /** Abspielposition (ms) und Geschwindigkeit (1 = normal). */
+  | { t: "pos"; deck: number; ms: number; v: number };
 
 export interface LjState {
   connected: boolean;
@@ -40,10 +54,12 @@ export interface LjState {
   decks: Map<number, LjDeck>;
   masterDeck: number | null;
   loopActive: boolean;
+  /** Letzte Position je Deck (Zeitpunkt der Meldung in ms). */
+  pos: Map<number, { ms: number; v: number; at: number }>;
 }
 
 export const newLjState = (): LjState =>
-  ({ connected: false, privacy: false, decks: new Map(), masterDeck: null, loopActive: false });
+  ({ connected: false, privacy: false, decks: new Map(), masterDeck: null, loopActive: false, pos: new Map() });
 
 export function parseLjMessage(raw: string): LjMessage | null {
   let m: unknown;
@@ -57,24 +73,26 @@ export function parseLjMessage(raw: string): LjMessage | null {
     case "event": return typeof msg.kind === "string" ? msg : null;
     case "wave": return Number.isFinite(msg.bass) ? msg : null;
     case "gone": return typeof msg.deck === "number" ? msg : null;
+    case "pos": return typeof msg.deck === "number" && Number.isFinite(msg.ms) && Number.isFinite(msg.v) ? msg : null;
   }
   return null;
 }
 
 /** Zustand fortschreiben. Im Privatsphäre-Modus werden Titel und Artist verworfen. */
-export function reduceLj(s: LjState, m: LjMessage): LjState {
+export function reduceLj(s: LjState, m: LjMessage, nowMs = Date.now()): LjState {
   switch (m.t) {
     case "hello": s.connected = true; s.privacy = m.privacy; break;
     case "tempo": if (m.masterDeck !== undefined) s.masterDeck = m.masterDeck; break;
     case "deck": {
       const d = { ...m.deck };
-      if (s.privacy) { delete d.title; delete d.artist; }
+      if (s.privacy) { delete d.title; delete d.artist; delete d.art; }
       s.decks.set(d.deck, d);
       if (d.master) s.masterDeck = d.deck;
       break;
     }
+    case "pos": s.pos.set(m.deck, { ms: m.ms, v: m.v, at: nowMs }); break;
     case "gone":
-      s.decks.delete(m.deck);
+      s.decks.delete(m.deck); s.pos.delete(m.deck);
       if (s.masterDeck === m.deck) s.masterDeck = null;
       break;
     case "event":

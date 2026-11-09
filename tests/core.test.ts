@@ -156,9 +156,10 @@ describe("Steuerung", () => {
 
 describe("Effekt-Katalog", () => {
   it("enthält die 35 Visuals der Wunschliste und 7 Laser mit eindeutigen IDs", () => {
-    expect(EFFECTS.length).toBe(50);
-    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(50);
-    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+    expect(EFFECTS.length).toBe(52);
+    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(52);
+    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 52 }, (_, i) => i + 1));
+    expect(EFFECTS.filter(e => e.category === "lj").map(e => e.id)).toEqual(["now-playing", "dj-waveform"]);
     expect(EFFECTS.filter(e => e.category === "laser").length).toBe(16);
   });
 });
@@ -733,7 +734,7 @@ describe("Bibliothek der Visuals", () => {
   it("jeder fertige Generator existiert im Shader, Start-Clips stehen vorn", () => {
     for (const g of READY_GENERATORS) expect(GEN_IDS as readonly string[]).toContain(g.id);
     expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
-    expect(READY_GENERATORS.length).toBe(42);
+    expect(READY_GENERATORS.length).toBe(44);
     expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual(["silhouette"]);
   });
 });
@@ -1436,9 +1437,9 @@ describe("LJ-Link PRO: Stand und Positionen", () => {
     const a = new LjProAdapter();
     a.feed(JSON.stringify({ type: "state", phase: "monitoring" }), 0);
     a.feed(JSON.stringify({ type: "deck", deck: 1, master: true, playing: true, effectiveBpm: 128, durationMs: 200000, title: "X" }), 0);
-    expect(a.feed(JSON.stringify({ type: "pos", deck: 1, p: 100000, v: 1 }), 100)).toEqual([]);
+    expect(a.feed(JSON.stringify({ type: "pos", deck: 1, p: 100000, v: 1 }), 100)).toEqual([{ t: "pos", deck: 1, ms: 100000, v: 1 }]);
     const out = a.feed(JSON.stringify({ type: "pos", deck: 1, p: 100000, v: 1 }), 300);
-    expect(out[0]).toMatchObject({ t: "deck", deck: { bpm: 128, position: 0.5 } });
+    expect(out.find(m => m.t === "deck")).toMatchObject({ t: "deck", deck: { bpm: 128, position: 0.5, durationMs: 200000 } });
     const snap = a.snapshot();
     expect(snap.map(m => m.t)).toEqual(["hello", "deck"]);
   });
@@ -1456,5 +1457,23 @@ describe("LJ-Link PRO: eigener Endpunkt /vjlink", () => {
     expect(t.snapshot().map(m => m.t)).toEqual(["hello", "deck"]);
     expect(t.clear()).toEqual([{ t: "gone", deck: 1 }]);
     expect(t.feed("{kaputt")).toEqual([]);
+  });
+});
+
+describe("LJ-Link PRO: Cover, Wellenform, Position", () => {
+  it("Pfade für Cover und Wellenform, Privatsphäre entfernt das Cover, Position wird gemerkt", async () => {
+    const { LjProAdapter } = await import("../src/core/ljpro");
+    const a = new LjProAdapter();
+    a.feed(JSON.stringify({ type: "state", phase: "monitoring" }));
+    const [m] = a.feed(JSON.stringify({ type: "deck", deck: 2, master: true, playing: true, effectiveBpm: 124, title: "T", artist: "A",
+      hasArt: true, artVersion: 3, hasDetail: true, detailVersion: 5, detailStyle: "threeband", durationMs: 1000 }));
+    expect(m).toMatchObject({ t: "deck", deck: { art: "/api/deck/2/art?v=3", detail: "/api/deck/2/detail?v=5", detailStyle: "threeband" } });
+    const c = ctx();
+    handleLj(c, { t: "hello", version: 1, privacy: true }, 0);
+    handleLj(c, m!, 0);
+    expect(c.lj.decks.get(2)?.art).toBeUndefined();
+    expect(c.lj.decks.get(2)?.detail).toBe("/api/deck/2/detail?v=5");
+    handleLj(c, { t: "pos", deck: 2, ms: 500, v: 1 }, 42);
+    expect(c.lj.pos.get(2)).toEqual({ ms: 500, v: 1, at: 42 });
   });
 });

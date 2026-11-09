@@ -1,11 +1,11 @@
-import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, protocol, screen, session, systemPreferences, type Display, type MenuItemConstructorOptions } from "electron";
+import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, protocol, screen, session, shell, systemPreferences, type Display, type MenuItemConstructorOptions } from "electron";
 import path from "node:path";
 import { Network } from "./network";
 import { Storage } from "./storage";
 import { LinkClient } from "./link";
 import { ProjectFiles } from "./projectfile";
 import { PROJECT_EXT } from "../core/projectfile";
-import { WINDOW_OUTPUT, WINDOW_SIZES, type ControlEvent, type DisplayInfo, type Frame, type NetConfig } from "../core/frame";
+import { WINDOW_OUTPUT, WINDOW_SIZES, type ControlEvent, type DisplayInfo, type Frame, type MediaEvent, type NetConfig } from "../core/frame";
 
 // Eigenes Protokoll für Videos: streamt aus dem Bibliotheksordner, spulbar, für WebGL freigegeben.
 protocol.registerSchemesAsPrivileged([{ scheme: "vjmedia", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true } }]);
@@ -16,12 +16,25 @@ let net: Network | null = null;
 let lastFrame: Frame | null = null;
 let storage: Storage | null = null;
 let files: ProjectFiles | null = null;
+/** Live-Grafiken (nicht gespeichert): zuletzt gesendeter Stand je ID, für neu geöffnete Ausgänge. */
+const liveMedia = new Map<string, MediaEvent>();
+const LIVE_IDS = new Set(["nowplaying", "djwave"]);
 /** Während ein Projekt geladen oder neu angelegt wird: Sicherungen der alten Oberfläche ignorieren. */
 let switching = false;
 
 // Logo für Fenster (Windows, Linux) und Dock (macOS). Die Installer nutzen build/icon.icns und build/icon.ico.
 const ICON = path.join(__dirname, "..", "icon.png");
 app.setName("VJ-Link");
+// URL-Schema vjlink://focus: z. B. LJ-Link holt VJ-Link damit nach vorn (gemeinsamer Status)
+if (process.defaultApp && process.argv[1]) app.setAsDefaultProtocolClient("vjlink", process.execPath, [path.resolve(process.argv[1])]);
+else app.setAsDefaultProtocolClient("vjlink");
+app.on("open-url", (e, url) => {
+  e.preventDefault();
+  if (!/^vjlink:\/\/focus\/?$/.test(url) || !control) return;
+  if (control.isMinimized()) control.restore();
+  control.show(); control.focus();
+  if (process.platform === "darwin") app.focus({ steal: true });
+});
 
 const rendererFile = (name: string) => path.join(__dirname, "..", "renderer", name);
 
@@ -244,6 +257,8 @@ function wireOutput(win: BrowserWindow, id: number): void {
     win.show();
     // Grafiken zuerst, damit das erste Bild vollständig ist.
     for (const item of (await storage?.allMedia()) ?? []) if (!win.isDestroyed()) win.webContents.send("media", { type: "add", item });
+    // Live-Grafiken (Bauchbinde, Wellenform), die gerade gelten
+    for (const ev of liveMedia.values()) if (!win.isDestroyed()) win.webContents.send("media", ev);
     if (lastFrame && !win.isDestroyed()) win.webContents.send("frame", lastFrame);
   });
   win.on("closed", () => { outputs.delete(id); control?.webContents.send("displays", listDisplays()); });
@@ -326,6 +341,37 @@ app.whenReady().then(async () => {
     lastFrame = f;
     for (const w of outputs.values()) if (!w.isDestroyed()) w.webContents.send("frame", f);
   });
+  // Live-Grafiken an die Ausgänge (nur feste IDs, nur vom Hauptfenster)
+  ipcMain.on("media:live", (e, ev: MediaEvent) => {
+    if (e.sender !== control?.webContents || !ev || typeof ev !== "object") return;
+    const ok = ev.type === "add" ? LIVE_IDS.has(ev.item?.id) && typeof ev.item.dataUrl === "string" && /^data:image\/png;base64,/.test(ev.item.dataUrl) && ev.item.dataUrl.length < 12_000_000
+      : ev.type === "raw" ? LIVE_IDS.has(ev.id) && ev.data instanceof Uint8Array && Number.isInteger(ev.w) && Number.isInteger(ev.h)
+        && ev.w > 0 && ev.h > 0 && ev.w <= 4096 && ev.h <= 4096 && ev.data.length === ev.w * ev.h * 4
+      : ev.type === "remove" && LIVE_IDS.has(ev.id);
+    if (!ok) return;
+    if (ev.type === "remove") liveMedia.delete(ev.id); else liveMedia.set(ev.type === "add" ? ev.item.id : ev.id, ev);
+    for (const w of outputs.values()) if (!w.isDestroyed()) w.webContents.send("media", ev);
+  });
+  // Cover und Wellenform von LJ-Link holen: nur feste Pfade, nur vom verbundenen LJ-Link, höchstens 8 MB
+  ipcMain.handle("lj:fetch", async (e, p: unknown) => {
+    if (!fromControl(e) || typeof p !== "string" || !/^\/api\/deck\/\d{1,3}\/(art|detail|beats)(\?v=-?\d{1,12})?$/.test(p)) return null;
+    const base = net?.ljBase(); if (!base) return null;
+    try {
+      const r = await fetch(base + p, { signal: AbortSignal.timeout(5000) });
+      if (!r.ok) return null;
+      const len = Number(r.headers.get("content-length") ?? 0);
+      if (len > 8_000_000) return null;
+      const buf = new Uint8Array(await r.arrayBuffer());
+      if (buf.length > 8_000_000) return null;
+      return { type: r.headers.get("content-type") ?? "", data: buf };
+    } catch { return null; }
+  });
+  ipcMain.on("lj:status", (e, s: unknown) => {
+    if (!fromControl(e) || !s || typeof s !== "object" || (s as { t?: unknown }).t !== "vj") return;
+    const json = JSON.stringify(s);
+    if (json.length < 4000) net?.sendLj(json);
+  });
+  ipcMain.on("lj:open", e => { if (fromControl(e) && net) void shell.openExternal(net.ljWebUrl()); });
   ipcMain.on("configure", (e, c: NetConfig) => {
     if (e.sender !== control?.webContents) return;
     if (Number.isFinite(c?.sacnUniverse)) net?.joinSacn(c.sacnUniverse);

@@ -23,7 +23,8 @@ import { ShowTab } from "./showtab";
 import { AUDIO_CLIPS, micDrives } from "../core/audio";
 import { MidiIn } from "./midi";
 import type { TempoSource } from "../core/tempo";
-import { WINDOW_SIZES, frameBeat, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
+import { DjLink } from "./djlink";
+import { WINDOW_SIZES, frameBeat, type VjStatus, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
 import { bridge } from "./bridge";
 import { resolveControl, setControl } from "../core/controls";
 import { buildDeck } from "./deck";
@@ -66,9 +67,11 @@ interface Settings {
   tc: TcSettings;
   /** Rechner mit LJ-Link PRO; leer = dieser Rechner. */
   ljHost: string;
+  /** Now-Playing-Bauchbinde: Sekunden nach Trackwechsel (0 = immer). */
+  ljHold: number;
 }
 function loadSettings(): Settings {
-  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "" };
+  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "", ljHold: 15 };
   try {
     const raw = JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") as Partial<Settings>;
     return { ...d, ...raw, tc: { ...d.tc, ...(raw.tc ?? {}) } };
@@ -685,7 +688,7 @@ function buildSidebar(): void {
 }
 
 // ---- Bauen: Katalog -------------------------------------------------------------------
-const CAT_LABEL: Record<EffectCategory, string> = { audio: "Audio und Equalizer", geometry: "Geometrie", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Optische Raumeffekte", laser: "Laser-Effekte", tools: "Werkzeuge" };
+const CAT_LABEL: Record<EffectCategory, string> = { audio: "Audio und Equalizer", geometry: "Geometrie", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Optische Raumeffekte", laser: "Laser-Effekte", lj: "LJ-Link (DJ)", tools: "Werkzeuge" };
 const KIND_LABEL = { generator: "Generator", post: "Effekt", master: "Master" } as const;
 const REACT_LABEL = { beat: "Beat", bass: "Bass", mid: "Mitten", high: "Höhen", wave: "Wellenform" } as const;
 function buildCatalog(): void {
@@ -840,6 +843,12 @@ function bindSettings(): void {
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number.isFinite(v) ? v : lo)));
   u.addEventListener("change", () => { settings.universe = clamp(Number(u.value), 0, 32767); saveSettings(); });
   s.addEventListener("change", () => { settings.sacn = clamp(Number(s.value), 1, 63999); saveSettings(); bridge?.configure({ sacnUniverse: settings.sacn, ljHost: settings.ljHost }); });
+  const hold = $<HTMLSelectElement>("cfg-ljhold");
+  hold.value = String(settings.ljHold); if (!hold.value) hold.value = "15";
+  djLink.hold = Number(hold.value);
+  hold.addEventListener("change", () => { settings.ljHold = Number(hold.value); djLink.hold = settings.ljHold; saveSettings(); if (ctx.show.nowPlaying) ctx.show.nowPlaying.since = Date.now(); });
+  $("lj-open").addEventListener("click", () => bridge?.openLj());
+  $("lj-np-show").addEventListener("click", () => { if (ctx.show.nowPlaying) ctx.show.nowPlaying.since = Date.now(); else toast("Noch keine Titel-Daten von LJ-Link."); });
   const lh = $<HTMLInputElement>("cfg-ljhost");
   lh.value = settings.ljHost;
   lh.addEventListener("change", () => {
@@ -890,6 +899,17 @@ function fitPreview(): void {
 }
 new ResizeObserver(() => fitPreview()).observe($("mon-box"));
 let engine: Engine | null = null;
+// LJ-Link: Now-Playing-Bauchbinde, DJ-Wellenform, gemeinsamer Status
+const djLink = new DjLink(ctx, bridge ?? null, () => engine);
+djLink.hold = settings.ljHold;
+/** Status von VJ-Link für LJ-Link. */
+function vjStatus(): VjStatus {
+  return {
+    t: "vj", app: "VJ-Link", version: "0.1", scene: ctx.scenes[ctx.show.scene - 1]?.name ?? "", sceneIndex: ctx.show.scene,
+    blackout: ctx.show.blackout, master: ctx.show.master, bpm: ctx.tempo.bpm, bpmSource: ctx.tempo.source,
+    outputs: displays.filter(d => d.open).length, nowPlaying: djLink.showing,
+  };
+}
 const monHome = $("mon-box").parentElement!;
 try {
   engine = new Engine(preview);
@@ -965,7 +985,7 @@ function frame(): void {
     };
     bridge.publishFrame(JSON.parse(JSON.stringify(f)) as Frame);
   }
-  if (now - lastUi > 100) { lastUi = now; updateUi(now, beat); syncCanvases(); }
+  if (now - lastUi > 100) { lastUi = now; updateUi(now, beat); syncCanvases(); djLink.tick(now, vjStatus); }
   requestAnimationFrame(frame);
 }
 
@@ -1126,7 +1146,8 @@ async function setupStarterProject(): Promise<void> {
   const tp = { id: newMediaId(), name: "VJ-Link", dataUrl: cv.toDataURL("image/png") };
   const titem = await library.load(tp);
   L[4]!.name = "Text"; L[4]!.clip = null; L[4]!.blend = "normal";
-  if (titem) { titem.text = spec; bridge?.addMedia(tp); L[4]!.clips = [mediaClip(tp.id)]; L[4]!.clip = mediaClip(tp.id); }
+  // Text-Ebene: Text-Clip aktiv, daneben die Now-Playing-Bauchbinde aus LJ-Link zum Umschalten
+  if (titem) { titem.text = spec; bridge?.addMedia(tp); L[4]!.clips = [mediaClip(tp.id), "now-playing"]; L[4]!.clip = mediaClip(tp.id); }
   Object.assign(L[4]!.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
   // Logo-Ebene: VJ-Link-Schriftzug klein unten rechts
   const lp = { id: newMediaId(), name: "VJ-Link-Logo", dataUrl: vjlinkLogo };

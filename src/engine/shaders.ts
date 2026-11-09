@@ -2,7 +2,9 @@
 export const GEN_IDS = ["bar-spectrum", "radial-eq", "oscilloscope", "pulse-rings", "tunnel", "synth-grid", "starfield", "plasma",
   "lissajous", "vu-meter", "dot-matrix", "plexus", "hypercube", "vector-gobos", "bokeh", "burst", "lightning", "ripples", "fire", "liquid-light", "mirror-ball", "uv-glow", "laser-sheet", "laser-fans", "moire", "flower", "co2-jet", "testcard",
   "laser-beams", "laser-sky", "laser-cone", "laser-wave", "laser-matrix", "laser-propeller", "laser-scan",
-  "beam-moonflower", "beam-derby", "beam-scanner", "beam-spots", "beam-snow", "beam-polygon", "beam-burst", "beam-scanner-v"] as const;
+  "beam-moonflower", "beam-derby", "beam-scanner", "beam-spots", "beam-snow", "beam-polygon", "beam-burst", "beam-scanner-v",
+  // Eigene Wege in der Engine (kein Generator-Shader): Bauchbinde und DJ-Wellenform aus LJ-Link
+  "now-playing", "dj-waveform"] as const;
 export type GenId = typeof GEN_IDS[number];
 
 export const VERT = `#version 300 es
@@ -1151,4 +1153,47 @@ void main(){
   if (uFeather > 0.5) cover = inside ? smoothstep(0.0, uFeather, d) : 0.0;
   if (uInv == 1) cover = inside ? 1.0 - cover : 1.0;
   outColor = vec4(0.0, 0.0, 0.0, cover);
+}`;
+
+/** DJ-Wellenform (rekordbox-Detail, 4 Byte je Frame, 150 Frames/s) als Textur 4096 breit; Abspielkopf bei uHead. */
+export const DJWAVE_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D uData;
+uniform vec2 uRes;
+uniform float uN;       // Frames
+uniform float uCenter;  // Frame am Abspielkopf
+uniform float uSpan;    // Frames über die ganze Breite
+uniform float uHead;    // Lage des Abspielkopfs (0–1)
+uniform int uStyle;     // 0 Farbe (Höhe, R, G, B), 1 drei Bänder
+uniform float uBeatLen; // Frames je Beat (0 = keine Taktstriche)
+uniform float uBeatOff; // Frame eines Beats (Raster)
+out vec4 outColor;
+vec4 at(float f) {
+  f = floor(f);
+  if (f < 0.0 || f >= uN) return vec4(0.0);
+  return texelFetch(uData, ivec2(int(mod(f, 4096.0)), int(f / 4096.0)), 0);
+}
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes;
+  float step = uSpan / uRes.x;
+  float f0 = uCenter + (uv.x - uHead) * uSpan;
+  vec4 m = vec4(0.0);
+  for (int k = 0; k < 4; k++) m = max(m, at(f0 + step * float(k) * 0.25));
+  float y = abs(uv.y - 0.5) * 2.0;
+  vec3 col = vec3(0.0); float a = 0.0;
+  if (uStyle == 1) {
+    if (y < m.r) { col = vec3(0.125, 0.325, 0.85); a = 1.0; }
+    if (y < m.g) { col = vec3(0.95, 0.667, 0.235); a = 1.0; }
+    if (y < m.b) { col = vec3(1.0); a = 1.0; }
+  } else if (y < m.r) { col = m.gba; a = 1.0; }
+  if (uv.x < uHead) col *= 0.5;
+  // Taktstriche
+  if (uBeatLen > 1.0) {
+    float b = (f0 - uBeatOff) / uBeatLen;
+    float d = abs(fract(b + 0.5) - 0.5) * uBeatLen / step;
+    if (d < 0.6 && y > 0.9) { col = vec3(0.8); a = 1.0; }
+  }
+  // Abspielkopf
+  if (abs(uv.x - uHead) * uRes.x < 1.5) { col = vec3(1.0, 0.25, 0.25); a = 1.0; }
+  outColor = vec4(col * a, a);
 }`;

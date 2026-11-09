@@ -191,6 +191,10 @@ export interface ShowState {
   canvas?: string;
   /** Blinder: ganzes Bild statisch weiß (0–1), z. B. Taste oder Timeline. */
   blinder?: number;
+  /** Now-Playing-Bauchbinde: an (Daten da), seit wann (ms), wie lange sichtbar (s, 0 = immer). */
+  nowPlaying?: { on: boolean; since: number; hold: number };
+  /** DJ-Wellenform des Master-Decks: Position (ms) zum Zeitpunkt `at`, Geschwindigkeit, Stil, Frames, Version der Daten. */
+  djWave?: { ms: number; at: number; v: number; style: 0 | 1; n: number; ver: number; bpm: number };
   /** Helligkeit je Bild (0–1), z. B. aus der Timeline; fehlt = 1. */
   stackGain?: Record<string, number>;
   /** SHOW-Ablauf läuft auf diesem Bild (Projektionsmapping), sonst auf Bild 1. */

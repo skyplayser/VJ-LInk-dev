@@ -109,6 +109,28 @@ export class Network {
     });
   }
 
+  /** Adresse von LJ-Link PRO (http://Rechner:8080), wenn verbunden. */
+  ljBase(): string | null {
+    if (!this.status.lj.pro?.connected) return null;
+    return `http://${this.proAuthority()}`;
+  }
+  /** Adresse der Weboberfläche zum Öffnen (auch ohne Verbindung). */
+  ljWebUrl(): string { return `http://${this.proAuthority()}/`; }
+
+  /** „Rechner:Port“ für LJ-Link: Eingabe „rechner“ oder „rechner:port“ (IPv6 in eckigen Klammern); ohne Port 8080. */
+  private proAuthority(): string {
+    const h = this.proHost;
+    const m = /^(\[[0-9a-fA-F:.]+\]|[^:]+):(\d{2,5})$/.exec(h);
+    if (m && Number(m[2]) <= 65535) return `${m[1]}:${m[2]}`;
+    return `${h.includes(":") && !h.startsWith("[") ? `[${h}]` : h}:${LJ_PRO_PORT}`;
+  }
+
+  /** Status von VJ-Link an LJ-Link schicken (nur über /vjlink, die Weboberfläche kennt das nicht). */
+  sendLj(json: string): void {
+    const s = this.pro;
+    if (s && s.readyState === WsClient.OPEN && this.status.lj.pro?.connected && this.status.lj.pro.native) s.send(json);
+  }
+
   /** Stand von LJ-Link PRO erneut schicken (die Oberfläche hat neu geladen und kennt ihn nicht). */
   replayLj(): void {
     if (!this.status.lj.pro?.connected || !this.proAdapter) return;
@@ -139,7 +161,7 @@ export class Network {
     this.proAdapter = adapter;
     const send = (list: LjMessage[]) => { for (const m of list) this.emit({ type: "lj", raw: JSON.stringify(m) }); };
     let sock: WsClient;
-    try { sock = new WsClient(`ws://${host.includes(":") && !host.startsWith("[") ? `[${host}]` : host}:${LJ_PRO_PORT}${native ? LJ_NATIVE_PATH : LJ_PRO_PATH}`, { handshakeTimeout: 2500, maxPayload: 1024 * 1024 }); }
+    try { sock = new WsClient(`ws://${this.proAuthority()}${native ? LJ_NATIVE_PATH : LJ_PRO_PATH}`, { handshakeTimeout: 2500, maxPayload: 1024 * 1024 }); }
     catch { this.proTimer = setTimeout(() => this.connectPro(), 3000); this.proTimer.unref(); return; }
     this.pro = sock;
     sock.on("message", data => {
@@ -157,14 +179,15 @@ export class Network {
       clearTimeout(probe);
       if (this.pro !== sock) return; // Rechner gewechselt
       // Nicht erkannt: beim nächsten Mal den anderen Endpunkt versuchen (ältere LJ-Link-Versionen haben kein /vjlink)
-      if (!adapter.recognized) this.proNative = !native;
+      // Verbindung war da und ist weg (LJ-Link neu gestartet, vielleicht neuere Version): wieder zuerst /vjlink
+      this.proNative = adapter.recognized ? true : !native;
       if (adapter.recognized) {
         send(adapter.clear());
         this.status.lj.pro = { host, connected: false };
         this.emit({ type: "lj-connection", clients: this.ljClients() });
       }
       // Gleich den anderen Endpunkt versuchen, sonst in 3 s neu
-      this.proTimer = setTimeout(() => this.connectPro(), !adapter.recognized && native ? 200 : 3000); this.proTimer.unref();
+      this.proTimer = setTimeout(() => this.connectPro(), !adapter.recognized && native ? 200 : adapter.recognized ? 1000 : 3000); this.proTimer.unref();
     });
   }
 

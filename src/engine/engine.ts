@@ -9,7 +9,7 @@ import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
 import { mediaTransform } from "../core/media";
 import type { Mask, View, Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
-import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG } from "./shaders";
+import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG, DJWAVE_FRAG } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
   original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3, multi: 4,
@@ -47,6 +47,9 @@ export class Engine {
   private solid: Program;
   private meshP: Program;
   private maskP: Program;
+  private djw: Program;
+  /** Rohdaten-Texturen (z. B. DJ-Wellenform). */
+  private raw = new Map<string, { tex: WebGLTexture; w: number; h: number }>();
   private meshVao: WebGLVertexArrayObject;
   private meshBuf: WebGLBuffer;
   private media = new Map<string, { tex: WebGLTexture; w: number; h: number }>();
@@ -86,6 +89,7 @@ export class Engine {
     this.solid = this.program(SOLID_FRAG);
     this.meshP = this.program(MESH_FRAG, MESH_VERT);
     this.maskP = this.program(MASK_FRAG);
+    this.djw = this.program(DJWAVE_FRAG);
     this.meshVao = gl.createVertexArray()!;
     this.meshBuf = gl.createBuffer()!;
     gl.bindVertexArray(this.meshVao);
@@ -165,7 +169,23 @@ export class Engine {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     this.media.set(id, { tex, w, h });
   }
+  /** Rohdaten als Textur (RGBA8, ohne Glättung): z. B. die Wellenform, ein Texel je Frame. */
+  setRaw(id: string, w: number, h: number, data: Uint8Array): void {
+    const gl = this.gl;
+    const old = this.raw.get(id);
+    const tex = old?.tex ?? gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.raw.set(id, { tex, w, h });
+  }
   removeMedia(id: string): void {
+    const r = this.raw.get(id);
+    if (r) { this.gl.deleteTexture(r.tex); this.raw.delete(id); }
     const m = this.media.get(id);
     if (m) { this.gl.deleteTexture(m.tex); this.media.delete(id); }
   }
@@ -181,6 +201,19 @@ export class Engine {
     // Video-Clip: aktuelles Bild des Abspielers als Textur
     let media = isMediaClip(l.clip) ? this.media.get(mediaIdOf(l.clip)) : undefined;
     let isVideo = false;
+    // LJ-Link: DJ-Wellenform und Now-Playing-Bauchbinde
+    if (l.clip === "dj-waveform") return this.renderDjWave(l, fbKey, time, w, h, show, beat);
+    let fade = 1;
+    if (l.clip === "now-playing") {
+      const np = show.nowPlaying;
+      media = np?.on ? this.media.get("nowplaying") : undefined;
+      if (!media || !np) return null;
+      if (np.hold > 0) {
+        const t = (this.nowMs - np.since) / 1000;
+        fade = Math.max(0, Math.min(1, t / 0.6, (np.hold - t) / 0.8));
+        if (fade <= 0) return null;
+      }
+    }
     if (isVideoClip(l.clip)) {
       const id = videoIdOf(l.clip);
       const dur = this.videoDuration(id);
@@ -209,7 +242,7 @@ export class Engine {
         ? { x: 0, y: 0, rotation: 0, scale: fitScale(l.video.fit, w / h, media.w / Math.max(1, media.h), media.h, h) }
         : mediaTransform(l.media, drv.beat, time);
       gl.useProgram(im.p);
-      gl.uniform1f(this.loc(im, "uOpacity"), 1);
+      gl.uniform1f(this.loc(im, "uOpacity"), fade);
       gl.uniform1i(this.loc(im, "uImg"), 0);
       gl.uniform2f(this.loc(im, "uRes"), w, h);
       gl.uniform1f(this.loc(im, "uImgAspect"), media.w / Math.max(1, media.h));
@@ -255,6 +288,36 @@ export class Engine {
     this.bindTarget(this.work[0]);
     this.draw();
     return this.applyEffects(l, fbKey, time, w, h, show, drv.pulse, ca, cb);
+  }
+
+  /** DJ-Wellenform des Master-Decks (Position läuft zwischen den Meldungen mit der Geschwindigkeit weiter). */
+  private renderDjWave(l: LayerState, fbKey: string, time: number, w: number, h: number, show: ShowState, beat: number): Target | null {
+    const dw = show.djWave, data = this.raw.get("djwave");
+    if (!dw || !data || dw.n <= 0) return null;
+    const gl = this.gl;
+    this.work[0] = this.target(this.work[0], w, h);
+    this.work[1] = this.target(this.work[1], w, h);
+    gl.disable(gl.BLEND);
+    const ms = dw.ms + Math.max(-200, Math.min(2000, this.nowMs - dw.at)) * dw.v;
+    const p = this.djw;
+    gl.useProgram(p.p);
+    gl.uniform2f(this.loc(p, "uRes"), w, h);
+    gl.uniform1f(this.loc(p, "uN"), dw.n);
+    gl.uniform1f(this.loc(p, "uCenter"), (ms / 1000) * 150);
+    // Zoom über die Größe der Ebene: 100 % = 6 Sekunden über die Breite
+    gl.uniform1f(this.loc(p, "uSpan"), 6 * 150 / Math.max(0.2, l.media.scale || 1));
+    gl.uniform1f(this.loc(p, "uHead"), 0.5);
+    gl.uniform1i(this.loc(p, "uStyle"), dw.style);
+    const beatLen = dw.bpm > 0 ? (60 / dw.bpm) * 150 : 0;
+    gl.uniform1f(this.loc(p, "uBeatLen"), beatLen);
+    // Taktraster am Beat der VJ-Uhr ausrichten (gleiche Phase wie die anderen Visuals)
+    gl.uniform1f(this.loc(p, "uBeatOff"), (ms / 1000) * 150 - (beat - Math.floor(beat)) * beatLen);
+    gl.uniform1i(this.loc(p, "uData"), 0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, data.tex);
+    this.bindTarget(this.work[0]);
+    this.draw();
+    const [ca, cb] = colors(l.colorSource, show.slots, l);
+    return this.applyEffects(l, fbKey, time, w, h, show, 0, ca, cb);
   }
 
   /** 2) Effekt-Stapel auf work[0] anwenden, Ergebnis zurückgeben. */

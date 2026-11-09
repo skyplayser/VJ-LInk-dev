@@ -74,9 +74,10 @@ export class LjProAdapter implements LjSource {
       const n = num(m.deck), p = num(m.p); const x = n === undefined ? undefined : this.decks.get(n);
       if (!x || p === undefined) return [];
       if (x.dur) x.d.position = Math.min(1, Math.max(0, p / x.dur));
-      if (!x.d.master || nowMs - x.sent < 250) return [];
-      x.sent = nowMs;
-      return [{ t: "deck", deck: { ...x.d } }];
+      if (!x.d.master) return [];
+      const out: LjMessage[] = [{ t: "pos", deck: n!, ms: p, v: num(m.v) ?? 1 }];
+      if (nowMs - x.sent >= 250) { x.sent = nowMs; out.push({ t: "deck", deck: { ...x.d } }); }
+      return out;
     }
     if (m.type === "deckGone") {
       const n = num(m.deck); if (n === undefined) return [];
@@ -104,6 +105,12 @@ export class LjProAdapter implements LjSource {
       ...(str(m.title) ? { title: str(m.title) } : {}),
       ...(str(m.artist) ? { artist: str(m.artist) } : {}),
       ...(dur && num(m.pos) !== undefined ? { position: Math.min(1, Math.max(0, num(m.pos)! / dur)) } : {}),
+      ...(dur ? { durationMs: dur } : {}),
+      // Cover und Wellenform liegen bei LJ-Link unter /api/deck/<n>/…
+      ...(m.hasArt === true && num(m.artVersion) !== undefined ? { art: `/api/deck/${n}/art?v=${num(m.artVersion)}` } : {}),
+      ...(m.hasDetail === true && num(m.detailVersion) !== undefined ? { detail: `/api/deck/${n}/detail?v=${num(m.detailVersion)}` } : {}),
+      ...(m.detailStyle === "threeband" || m.detailStyle === "color" ? { detailStyle: m.detailStyle } : {}),
+      ...(str(m.title) ? { trackId: `${str(m.address, 40) ?? ""}:${num(m.trackNumber) ?? ""}:${str(m.title)}:${dur ?? ""}` } : {}),
     };
     const old = this.decks.get(n);
     if (d.position === undefined && old?.d.position !== undefined && old.d.title === d.title) d.position = old.d.position;

@@ -1,5 +1,5 @@
 // Katalog der Visuals. `status: "ready"` heißt: die Engine hat dafür einen Generator.
-export type EffectCategory = "audio" | "geometry" | "particles" | "retro" | "optical" | "laser" | "tools";
+export type EffectCategory = "audio" | "geometry" | "particles" | "retro" | "optical" | "laser" | "lj" | "tools";
 export type EffectKind = "generator" | "post" | "master";
 export type EffectStatus = "ready" | "planned";
 
@@ -80,6 +80,9 @@ export const EFFECTS: readonly EffectDef[] = [
   e(48, "beam-polygon", "Polygon", "laser", "generator", "ready", "Drehendes Vieleck (3–8 Ecken): Lichtflächen wie ein Prisma-Tunnel, dazu Eckstrahlen.", ["beat"]),
   e(49, "beam-burst", "Laser-Burst", "laser", "generator", "ready", "Feine grüne Strahlen, die auf jedem Beat neu aufblitzen.", ["beat"]),
   e(50, "beam-scanner-v", "Scanner vertikal", "laser", "generator", "ready", "Senkrechter Balken fährt über den ganzen Bildschirm von links nach rechts und zurück (2 Beats pro Weg). Mit XY-Override setzt X die Lage.", ["beat"]),
+  // LJ-Link: Daten vom DJ-Pult
+  e(51, "now-playing", "Now Playing", "lj", "generator", "ready", "Bauchbinde mit Titel, Artist und Cover des Master-Decks aus LJ-Link. Erscheint beim Trackwechsel (Dauer unter VERBINDEN → LJ-Link). Im Privatsphäre-Modus leer."),
+  e(52, "dj-waveform", "DJ-Waveform", "lj", "generator", "ready", "Scrollende Wellenform des Master-Decks aus LJ-Link, wie auf dem CDJ, mit Abspielkopf in der Mitte.", ["beat"]),
 ];
 
 export const EFFECT_BY_ID: ReadonlyMap<string, EffectDef> = new Map(EFFECTS.map(x => [x.id, x]));

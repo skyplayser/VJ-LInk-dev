@@ -64,7 +64,15 @@ export interface NetConfig {
   ljHost?: string;
 }
 
-export type MediaEvent = { type: "add"; item: MediaPayload } | { type: "remove"; id: string };
+export type MediaEvent = { type: "add"; item: MediaPayload } | { type: "remove"; id: string }
+  /** Rohdaten als Textur (RGBA8, w×h), z. B. die DJ-Wellenform. */
+  | { type: "raw"; id: string; w: number; h: number; data: Uint8Array };
+
+/** Status von VJ-Link für LJ-Link (gemeinsamer Status). */
+export interface VjStatus {
+  t: "vj"; app: "VJ-Link"; version: string; scene: string; sceneIndex: number; blackout: boolean;
+  master: number; bpm: number; bpmSource: string; outputs: number; nowPlaying: boolean;
+}
 
 export interface ProjectLoad {
   project: string | null; media: MediaPayload[];
@@ -110,4 +118,12 @@ export interface VjBridge {
   /** Befehle aus dem App-Menü (Ablage, Einstellungen). */
   onMenu(cb: (cmd: string, arg?: string) => void): void;
   platform: string;
+  /** Live-Grafik an alle Ausgänge (wird nicht gespeichert), z. B. die Now-Playing-Bauchbinde. */
+  liveMedia(e: MediaEvent): void;
+  /** Datei von LJ-Link holen (Cover, Wellenform); null, wenn nicht verbunden oder nicht vorhanden. */
+  ljFetch(path: string): Promise<{ type: string; data: Uint8Array } | null>;
+  /** Status an LJ-Link melden (nur über den eigenen Endpunkt /vjlink). */
+  ljStatus(s: VjStatus): void;
+  /** Weboberfläche von LJ-Link im Browser öffnen. */
+  openLj(): void;
 }

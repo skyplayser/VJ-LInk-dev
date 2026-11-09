@@ -179,7 +179,16 @@
   <div id="dmx-live" class="dmx-live"></div>
   <h2>LJ-Link</h2>
   <p class="muted small">LJ-Link PRO wird automatisch gefunden, sobald es läuft (Weboberfläche, Port 8080) – dort ist nichts einzustellen. Läuft es auf einem anderen Rechner, hier dessen IP-Adresse eintragen.</p>
-  <label class="inline lj-host">LJ-Link PRO auf <input id="cfg-ljhost" type="text" placeholder="diesem Rechner" spellcheck="false" autocomplete="off" maxlength="253"></label>
+  <div class="inline wrap lj-host">
+    <label class="inline">LJ-Link PRO auf <input id="cfg-ljhost" type="text" placeholder="diesem Rechner" spellcheck="false" autocomplete="off" maxlength="253"></label>
+    <button class="btn small-btn" id="lj-open" title="Weboberfläche von LJ-Link im Browser öffnen">LJ-Link öffnen</button>
+  </div>
+  <div class="inline wrap lj-host">
+    <label class="inline">Now-Playing-Bauchbinde zeigen
+      <select id="cfg-ljhold"><option value="8">8 s nach Trackwechsel</option><option value="15">15 s nach Trackwechsel</option><option value="30">30 s nach Trackwechsel</option><option value="0">immer</option></select></label>
+    <button class="btn small-btn" id="lj-np-show" title="Bauchbinde jetzt noch einmal einblenden">Jetzt einblenden</button>
+    <span class="muted small">Clip „Now Playing“ (Bibliothek → LJ-Link) auf eine Ebene legen. Im Privatsphäre-Modus von LJ-Link bleibt sie leer.</span>
+  </div>
   <div id="lj-decks" class="cards"></div>
 </section>
 </main>

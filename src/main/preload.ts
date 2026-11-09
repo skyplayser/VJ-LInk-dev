@@ -26,5 +26,9 @@ const bridge: VjBridge = {
   projectBaseline: hash => { ipcRenderer.send("project:baseline", hash); },
   onMenu: cb => { ipcRenderer.on("menu", (_e, cmd: string, arg?: string) => cb(cmd, arg)); },
   platform: process.platform,
+  liveMedia: e => { ipcRenderer.send("media:live", e); },
+  ljFetch: path => ipcRenderer.invoke("lj:fetch", path),
+  ljStatus: s => { ipcRenderer.send("lj:status", s); },
+  openLj: () => { ipcRenderer.send("lj:open"); },
 };
 contextBridge.exposeInMainWorld("vj", bridge);

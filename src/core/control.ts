@@ -163,7 +163,7 @@ export function handleOsc(c: ControlContext, m: OscMessage, nowMs: number): bool
 
 /** LJ-Link-Nachricht verarbeiten: Zustand, Takt, Audio-Werte und Regeln. */
 export function handleLj(c: ControlContext, m: LjMessage, nowMs: number): RuleAction[] {
-  reduceLj(c.lj, m);
+  reduceLj(c.lj, m, nowMs);
   if (m.t === "tempo") c.tempo.update("ljlink", m.bpm, nowMs, m.beat);
   if (m.t === "wave" && (c.lj.masterDeck === null || m.deck === c.lj.masterDeck)) {
     Object.assign(c.show.audio, { bass: clamp01(m.bass), mid: clamp01(m.mid), high: clamp01(m.high) });

@@ -22,6 +22,7 @@ setInterval(() => videos.sweep(), 1000);
 bridge?.onFrame(f => { frame = f; for (const [id, d] of Object.entries(f.videoDurations ?? {})) durations.set(id, d); });
 bridge?.onMedia(async e => {
   if (e.type === "remove") { engine.removeMedia(e.id); return; }
+  if (e.type === "raw") { engine.setRaw(e.id, e.w, e.h, e.data); return; }
   try { const d = await decodeImage(e.item.dataUrl); engine.setMedia(e.item.id, d.src, d.w, d.h); } catch { /* Bild unlesbar */ }
 });
 
