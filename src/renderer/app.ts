@@ -1048,13 +1048,16 @@ function json0(raw: string | null): ReturnType<typeof parseProject> {
  * E3 und E2 Overlay (Licht, Partikel, Geometrie), E1 Basis (Start-Clips).
  */
 async function setupStarterProject(): Promise<void> {
+  // Wie vorgegeben: E1 Tunnel (Slot A), E2 Sternenfeld, E5 Text „VJ-Link“ und E6 Logo laufen; E3/E4 bereit
+
   const s = ctx.show;
   while (s.layers.length < 6 && addShowLayer(s) >= 0) { /* auffüllen */ }
   const L = s.layers;
   const gens = (ids: string[]) => ids.filter(id => EFFECT_BY_ID.get(id)?.status === "ready");
-  L[0]!.name = "Basis";
-  L[1]!.name = "Overlay"; L[1]!.clips = gens(["starfield", "bokeh", "burst", "lightning", "vector-gobos", "flower", "moire", "co2-jet"]); L[1]!.clip = null;
-  L[2]!.name = "Overlay"; L[2]!.clips = gens(["plexus", "hypercube", "ripples", "liquid-light", "uv-glow", "fire", "mirror-ball", "dot-matrix"]); L[2]!.clip = null;
+  L[0]!.name = "Basis"; L[0]!.clip = "tunnel"; L[0]!.colorSource = "A"; L[0]!.blend = "normal";
+  for (const l of L) { l.opacity = 1; l.drive = "auto"; }
+  L[1]!.name = "Overlay"; L[1]!.clips = gens(["starfield", "bokeh", "burst", "lightning", "vector-gobos", "flower", "moire", "co2-jet"]); L[1]!.clip = "starfield"; L[1]!.blend = "normal";
+  L[2]!.name = "Overlay"; L[2]!.clips = gens(["plexus", "hypercube", "ripples", "liquid-light", "uv-glow", "fire", "mirror-ball", "dot-matrix"]); L[2]!.clip = null; L[2]!.blend = "normal";
   L[3]!.name = "Laser"; L[3]!.clips = EFFECTS.filter(e => e.category === "laser" && e.kind === "generator" && e.status === "ready").map(e => e.id); L[3]!.clip = null; L[3]!.blend = "add";
   // Text-Ebene: „VJ-Link“
   const spec = { ...defaultText(), text: "VJ-Link", upper: false };
@@ -1062,7 +1065,7 @@ async function setupStarterProject(): Promise<void> {
   const tp = { id: newMediaId(), name: "VJ-Link", dataUrl: cv.toDataURL("image/png") };
   const titem = await library.load(tp);
   L[4]!.name = "Text"; L[4]!.clip = null; L[4]!.blend = "normal";
-  if (titem) { titem.text = spec; bridge?.addMedia(tp); L[4]!.clips = [mediaClip(tp.id)]; }
+  if (titem) { titem.text = spec; bridge?.addMedia(tp); L[4]!.clips = [mediaClip(tp.id)]; L[4]!.clip = mediaClip(tp.id); }
   Object.assign(L[4]!.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
   // Logo-Ebene: VJ-Link-Schriftzug klein unten rechts
   const lp = { id: newMediaId(), name: "VJ-Link-Logo", dataUrl: vjlinkLogo };
