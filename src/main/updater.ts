@@ -7,6 +7,7 @@ import { createWriteStream, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isNewer, pickRelease, RELEASES_PAGE, UPDATE_REPO, type UpdateState } from "../core/update";
+import { t } from "../core/i18n";
 
 const HOUR = 3_600_000;
 
@@ -35,15 +36,15 @@ export class Updater {
         headers: { Accept: "application/vnd.github+json", "User-Agent": `VJ-Link/${this.state.current}` },
         signal: AbortSignal.timeout(15_000),
       });
-      if (res.status === 404) { this.set({ status: "latest", latest: undefined, checkedAt: Date.now(), message: "Noch keine Veröffentlichung vorhanden." }); return this.state; }
-      if (!res.ok) throw new Error(`GitHub antwortet ${res.status}`);
+      if (res.status === 404) { this.set({ status: "latest", latest: undefined, checkedAt: Date.now(), message: t("Noch keine Veröffentlichung vorhanden.") }); return this.state; }
+      if (!res.ok) throw new Error(t("GitHub antwortet {status}", { status: res.status }));
       const rel = pickRelease(await res.json(), process.platform, process.arch);
-      if (!rel) throw new Error("Antwort von GitHub nicht lesbar");
+      if (!rel) throw new Error(t("Antwort von GitHub nicht lesbar"));
       const newer = isNewer(rel.version, this.state.current);
       this.set({ status: newer ? "available" : "latest", latest: rel, checkedAt: Date.now(), message: undefined });
     } catch (e) {
       const offline = e instanceof TypeError || (e as Error).name === "TimeoutError";
-      this.set({ status: "error", checkedAt: Date.now(), message: offline ? "Keine Verbindung zum Internet." : (e as Error).message });
+      this.set({ status: "error", checkedAt: Date.now(), message: offline ? t("Keine Verbindung zum Internet.") : (e as Error).message });
     }
     return this.state;
   }
@@ -58,12 +59,12 @@ export class Updater {
     try {
       this.set({ status: "downloading", progress: 0, message: undefined });
       const file = await this.download(rel.url, rel.asset, rel.size);
-      if (!(await confirmQuit())) { this.set({ status: "available", progress: undefined, message: "Update geladen, Installation abgebrochen." }); return this.state; }
+      if (!(await confirmQuit())) { this.set({ status: "available", progress: undefined, message: t("Update geladen, Installation abgebrochen.") }); return this.state; }
       this.set({ status: "installing", progress: 1 });
       await this.runInstaller(file);
       setTimeout(() => app.quit(), 300);
     } catch (e) {
-      this.set({ status: "error", progress: undefined, message: `Update fehlgeschlagen: ${(e as Error).message}` });
+      this.set({ status: "error", progress: undefined, message: t("Update fehlgeschlagen: {msg}", { msg: (e as Error).message }) });
     } finally {
       this.busy = false;
     }
@@ -87,7 +88,7 @@ export class Updater {
       if (total > 0 && Date.now() - lastSent > 150) { lastSent = Date.now(); this.set({ progress: Math.min(1, done / total) }); }
     }
     await new Promise<void>((resolve, reject) => out.end((err?: Error | null) => (err ? reject(err) : resolve())));
-    if (size > 0 && (await fs.stat(file)).size !== size) throw new Error("Download unvollständig");
+    if (size > 0 && (await fs.stat(file)).size !== size) throw new Error(t("Download unvollständig"));
     return file;
   }
 

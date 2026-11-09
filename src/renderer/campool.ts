@@ -1,5 +1,6 @@
 // Kameras in einem Fenster: Geräte öffnen, solange sie gebraucht werden, und wieder freigeben.
 import type { CameraSource } from "../core/camera";
+import { t } from "../core/i18n";
 
 export interface CamDevice { deviceId: string; label: string }
 
@@ -50,7 +51,7 @@ export class CameraPool {
       this.error = "";
     } catch {
       e.failed = true;
-      this.error = `Kamera „${src.label || "?"}“ lässt sich nicht öffnen.`;
+      this.error = t("Kamera „{name}“ lässt sich nicht öffnen.", { name: src.label || "?" });
       // nach einer Weile neu versuchen (Gerät wieder angesteckt, Freigabe erteilt)
       setTimeout(() => { for (const [k, x] of this.entries) if (x === e) this.drop(k); }, 4000);
     } finally { e.opening = false; }
@@ -74,7 +75,7 @@ export class CameraPool {
   static async devices(): Promise<CamDevice[]> {
     try {
       return (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput")
-        .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Kamera ${i + 1}` }));
+        .map((d, i) => ({ deviceId: d.deviceId, label: d.label || t("Kamera {n}", { n: i + 1 }) }));
     } catch { return []; }
   }
 

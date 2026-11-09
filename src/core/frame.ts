@@ -142,6 +142,8 @@ export interface VjBridge {
   /** Bekannte Seite im Browser öffnen (Instagram, GitHub). */
   openWeb(url: string): void;
   openLj(): void;
+  /** Sprache der Oberfläche an den Hauptprozess (Menü, Dialoge). */
+  setLang(lang: string): void;
 }
 
 export interface RecentProject { path: string; name: string; folder: string; exists: boolean; modified: number }

@@ -1,6 +1,7 @@
 // Kamera auswählen: Freigabe holen, Geräte auflisten, kleines Menü am Knopf.
 import { CameraPool, type CamDevice } from "./campool";
 import { bridge } from "./bridge";
+import { t } from "../core/i18n";
 
 /** Gesetzt, wenn macOS den Kamera-Zugriff nicht erlaubt hat (dann hilft nur die Systemeinstellung). */
 export let cameraDenied = false;
@@ -19,15 +20,15 @@ export function cameraHelp(): HTMLElement {
   const box = document.createElement("div"); box.className = "cam-help";
   const p = document.createElement("p"); p.className = "am-hint";
   if (cameraDenied) {
-    p.textContent = "macOS erlaubt VJ-Link den Kamera-Zugriff nicht. Systemeinstellungen → Datenschutz & Sicherheit → Kamera → VJ-Link einschalten, dann VJ-Link neu starten.";
+    p.textContent = t("macOS erlaubt VJ-Link den Kamera-Zugriff nicht. Systemeinstellungen → Datenschutz & Sicherheit → Kamera → VJ-Link einschalten, dann VJ-Link neu starten.");
     box.append(p);
     if (bridge) {
-      const b = document.createElement("button"); b.className = "btn small-btn"; b.textContent = "Systemeinstellungen öffnen";
+      const b = document.createElement("button"); b.className = "btn small-btn"; b.textContent = t("Systemeinstellungen öffnen");
       b.addEventListener("click", () => bridge!.openPrivacy("camera"));
       box.append(b);
     }
   } else {
-    p.textContent = "Keine Kamera gefunden. Kamera anstecken oder in OBS „Virtuelle Kamera starten“, dann neu suchen.";
+    p.textContent = t("Keine Kamera gefunden. Kamera anstecken oder in OBS „Virtuelle Kamera starten“, dann neu suchen.");
     box.append(p);
   }
   return box;

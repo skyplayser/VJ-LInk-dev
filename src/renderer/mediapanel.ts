@@ -2,22 +2,23 @@
 import type { ControlContext } from "../core/control";
 import { KEY_MODES, MEDIA_ANIMS, forgetClip, isMediaClip, mediaIdOf, type KeyMode, type MediaAnim, type MediaSettings } from "../core/show";
 import type { MediaLibrary } from "./medialib";
+import { t } from "../core/i18n";
 
 const ANIM_LABEL: Record<MediaAnim, string> = {
-  none: "Keine", pulse: "Pulsieren", spin: "Drehen", bounce: "Hüpfen", float: "Schweben", wobble: "Wackeln", zoom: "Heranzoomen",
+  none: t("Keine"), pulse: t("Pulsieren"), spin: t("Drehen"), bounce: t("Hüpfen"), float: t("Schweben"), wobble: t("Wackeln"), zoom: t("Heranzoomen"),
 };
 const BEATS = [0.5, 1, 2, 4, 8];
 
 interface Field { key: keyof MediaSettings; label: string; min: number; max: number; scale: number; unit: string }
 const FIELDS: Field[] = [
-  { key: "scale", label: "Größe", min: 5, max: 200, scale: 100, unit: " %" },
-  { key: "x", label: "Links/Rechts", min: -100, max: 100, scale: 100, unit: "" },
-  { key: "y", label: "Unten/Oben", min: -100, max: 100, scale: 100, unit: "" },
-  { key: "rotation", label: "Drehung", min: -180, max: 180, scale: 1, unit: "°" },
-  { key: "animAmount", label: "Stärke", min: 0, max: 100, scale: 100, unit: " %" },
-  { key: "keyTol", label: "Toleranz", min: 2, max: 90, scale: 100, unit: " %" },
+  { key: "scale", label: t("Größe"), min: 5, max: 200, scale: 100, unit: " %" },
+  { key: "x", label: t("Links/Rechts"), min: -100, max: 100, scale: 100, unit: "" },
+  { key: "y", label: t("Unten/Oben"), min: -100, max: 100, scale: 100, unit: "" },
+  { key: "rotation", label: t("Drehung"), min: -180, max: 180, scale: 1, unit: "°" },
+  { key: "animAmount", label: t("Stärke"), min: 0, max: 100, scale: 100, unit: " %" },
+  { key: "keyTol", label: t("Toleranz"), min: 2, max: 90, scale: 100, unit: " %" },
 ];
-const KEY_LABEL: Record<KeyMode, string> = { none: "Freistellen: aus", white: "Weiß entfernen", black: "Schwarz entfernen" };
+const KEY_LABEL: Record<KeyMode, string> = { none: t("Freistellen: aus"), white: t("Weiß entfernen"), black: t("Schwarz entfernen") };
 
 export class MediaPanel {
   private inputs = new Map<keyof MediaSettings, { input: HTMLInputElement; val: HTMLElement }>();
@@ -31,7 +32,7 @@ export class MediaPanel {
   constructor(private ctx: ControlContext, private lib: MediaLibrary, private root: HTMLElement,
     private layerOf: () => number, private onDeleted: () => void) {
     root.replaceChildren();
-    const h = document.createElement("h2"); h.textContent = "Grafik";
+    const h = document.createElement("h2"); h.textContent = t("Grafik");
     this.name = document.createElement("div"); this.name.className = "media-name";
     root.append(h, this.name);
     for (const f of FIELDS) {
@@ -49,16 +50,16 @@ export class MediaPanel {
       this.inputs.set(f.key, { input, val });
     }
     const arow = document.createElement("div"); arow.className = "mrow2";
-    this.anim = document.createElement("select"); this.anim.setAttribute("aria-label", "Animation");
+    this.anim = document.createElement("select"); this.anim.setAttribute("aria-label", t("Animation"));
     for (const a of MEDIA_ANIMS) this.anim.append(new Option(ANIM_LABEL[a], a));
     this.anim.addEventListener("change", () => { const m = this.media(); if (m) m.anim = this.anim.value as MediaAnim; });
-    this.beats = document.createElement("select"); this.beats.setAttribute("aria-label", "Animation: Beats pro Durchlauf");
+    this.beats = document.createElement("select"); this.beats.setAttribute("aria-label", t("Animation: Beats pro Durchlauf"));
     for (const b of BEATS) this.beats.append(new Option(`${b === 0.5 ? "½" : b} ${b === 1 ? "Beat" : "Beats"}`, String(b)));
     this.beats.addEventListener("change", () => { const m = this.media(); if (m) m.animBeats = Number(this.beats.value); });
     arow.append(this.anim, this.beats);
     root.insertBefore(arow, root.querySelectorAll(".mrow")[4] ?? null);
     // Freistellen für Logos mit weißem oder schwarzem Hintergrund
-    this.keySel = document.createElement("select"); this.keySel.setAttribute("aria-label", "Freistellen");
+    this.keySel = document.createElement("select"); this.keySel.setAttribute("aria-label", t("Freistellen"));
     for (const k of KEY_MODES) this.keySel.append(new Option(KEY_LABEL[k], k));
     this.keySel.addEventListener("change", () => { const m = this.media(); if (m) m.keyMode = this.keySel.value as KeyMode; });
     const krow = document.createElement("div"); krow.className = "mrow2 one"; krow.append(this.keySel);
@@ -67,7 +68,7 @@ export class MediaPanel {
     this.del.addEventListener("click", () => {
       const l = this.ctx.show.layers[this.layerOf()];
       if (!l || !isMediaClip(l.clip)) return;
-      if (!this.armed) { this.armed = true; this.del.textContent = "Wirklich aus der Bibliothek löschen?"; return; }
+      if (!this.armed) { this.armed = true; this.del.textContent = t("Wirklich aus der Bibliothek löschen?"); return; }
       const id = mediaIdOf(l.clip);
       forgetClip(this.ctx.show, this.ctx.scenes, l.clip);
       this.lib.remove(id);
@@ -76,7 +77,7 @@ export class MediaPanel {
     });
     root.append(this.del);
     const hint = document.createElement("p"); hint.className = "muted small";
-    hint.textContent = "Doppelklick auf einen Regler setzt ihn zurück. Effekte wie Farbüberlagerung, Leuchten oder Beat-Zoom unten im Effekt-Stapel.";
+    hint.textContent = t("Doppelklick auf einen Regler setzt ihn zurück. Effekte wie Farbüberlagerung, Leuchten oder Beat-Zoom unten im Effekt-Stapel.");
     root.append(hint);
   }
 
@@ -91,7 +92,7 @@ export class MediaPanel {
     this.root.hidden = !m;
     if (!m || !l) { this.armed = false; return; }
     const item = this.lib.items.find(i => `img:${i.id}` === l.clip);
-    this.name.textContent = `${item?.name ?? "Grafik"} · Ebene ${this.layerOf() + 1}`;
+    this.name.textContent = `${item?.name ?? t("Grafik")} · ${t("Ebene {n}", { n: this.layerOf() + 1 })}`;
     for (const f of FIELDS) {
       const { input, val } = this.inputs.get(f.key)!;
       const v = (m[f.key] as number) * f.scale;
@@ -102,6 +103,6 @@ export class MediaPanel {
     if (document.activeElement !== this.beats) this.beats.value = String(m.animBeats);
     if (document.activeElement !== this.keySel) this.keySel.value = m.keyMode;
     (this.inputs.get("keyTol")!.input.closest(".mrow") as HTMLElement).hidden = m.keyMode === "none";
-    if (!this.armed) this.del.textContent = "Grafik aus der Bibliothek löschen";
+    if (!this.armed) this.del.textContent = t("Grafik aus der Bibliothek löschen");
   }
 }

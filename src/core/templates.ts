@@ -2,6 +2,7 @@
 // Hinweis: Die Notennummern stammen aus den Herstellerangaben; an echten Geräten noch nicht getestet.
 import type { LedSpec, MapInput, Mapping } from "./mapping";
 import { STARTER_CLIP_IDS } from "./effects";
+import { t } from "./i18n";
 
 export interface TemplateEntry { target: string; input: MapInput; led?: LedSpec; button?: boolean }
 
@@ -34,7 +35,7 @@ const FADERS = ["layer.1.opacity", "layer.2.opacity", "layer.3.opacity", "layer.
 export const TEMPLATES: readonly ControllerTemplate[] = [
   {
     id: "apc-mini-mk2", name: "Akai APC mini mk2", match: /apc\s*mini\s*mk\s*2/i,
-    info: "Raster: Zeile 1 (unten) bis 8 = Ebene 1–8, Spalten = die 8 Generatoren (grün = läuft). Rechte Tasten = Szene 1–8. Untere Tasten: Blackout, Strobe, Flash, Takt, Tap, Zurück, Weiter, Auto. Fader 1–8: Ebene 1–4, Strobe-Speed, -Intensität, Effekte, Blende. Fader 9 = Master.",
+    info: t("Raster: Zeile 1 (unten) bis 8 = Ebene 1–8, Spalten = die 8 Generatoren (grün = läuft). Rechte Tasten = Szene 1–8. Untere Tasten: Blackout, Strobe, Flash, Takt, Tap, Zurück, Weiter, Auto. Fader 1–8: Ebene 1–4, Strobe-Speed, -Intensität, Effekte, Blende. Fader 9 = Master."),
     entries: () => [
       // Pads: Farbe über Velocity, Kanal 7 = volle Helligkeit; 21 grün, 1 dunkelgrau
       ...gridClips((r, c) => r * 8 + c, { on: 21, off: 1, ch: 7 }),
@@ -46,7 +47,7 @@ export const TEMPLATES: readonly ControllerTemplate[] = [
   },
   {
     id: "apc-mini", name: "Akai APC mini (mk1)", match: /apc\s*mini(?!\s*mk\s*2)/i,
-    info: "Wie APC mini mk2: Raster = Ebene × Clip (grün = läuft), rechte Tasten = Szene 1–8, untere Tasten = Blackout, Strobe, Flash, Takt, Tap, Zurück, Weiter, Auto, Fader 1–8 + Master.",
+    info: t("Wie APC mini mk2: Raster = Ebene × Clip (grün = läuft), rechte Tasten = Szene 1–8, untere Tasten = Blackout, Strobe, Flash, Takt, Tap, Zurück, Weiter, Auto, Fader 1–8 + Master."),
     entries: () => [
       ...gridClips((r, c) => r * 8 + c, { on: 1, off: 0 }),
       ...Array.from({ length: 8 }, (_, i) => ({ target: `scene.${i + 1}`, input: note(82 + i), led: { on: 1, off: 0 } })),
@@ -57,7 +58,7 @@ export const TEMPLATES: readonly ControllerTemplate[] = [
   },
   {
     id: "nanokontrol2", name: "Korg nanoKONTROL2", match: /nanokontrol\s*2/i,
-    info: "Fader 1–4 = Ebene 1–4, 5 Strobe-Speed, 6 Intensität, 7 Effekte, 8 Master. Drehregler 1–4 = Effekt 1 der Ebene, 5–8 = Farbton Slot A–D. S = Szene 1–8, M1–4 = Clip aus, M5–8 = Strobe, Flash, Takt, Blackout, R = Clips von Ebene 2. Track ‹ › = Szene zurück/weiter, Cycle = Tap, Play = Auto. LEDs nur mit „LED Mode: External“ im Korg Kontrol Editor.",
+    info: t("Fader 1–4 = Ebene 1–4, 5 Strobe-Speed, 6 Intensität, 7 Effekte, 8 Master. Drehregler 1–4 = Effekt 1 der Ebene, 5–8 = Farbton Slot A–D. S = Szene 1–8, M1–4 = Clip aus, M5–8 = Strobe, Flash, Takt, Blackout, R = Clips von Ebene 2. Track ‹ › = Szene zurück/weiter, Cycle = Tap, Play = Auto. LEDs nur mit „LED Mode: External“ im Korg Kontrol Editor."),
     entries: () => {
       const led = { on: 127, off: 0 };
       const out: TemplateEntry[] = [

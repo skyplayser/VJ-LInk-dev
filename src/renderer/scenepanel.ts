@@ -3,6 +3,7 @@ import {
   addSceneFromCurrent, deleteScene, moveScene, overwriteScene, recallScene, sceneTransition, type ControlContext,
 } from "../core/control";
 import type { Scene } from "../core/show";
+import { t } from "../core/i18n";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -40,28 +41,28 @@ export class ScenePanel {
       b.dataset.ctl = `scene.${i + 1}`;
       b.addEventListener("click", () => { recallScene(c, i); });
       const e = el("button", this.edit === i ? "icon on" : "icon", "✎");
-      e.title = "Szene bearbeiten"; e.setAttribute("aria-label", `Szene ${sc.name} bearbeiten`);
+      e.title = t("Szene bearbeiten"); e.setAttribute("aria-label", t("Szene {name} bearbeiten", { name: sc.name }));
       e.addEventListener("click", () => { this.edit = this.edit === i ? -1 : i; this.confirmDelete = false; this.update(true); });
       row.append(b, e);
       this.root.append(row);
       if (this.edit === i) this.root.append(this.editor(sc, i));
     });
-    if (!c.scenes.length) this.root.append(el("p", "muted small", "Noch keine Szene. „+ Szene speichern“ legt das aktuelle Bild als Szene ab."));
+    if (!c.scenes.length) this.root.append(el("p", "muted small", t("Noch keine Szene. „+ Szene speichern“ legt das aktuelle Bild als Szene ab.")));
   }
 
   private editor(sc: Scene, i: number): HTMLElement {
     const c = this.ctx;
     const box = el("div", "scene-edit");
-    const name = el("input"); name.value = sc.name; name.maxLength = 40; name.setAttribute("aria-label", "Name der Szene");
-    name.addEventListener("change", () => { sc.name = name.value.trim() || `Szene ${i + 1}`; this.update(true); });
-    box.append(field("Name", name));
+    const name = el("input"); name.value = sc.name; name.maxLength = 40; name.setAttribute("aria-label", t("Name der Szene"));
+    name.addEventListener("change", () => { sc.name = name.value.trim() || t("Szene {n}", { n: i + 1 }); this.update(true); });
+    box.append(field(t("Name"), name));
 
     // Übergang
     const mode = el("select");
-    mode.append(new Option("Wie Regler „Blende“", "global"), new Option("Schnitt", "cut"), new Option("Beats", "beats"), new Option("Sekunden", "seconds"));
+    mode.append(new Option(t("Wie Regler „Blende“"), "global"), new Option(t("Schnitt"), "cut"), new Option(t("Beats"), "beats"), new Option(t("Sekunden"), "seconds"));
     const val = el("input"); val.type = "number"; val.min = "0.25"; val.max = "600"; val.step = "0.25";
     const style = el("select");
-    style.append(new Option("Überblenden", "fade"), new Option("Über Schwarz", "black"));
+    style.append(new Option(t("Überblenden"), "fade"), new Option(t("Über Schwarz"), "black"));
     const sync = () => {
       const t = sc.transition;
       mode.value = !t ? "global" : t.value === 0 ? "cut" : t.unit;
@@ -80,11 +81,11 @@ export class ScenePanel {
     mode.addEventListener("change", write); val.addEventListener("change", write); style.addEventListener("change", write);
     sync();
     const trRow = el("div", "inline"); trRow.append(mode, val, style);
-    box.append(field("Übergang", trRow));
+    box.append(field(t("Übergang"), trRow));
 
     // Abfolge
     const after = el("select");
-    after.append(new Option("Bleibt stehen", "off"), new Option("Weiter nach Takten", "bars"), new Option("Weiter nach Sekunden", "seconds"), new Option("Weiter bei Phrasenwechsel", "phrase"));
+    after.append(new Option(t("Bleibt stehen"), "off"), new Option(t("Weiter nach Takten"), "bars"), new Option(t("Weiter nach Sekunden"), "seconds"), new Option(t("Weiter bei Phrasenwechsel"), "phrase"));
     const nval = el("input"); nval.type = "number"; nval.min = "1"; nval.max = "3600"; nval.step = "1";
     const syncN = () => {
       after.value = sc.next?.after ?? "off";
@@ -98,22 +99,22 @@ export class ScenePanel {
     after.addEventListener("change", writeN); nval.addEventListener("change", writeN);
     syncN();
     const nRow = el("div", "inline"); nRow.append(after, nval);
-    box.append(field("Danach", nRow));
-    box.append(el("p", "muted small", "„Weiter …“ wirkt nur, wenn oben „Auto“ eingeschaltet ist (auch per Pult, Kanal 7)."));
+    box.append(field(t("Danach"), nRow));
+    box.append(el("p", "muted small", t("„Weiter …“ wirkt nur, wenn oben „Auto“ eingeschaltet ist (auch per Pult, Kanal 7).")));
 
     // Auslöser
-    const trig = [i < 9 ? `Taste ${i + 1}` : null, `Pult: Kanal 3 = ${i + 1}`, `OSC: /vjlink/scene/go ${i + 1}`, i < 32 ? `MIDI: scene.${i + 1} (MIDI-Lernen folgt)` : null].filter(Boolean).join(" · ");
-    box.append(field("Auslösen", el("span", "muted small", trig)));
+    const trig = [i < 9 ? t("Taste {n}", { n: i + 1 }) : null, t("Pult: Kanal 3 = {n}", { n: i + 1 }), `OSC: /vjlink/scene/go ${i + 1}`, i < 32 ? t("MIDI: scene.{n} (MIDI-Lernen folgt)", { n: i + 1 }) : null].filter(Boolean).join(" · ");
+    box.append(field(t("Auslösen"), el("span", "muted small", trig)));
 
     // Aktionen
     const actions = el("div", "inline wrap");
-    const over = el("button", "btn small-btn", "Mit aktuellem Bild überschreiben");
-    over.addEventListener("click", () => { overwriteScene(c, i); over.textContent = "Überschrieben"; setTimeout(() => { over.textContent = "Mit aktuellem Bild überschreiben"; }, 1200); });
-    const up = el("button", "icon", "↑"); up.title = "Nach oben"; up.disabled = i === 0;
+    const over = el("button", "btn small-btn", t("Mit aktuellem Bild überschreiben"));
+    over.addEventListener("click", () => { overwriteScene(c, i); over.textContent = t("Überschrieben"); setTimeout(() => { over.textContent = t("Mit aktuellem Bild überschreiben"); }, 1200); });
+    const up = el("button", "icon", "↑"); up.title = t("Nach oben"); up.disabled = i === 0;
     up.addEventListener("click", () => { moveScene(c, i, -1); this.edit = i - 1; this.update(true); });
-    const down = el("button", "icon", "↓"); down.title = "Nach unten"; down.disabled = i === c.scenes.length - 1;
+    const down = el("button", "icon", "↓"); down.title = t("Nach unten"); down.disabled = i === c.scenes.length - 1;
     down.addEventListener("click", () => { moveScene(c, i, 1); this.edit = i + 1; this.update(true); });
-    const del = el("button", "btn small-btn danger", this.confirmDelete ? "Wirklich löschen?" : "Löschen");
+    const del = el("button", "btn small-btn danger", this.confirmDelete ? t("Wirklich löschen?") : t("Löschen"));
     del.addEventListener("click", () => {
       if (!this.confirmDelete) { this.confirmDelete = true; this.update(true); return; }
       deleteScene(c, i); this.edit = -1; this.confirmDelete = false; this.update(true);
@@ -129,9 +130,9 @@ function field(label: string, control: HTMLElement): HTMLElement {
 }
 
 function describe(c: ControlContext, sc: Scene): string {
-  const t = sceneTransition(c, sc);
-  const tr = t.value === 0 ? "Schnitt" : `${t.value} ${t.unit === "beats" ? "Beats" : "s"}${t.style === "black" ? " über Schwarz" : ""}`;
+  const st = sceneTransition(c, sc);
+  const tr = st.value === 0 ? t("Schnitt") : `${st.value} ${st.unit === "beats" ? t("Beats") : "s"}${st.style === "black" ? t(" über Schwarz") : ""}`;
   const n = sc.next;
-  const nx = !n || n.after === "off" ? "" : n.after === "phrase" ? " · weiter bei Phrasenwechsel" : ` · weiter nach ${n.value} ${n.after === "bars" ? "Takten" : "s"}`;
-  return `Übergang: ${tr}${nx}`;
+  const nx = !n || n.after === "off" ? "" : n.after === "phrase" ? t(" · weiter bei Phrasenwechsel") : n.after === "bars" ? t(" · weiter nach {n} Takten", { n: n.value }) : t(" · weiter nach {n} s", { n: n.value });
+  return t("Übergang: {tr}{nx}", { tr, nx });
 }

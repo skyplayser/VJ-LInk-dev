@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 // Kameras und Video-Eingänge (Webcam, Capture-Karte, OBS Virtual Camera) als Clip und als Cue.
 // Jedes Fenster öffnet die Kamera selbst; der Show-Zustand nennt nur, welche Geräte gemeint sind.
 
@@ -15,20 +16,20 @@ export const CAM_LOOKS = ["normal", "silhouette", "outline", "dots", "ascii", "h
 export type CamLook = typeof CAM_LOOKS[number];
 
 export const CAM_LOOK_LABEL: Record<CamLook, string> = {
-  normal: "Normal", silhouette: "Silhouette", outline: "Umriss", dots: "Dot-Matrix", ascii: "ASCII",
-  halftone: "Raster", thermal: "Wärmebild", duotone: "Duoton", "mask-in": "Maske positiv", "mask-out": "Maske negativ",
+  normal: t("Normal"), silhouette: t("Silhouette"), outline: t("Umriss"), dots: t("Dot-Matrix"), ascii: "ASCII",
+  halftone: t("Raster"), thermal: t("Wärmebild"), duotone: t("Duoton"), "mask-in": t("Maske positiv"), "mask-out": t("Maske negativ"),
 };
 export const CAM_LOOK_INFO: Record<CamLook, string> = {
-  normal: "Das Kamerabild, wie es ist.",
-  silhouette: "Personen als Umriss vor den Visuals, schwarz oder in der Farbe der Ebene.",
-  outline: "Leuchtende Konturen der Person bzw. der Kanten im Bild.",
-  dots: "Punkte nach Helligkeit, in den Farben des Bildes.",
-  ascii: "Zeichen . : + # @ nach Helligkeit.",
-  halftone: "Zeitungsraster: Punkte in der Farbe der Ebene.",
-  thermal: "Falschfarben wie eine Wärmebildkamera.",
-  duotone: "Zwei Farben (Slot A dunkel, Slot B hell) nach Helligkeit.",
-  "mask-in": "Ganz oben: Die Visuals darunter sind nur in der Person sichtbar.",
-  "mask-out": "Ganz oben: Die Person wird aus den Visuals darunter ausgeschnitten.",
+  normal: t("Das Kamerabild, wie es ist."),
+  silhouette: t("Personen als Umriss vor den Visuals, schwarz oder in der Farbe der Ebene."),
+  outline: t("Leuchtende Konturen der Person bzw. der Kanten im Bild."),
+  dots: t("Punkte nach Helligkeit, in den Farben des Bildes."),
+  ascii: t("Zeichen . : + # @ nach Helligkeit."),
+  halftone: t("Zeitungsraster: Punkte in der Farbe der Ebene."),
+  thermal: t("Falschfarben wie eine Wärmebildkamera."),
+  duotone: t("Zwei Farben (Slot A dunkel, Slot B hell) nach Helligkeit."),
+  "mask-in": t("Ganz oben: Die Visuals darunter sind nur in der Person sichtbar."),
+  "mask-out": t("Ganz oben: Die Person wird aus den Visuals darunter ausgeschnitten."),
 };
 /** Looks, die die Person vom Hintergrund trennen (brauchen Schwelle bzw. gemerkten Hintergrund). */
 export const usesFigure = (l: CamLook, onlyFig: boolean): boolean =>

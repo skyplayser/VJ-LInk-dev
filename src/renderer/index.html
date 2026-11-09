@@ -11,13 +11,13 @@
 <header class="top">
   <div class="logo"><span class="slots"><i></i><i></i><i></i><i></i><i></i></span>VJ-Link</div>
   <div class="map-wrap proj-wrap">
-    <button class="pill proj-btn" id="proj-btn" aria-haspopup="menu" aria-expanded="false" title="Projekt: neu, öffnen, speichern"><span id="proj-name">Unbenannt</span><b id="proj-dirty" hidden title="Ungespeicherte Änderungen">●</b> ▾</button>
+    <button class="pill proj-btn" id="proj-btn" aria-haspopup="menu" aria-expanded="false" title="Projekt: neu, öffnen, speichern" data-i18n-title><span id="proj-name" data-i18n>Unbenannt</span><b id="proj-dirty" hidden title="Ungespeicherte Änderungen" data-i18n-title>●</b> ▾</button>
     <div class="map-menu" id="proj-menu" role="menu" hidden>
-      <button role="menuitem" data-proj="new">Neues Projekt <kbd>⌘N</kbd></button>
-      <button role="menuitem" data-proj="open">Projekt öffnen … <kbd>⌘O</kbd></button>
-      <button role="menuitem" data-proj="save">Speichern <kbd>⌘S</kbd></button>
-      <button role="menuitem" data-proj="saveAs">Speichern unter … <kbd>⇧⌘S</kbd></button>
-      <button role="menuitem" id="proj-start">Startbildschirm</button>
+      <button role="menuitem" data-proj="new"><span data-i18n>Neues Projekt</span> <kbd>⌘N</kbd></button>
+      <button role="menuitem" data-proj="open"><span data-i18n>Projekt öffnen …</span> <kbd>⌘O</kbd></button>
+      <button role="menuitem" data-proj="save"><span data-i18n>Speichern</span> <kbd>⌘S</kbd></button>
+      <button role="menuitem" data-proj="saveAs"><span data-i18n>Speichern unter …</span> <kbd>⇧⌘S</kbd></button>
+      <button role="menuitem" id="proj-start" data-i18n>Startbildschirm</button>
       <div class="proj-recent" id="proj-recent"></div>
     </div>
   </div>
@@ -31,32 +31,32 @@
   <div class="map-wrap">
     <button class="btn" id="map-btn" aria-haspopup="menu" aria-expanded="false">MAPPING ▾</button>
     <div class="map-menu" id="map-menu" role="menu" hidden>
-      <button role="menuitem" data-map="key">Tastatur <kbd>⇧⌘K</kbd></button>
+      <button role="menuitem" data-map="key"><span data-i18n>Tastatur</span> <kbd>⇧⌘K</kbd></button>
       <button role="menuitem" data-map="midi">MIDI <kbd>⇧⌘M</kbd></button>
       <button role="menuitem" data-map="dmx">DMX / Art-Net <kbd>⇧⌘D</kbd></button>
       <button role="menuitem" data-map="osc">OSC <kbd>⇧⌘O</kbd></button>
-      <button role="menuitem" data-mod>Modulation (LFO, Audio) <kbd>⇧⌘L</kbd></button>
+      <button role="menuitem" data-mod><span data-i18n>Modulation (LFO, Audio)</span> <kbd>⇧⌘L</kbd></button>
     </div>
   </div>
   <div class="map-wrap">
-    <button class="pill audio-pill" id="audio-btn" aria-haspopup="dialog" aria-expanded="false" title="Audio-Eingang für Equalizer und Oszilloskop">
+    <button class="pill audio-pill" id="audio-btn" aria-haspopup="dialog" aria-expanded="false" title="Audio-Eingang für Equalizer und Oszilloskop" data-i18n-title>
       <span class="meter" id="audio-meter"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span id="audio-label">AUDIO</span>
     </button>
   </div>
-  <button class="pill tc-pill" id="tc-btn" title="Timecode (Einstellungen)">TC <span id="tc-val">--:--:--:--</span></button>
+  <button class="pill tc-pill" id="tc-btn" title="Timecode (Einstellungen)" data-i18n-title>TC <span id="tc-val">--:--:--:--</span></button>
   <div class="tempo">
-    <button class="bpm" id="bpm" data-ctl="tempo.bpm" title="Anklicken, Zahl eingeben, Enter">120.00</button>
-    <input class="bpm bpm-input" id="bpm-input" type="number" min="20" max="300" step="0.01" hidden aria-label="BPM eingeben">
+    <button class="bpm" id="bpm" data-ctl="tempo.bpm" title="Anklicken, Zahl eingeben, Enter" data-i18n-title>120.00</button>
+    <input class="bpm bpm-input" id="bpm-input" type="number" min="20" max="300" step="0.01" hidden aria-label="BPM eingeben" data-i18n-aria>
     <span class="beats" id="beats"><i></i><i></i><i></i><i></i></span>
     <div class="map-wrap">
-      <button class="pill tempo-lock" id="tempo-lock" aria-haspopup="menu" aria-expanded="false" title="Tempo-Quelle wählen">AUTO</button>
+      <button class="pill tempo-lock" id="tempo-lock" aria-haspopup="menu" aria-expanded="false" title="Tempo-Quelle wählen" data-i18n-title>AUTO</button>
       <div class="map-menu" id="tempo-menu" role="menu" hidden>
-        <button role="menuitemradio" data-lock="auto">Automatisch <kbd>beste Quelle</kbd></button>
+        <button role="menuitemradio" data-lock="auto"><span data-i18n>Automatisch</span> <kbd data-i18n>beste Quelle</kbd></button>
         <button role="menuitemradio" data-lock="ljlink">LJ-Link</button>
         <button role="menuitemradio" data-lock="link">Ableton Link</button>
         <button role="menuitemradio" data-lock="midi">MIDI-Clock</button>
         <button role="menuitemradio" data-lock="osc">OSC</button>
-        <button role="menuitemradio" data-lock="manual">Manuell / Tap</button>
+        <button role="menuitemradio" data-lock="manual" data-i18n>Manuell / Tap</button>
       </div>
     </div>
     <button class="btn" id="tap" data-ctl="tempo.tap">TAP</button>
@@ -69,10 +69,10 @@
     <span class="pill" id="st-midi"><span class="dot"></span>MIDI</span>
     <span class="pill" id="st-fps">– FPS</span>
   </div>
-  <button class="btn icon-btn lock-btn" id="lock-btn" aria-pressed="false" aria-label="Sperrmodus">
+  <button class="btn icon-btn lock-btn" id="lock-btn" aria-pressed="false" aria-label="Sperrmodus" data-i18n-aria>
     <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M17 10V7a5 5 0 0 0-10 0v3H5v11h14V10h-2zm-8-3a3 3 0 0 1 6 0v3H9V7zm4 10.7V19h-2v-1.3a2 2 0 1 1 2 0z"/></svg><span></span>
   </button>
-  <button class="btn icon-btn" id="settings-btn" title="Einstellungen" aria-label="Einstellungen">
+  <button class="btn icon-btn" id="settings-btn" title="Einstellungen" aria-label="Einstellungen" data-i18n-title data-i18n-aria>
     <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.4h-4l-.3 2.6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
   </button>
   <button class="btn blackout" id="blackout" data-ctl="blackout">BLACKOUT</button>
@@ -84,29 +84,29 @@
     <div class="left">
       <div class="monrow">
         <div class="mon">
-          <div class="lbl"><b>● AUSGANG</b><span id="mon-info">–</span></div>
-          <div class="mon-box" id="mon-box"><canvas id="preview" width="640" height="360" aria-label="Vorschau des Ausgangs"></canvas></div>
+          <div class="lbl"><b data-i18n>● AUSGANG</b><span id="mon-info">–</span></div>
+          <div class="mon-box" id="mon-box"><canvas id="preview" width="640" height="360" aria-label="Vorschau des Ausgangs" data-i18n-aria></canvas></div>
           <div class="img-tiles" id="img-tiles" hidden></div>
         </div>
         <div class="canvas-pick" id="canvas-pick" hidden></div>
       </div>
-      <div class="h2row grid-head"><h2>Clip-Raster <span class="grid-canvas" id="grid-canvas" hidden></span> <span class="muted">· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2><span class="inline"><button class="btn small-btn" id="text-add" title="Text-Clip gestalten und auf die gewählte Ebene legen">+ Text</button><button class="btn small-btn" id="layer-add">+ Ebene</button></span></div>
+      <div class="h2row grid-head"><h2><span data-i18n>Clip-Raster</span> <span class="grid-canvas" id="grid-canvas" hidden></span> <span class="muted" data-i18n>· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2><span class="inline"><button class="btn small-btn" id="text-add" title="Text-Clip gestalten und auf die gewählte Ebene legen" data-i18n-title>+ Text</button><button class="btn small-btn" id="layer-add" data-i18n>+ Ebene</button></span></div>
       <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" multiple hidden>
       <div id="toast" class="toast" role="status" hidden></div>
       <div id="grid" class="clip-grid"></div>
     </div>
     <aside class="right">
-      <h2>Farbslots</h2>
+      <h2 data-i18n>Farbslots</h2>
       <div id="slots" class="slot-list"></div>
-      <div class="h2row"><h2>Szenen</h2><span><button class="btn small-btn" id="scene-add">+ Szene speichern</button> <button class="btn small-btn toggle" id="scene-auto" aria-pressed="false" title="Szenen laufen nach ihrer Einstellung „Danach“ automatisch weiter">Auto</button></span></div>
+      <div class="h2row"><h2 data-i18n>Szenen</h2><span><button class="btn small-btn" id="scene-add" data-i18n>+ Szene speichern</button> <button class="btn small-btn toggle" id="scene-auto" aria-pressed="false" title="Szenen laufen nach ihrer Einstellung „Danach“ automatisch weiter" data-i18n-title>Auto</button></span></div>
       <div id="scenes" class="scene-list"></div>
       <section id="layer-panel" class="media-panel layer-panel" hidden></section>
       <section id="media-panel" class="media-panel" hidden></section>
       <section id="video-panel" class="media-panel" hidden></section>
       <section id="cam-panel" class="media-panel" hidden></section>
-      <h2 id="fx-title">Effekte</h2>
+      <h2 id="fx-title" data-i18n>Effekte</h2>
       <div id="fx-list" class="fx-list"></div>
-      <select id="fx-add" class="fx-add" aria-label="Effekt hinzufügen"></select>
+      <select id="fx-add" class="fx-add" aria-label="Effekt hinzufügen" data-i18n-aria></select>
     </aside>
   </div>
 </section>
@@ -114,17 +114,17 @@
 <section id="tab-show" class="tab">
   <div class="sh-grid">
     <div class="sh-left">
-      <div class="h2row"><h2>Ablauf <span class="muted" id="cue-sum"></span> <label class="cue-img" id="cue-img-wrap" hidden>läuft auf <select id="cue-image" aria-label="Bild, auf dem der SHOW-Ablauf läuft"></select></label></h2>
-        <span class="inline"><button class="btn small-btn" id="cue-add-media">+ Video / Bild</button><button class="btn small-btn" id="cue-add-cam" title="Webcam, Capture-Karte oder OBS Virtual Camera">+ Kamera</button><button class="btn small-btn" id="cue-add-black">+ Schwarz</button><button class="btn small-btn" id="cue-add-scene">+ VJ-Szene</button><button class="btn small-btn" id="cue-add-tc" title="Timecode starten, stoppen oder springen (z. B. für eine MA)">+ Timecode</button></span></div>
+      <div class="h2row"><h2><span data-i18n>Ablauf</span> <span class="muted" id="cue-sum"></span> <label class="cue-img" id="cue-img-wrap" hidden><span data-i18n>läuft auf</span> <select id="cue-image" aria-label="Bild, auf dem der SHOW-Ablauf läuft" data-i18n-aria></select></label></h2>
+        <span class="inline"><button class="btn small-btn" id="cue-add-media" data-i18n>+ Video / Bild</button><button class="btn small-btn" id="cue-add-cam" title="Webcam, Capture-Karte oder OBS Virtual Camera" data-i18n-title data-i18n>+ Kamera</button><button class="btn small-btn" id="cue-add-black" data-i18n>+ Schwarz</button><button class="btn small-btn" id="cue-add-scene" data-i18n>+ VJ-Szene</button><button class="btn small-btn" id="cue-add-tc" title="Timecode starten, stoppen oder springen (z. B. für eine MA)" data-i18n-title data-i18n>+ Timecode</button></span></div>
       <div id="cue-list" class="cue-list"></div>
-      <section id="cue-timeline" class="cue-tl" hidden aria-label="Timeline"></section>
-      <div class="cue-drop" id="cue-drop">Videos oder Bilder hierher ziehen. Jede Datei wird ein Cue.</div>
+      <section id="cue-timeline" class="cue-tl" hidden aria-label="Timeline" data-i18n-aria></section>
+      <div class="cue-drop" id="cue-drop" data-i18n>Videos oder Bilder hierher ziehen. Jede Datei wird ein Cue.</div>
     </div>
     <aside class="sh-right">
-      <div class="sh-mon"><div class="lbl"><b id="sh-now">● AUSGANG</b><span id="sh-now-time"></span></div><div class="sh-mon-slot" id="sh-mon-slot"></div></div>
-      <div class="sh-next"><span class="lbl">ALS NÄCHSTES</span><div class="sh-next-row"><span class="sh-next-thumb" id="sh-next-thumb"></span><b id="sh-next-name">–</b></div></div>
-      <button class="cue-go" id="cue-go" data-ctl="show.go">WEITER ▶<small id="cue-go-sub">Leertaste</small></button>
-      <div class="sh-row"><button class="btn" id="cue-back" data-ctl="show.back">◀ Zurück</button><button class="btn danger-btn" id="cue-stop" data-ctl="show.stop">Alles stoppen</button></div>
+      <div class="sh-mon"><div class="lbl"><b id="sh-now" data-i18n>● AUSGANG</b><span id="sh-now-time"></span></div><div class="sh-mon-slot" id="sh-mon-slot"></div></div>
+      <div class="sh-next"><span class="lbl" data-i18n>ALS NÄCHSTES</span><div class="sh-next-row"><span class="sh-next-thumb" id="sh-next-thumb"></span><b id="sh-next-name">–</b></div></div>
+      <button class="cue-go" id="cue-go" data-ctl="show.go"><span data-i18n>WEITER ▶</span><small id="cue-go-sub" data-i18n>Leertaste</small></button>
+      <div class="sh-row"><button class="btn" id="cue-back" data-ctl="show.back" data-i18n>◀ Zurück</button><button class="btn danger-btn" id="cue-stop" data-ctl="show.stop" data-i18n>Alles stoppen</button></div>
       <div id="cue-details" class="cue-details"></div>
     </aside>
   </div>
@@ -136,24 +136,24 @@
 <section id="tab-output" class="tab">
   <div class="out-grid">
     <div class="out-left">
-      <h2>Bildschirme</h2>
-      <p class="muted small">Jeder angeschlossene Bildschirm, Beamer oder LED-Prozessor kann ein Ausgang sein.</p>
+      <h2 data-i18n>Bildschirme</h2>
+      <p class="muted small" data-i18n>Jeder angeschlossene Bildschirm, Beamer oder LED-Prozessor kann ein Ausgang sein.</p>
       <div id="displays" class="display-list"></div>
       <p class="muted small" id="output-note"></p>
-      <h2>Testbild</h2>
-      <button class="btn" id="test-quick" data-ctl="test.toggle" aria-pressed="false">Testbild auf allen Ausgängen</button>
-      <div class="test-pats" id="test-pats" role="radiogroup" aria-label="Testbild"></div>
-      <div class="test-step"><button class="btn small-btn" id="test-prev" data-ctl="test.prev" title="Voriges Testbild">‹ Voriges</button><span id="test-name" class="muted small"></span><button class="btn small-btn" id="test-next" data-ctl="test.next" title="Nächstes Testbild">Nächstes ›</button></div>
+      <h2 data-i18n>Testbild</h2>
+      <button class="btn" id="test-quick" data-ctl="test.toggle" aria-pressed="false" data-i18n>Testbild auf allen Ausgängen</button>
+      <div class="test-pats" id="test-pats" role="radiogroup" aria-label="Testbild" data-i18n-aria></div>
+      <div class="test-step"><button class="btn small-btn" id="test-prev" data-ctl="test.prev" title="Voriges Testbild" data-i18n-title data-i18n>‹ Voriges</button><span id="test-name" class="muted small"></span><button class="btn small-btn" id="test-next" data-ctl="test.next" title="Nächstes Testbild" data-i18n-title data-i18n>Nächstes ›</button></div>
       <p class="muted small" id="test-hint"></p>
-      <p class="muted small">Tipp: „Testbild“, „Nächstes Testbild“ und „Voriges Testbild“ lassen sich per Mapping auf Tasten am Pult legen.</p>
+      <p class="muted small" data-i18n>Tipp: „Testbild“, „Nächstes Testbild“ und „Voriges Testbild“ lassen sich per Mapping auf Tasten am Pult legen.</p>
       <input type="checkbox" id="testpattern" hidden>
     </div>
     <div class="out-right">
-      <h2>Anordnung</h2>
-      <div class="seg2 out-mode" id="out-mode" role="radiogroup" aria-label="Anordnung">
-        <button data-mode="mirror" role="radio">Gleiches Bild auf allen</button>
-        <button data-mode="canvas" role="radio">Leinwand: Bildschirme anordnen</button>
-        <button data-mode="mapping" role="radio">Projektionsmapping</button>
+      <h2 data-i18n>Anordnung</h2>
+      <div class="seg2 out-mode" id="out-mode" role="radiogroup" aria-label="Anordnung" data-i18n-aria>
+        <button data-mode="mirror" role="radio" data-i18n>Gleiches Bild auf allen</button>
+        <button data-mode="canvas" role="radio" data-i18n>Leinwand: Bildschirme anordnen</button>
+        <button data-mode="mapping" role="radio" data-i18n>Projektionsmapping</button>
       </div>
       <p class="muted small" id="out-mode-hint"></p>
       <div class="cv-stage" id="cv-stage"></div>
@@ -163,35 +163,35 @@
 </section>
 
 <section id="tab-connect" class="tab">
-  <h2>Eingänge</h2>
+  <h2 data-i18n>Eingänge</h2>
   <div class="cards" id="cards"></div>
-  <h2>DMX-Einstellungen</h2>
+  <h2 data-i18n>DMX-Einstellungen</h2>
   <div class="form">
-    <label>Art-Net Universe <input type="number" id="cfg-universe" min="0" max="32767" value="0"></label>
-    <label>sACN Universe <input type="number" id="cfg-sacn" min="1" max="63999" value="1"></label>
-    <label>Startadresse <input type="number" id="cfg-address" min="1" max="445" value="1"></label>
-    <button class="btn" id="dl-channels">Kanalliste speichern (CSV)</button>
+    <label><span data-i18n>Art-Net Universe</span> <input type="number" id="cfg-universe" min="0" max="32767" value="0"></label>
+    <label><span data-i18n>sACN Universe</span> <input type="number" id="cfg-sacn" min="1" max="63999" value="1"></label>
+    <label><span data-i18n>Startadresse</span> <input type="number" id="cfg-address" min="1" max="445" value="1"></label>
+    <button class="btn" id="dl-channels" data-i18n>Kanalliste speichern (CSV)</button>
   </div>
-  <h2>Live-Werte (91 Kanäle)</h2>
+  <h2 data-i18n>Live-Werte (91 Kanäle)</h2>
   <div id="dmx-live" class="dmx-live"></div>
   <h2>LJ-Link</h2>
-  <p class="muted small">LJ-Link wird automatisch gefunden und verbunden, auf diesem Rechner und im Netz (Bonjour) – dort ist nichts einzustellen. Nur wenn es nicht gefunden wird (z. B. anderes Netz), hier Adresse oder „Adresse:Port“ eintragen.</p>
+  <p class="muted small" data-i18n>LJ-Link wird automatisch gefunden und verbunden, auf diesem Rechner und im Netz (Bonjour) – dort ist nichts einzustellen. Nur wenn es nicht gefunden wird (z. B. anderes Netz), hier Adresse oder „Adresse:Port“ eintragen.</p>
   <div class="inline wrap lj-host">
-    <label class="inline">LJ-Link PRO auf <input id="cfg-ljhost" type="text" placeholder="automatisch" spellcheck="false" autocomplete="off" maxlength="253"></label>
-    <button class="btn small-btn" id="lj-open" title="Weboberfläche von LJ-Link im Browser öffnen">LJ-Link öffnen</button>
+    <label class="inline"><span data-i18n>LJ-Link PRO auf</span> <input id="cfg-ljhost" type="text" placeholder="automatisch" spellcheck="false" autocomplete="off" maxlength="253" data-i18n-ph></label>
+    <button class="btn small-btn" id="lj-open" title="Weboberfläche von LJ-Link im Browser öffnen" data-i18n-title data-i18n>LJ-Link öffnen</button>
   </div>
   <div class="inline wrap lj-host">
-    <label class="inline">Now-Playing-Bauchbinde zeigen
-      <select id="cfg-ljhold"><option value="8">8 s nach Trackwechsel</option><option value="15">15 s nach Trackwechsel</option><option value="30">30 s nach Trackwechsel</option><option value="0">immer</option></select></label>
-    <button class="btn small-btn" id="lj-np-show" title="Bauchbinde jetzt noch einmal einblenden">Jetzt einblenden</button>
-    <span class="muted small">Clip „Now Playing“ (Bibliothek → LJ-Link) auf eine Ebene legen. Im Privatsphäre-Modus von LJ-Link bleibt sie leer.</span>
+    <label class="inline"><span data-i18n>Now-Playing-Bauchbinde zeigen</span>
+      <select id="cfg-ljhold"><option value="8" data-i18n>8 s nach Trackwechsel</option><option value="15" data-i18n>15 s nach Trackwechsel</option><option value="30" data-i18n>30 s nach Trackwechsel</option><option value="0" data-i18n>immer</option></select></label>
+    <button class="btn small-btn" id="lj-np-show" title="Bauchbinde jetzt noch einmal einblenden" data-i18n-title data-i18n>Jetzt einblenden</button>
+    <span class="muted small" data-i18n>Clip „Now Playing“ (Bibliothek → LJ-Link) auf eine Ebene legen. Im Privatsphäre-Modus von LJ-Link bleibt sie leer.</span>
   </div>
   <div id="lj-decks" class="cards"></div>
 </section>
 </main>
-<div class="settings" id="settings" role="dialog" aria-modal="true" aria-label="Einstellungen" hidden>
+<div class="settings" id="settings" role="dialog" aria-modal="true" aria-label="Einstellungen" hidden data-i18n-aria>
   <div class="set-box">
-    <nav class="set-nav" aria-label="Bereiche">
+    <nav class="set-nav" aria-label="Bereiche" data-i18n-aria>
       <b data-i18n="set.title">Einstellungen</b>
       <button data-sec="audio" class="on" data-i18n="set.audio">Audio</button>
       <button data-sec="timecode" data-i18n="set.timecode">Timecode</button>
@@ -203,38 +203,38 @@
     <div class="set-main">
       <div class="set-head"><h2 id="set-title">Audio</h2><button class="btn small-btn" id="set-close" data-i18n="set.close">Schließen (Esc)</button></div>
       <section class="set-sec" data-sec="audio">
-        <h3>Eingang</h3>
-        <p class="am-hint">Mikrofon oder Line-In für Equalizer, Oszilloskop & Co.</p>
-      <div id="audio-devices" class="am-list" role="radiogroup" aria-label="Eingang"></div>
-      <label class="am-row">Pegel <input type="range" id="audio-gain" min="25" max="400" step="5" value="100"><span id="audio-gain-val">100 %</span></label>
+        <h3 data-i18n>Eingang</h3>
+        <p class="am-hint" data-i18n>Mikrofon oder Line-In für Equalizer, Oszilloskop & Co.</p>
+      <div id="audio-devices" class="am-list" role="radiogroup" aria-label="Eingang" data-i18n-aria></div>
+      <label class="am-row"><span data-i18n>Pegel</span> <input type="range" id="audio-gain" min="25" max="400" step="5" value="100"><span id="audio-gain-val">100 %</span></label>
       <div class="am-meter" aria-hidden="true"><i id="audio-level"></i></div>
-      <span class="am-cap">Wirkt auf</span>
-      <div class="seg am-seg" role="radiogroup" aria-label="Wirkt auf">
+      <span class="am-cap" data-i18n>Wirkt auf</span>
+      <div class="seg am-seg" role="radiogroup" aria-label="Wirkt auf" data-i18n-aria>
         <button data-scope="audio" role="radio">Audio-Visuals</button>
-        <button data-scope="all" role="radio">Alle Visuals</button>
+        <button data-scope="all" role="radio" data-i18n>Alle Visuals</button>
       </div>
       <p class="am-hint" id="audio-hint"></p>
-        <h3>Ausgang</h3>
-        <p class="am-hint">Wohin der Ton von Videos geht (Cues mit Ton, Video-Clips mit Ton an).</p>
-        <div id="audio-outs" class="am-list" role="radiogroup" aria-label="Audio-Ausgang"></div>
+        <h3 data-i18n>Ausgang</h3>
+        <p class="am-hint" data-i18n>Wohin der Ton von Videos geht (Cues mit Ton, Video-Clips mit Ton an).</p>
+        <div id="audio-outs" class="am-list" role="radiogroup" aria-label="Audio-Ausgang" data-i18n-aria></div>
       </section>
       <section class="set-sec" data-sec="timecode" hidden><div id="set-tc"></div></section>
       <section class="set-sec" data-sec="midi" hidden><div id="set-midi"></div></section>
       <section class="set-sec" data-sec="dmx" hidden><div id="set-dmx"></div></section>
-      <section class="set-sec" data-sec="ui" hidden><div id="set-ui"><h3>Größe</h3>
-        <label class="set-row"><span>Oberfläche</span>
+      <section class="set-sec" data-sec="ui" hidden><div id="set-ui"><h3 data-i18n>Größe</h3>
+        <label class="set-row"><span data-i18n>Oberfläche</span>
           <select id="ui-scale">
-            <option value="auto">Automatisch (passt sich dem Fenster an)</option>
+            <option value="auto" data-i18n>Automatisch (passt sich dem Fenster an)</option>
             <option value="0.8">80 %</option><option value="0.9">90 %</option><option value="1">100 %</option>
             <option value="1.1">110 %</option><option value="1.25">125 %</option><option value="1.5">150 %</option><option value="1.75">175 %</option><option value="2">200 %</option>
           </select>
         </label>
-        <p class="am-hint">Automatisch passt alles dem Fenster an, auch auf großen Bildschirmen.</p></div></section>
+        <p class="am-hint" data-i18n>Automatisch passt alles dem Fenster an, auch auf großen Bildschirmen.</p></div></section>
       <section class="set-sec" data-sec="update" hidden><div id="set-update"></div></section>
     </div>
   </div>
 </div>
-<footer id="deck" class="deck" aria-label="Fader und Tasten"></footer>
+<footer id="deck" class="deck" aria-label="Fader und Tasten" data-i18n-aria></footer>
 <script src="app.js"></script>
 </body>
 </html>

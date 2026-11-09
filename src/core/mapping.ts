@@ -2,6 +2,7 @@
 // Ablauf wie bei Daslight: Mapping-Art wählen, Element anklicken, Taste/Regler/Kanal bewegen.
 import type { ControlContext } from "./control";
 import { resolveControl } from "./controls";
+import { t } from "./i18n";
 
 export type MapProtocol = "key" | "midi" | "dmx" | "osc";
 
@@ -28,7 +29,7 @@ export interface Mapping {
 export interface MapExtra { device?: string; led?: LedSpec; button?: boolean }
 
 export const PROTOCOL_LABEL: Record<MapProtocol, string> = {
-  key: "Tastatur", midi: "MIDI", dmx: "DMX / Art-Net", osc: "OSC",
+  key: t("Tastatur"), midi: "MIDI", dmx: "DMX / Art-Net", osc: "OSC",
 };
 
 /** Eindeutiger Schlüssel eines Eingangs (zum Nachschlagen). */
@@ -44,11 +45,11 @@ export function inputKey(i: MapInput): string {
 const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "H"];
 export function describeInput(i: MapInput): string {
   switch (i.p) {
-    case "key": return `Taste ${i.label}`;
+    case "key": return t("Taste {n}", { n: i.label === "Leertaste" ? t("Leertaste") : i.label.replace(/^Pfeil /, t("Pfeil ")) });
     case "midi": return i.type === "cc"
-      ? `Kanal ${i.ch} · CC ${i.num}`
-      : `Kanal ${i.ch} · Note ${NOTE[i.num % 12]}${Math.floor(i.num / 12) - 1} (${i.num})`;
-    case "dmx": return `Universe ${i.universe} · Kanal ${i.channel}`;
+      ? t("Kanal {ch} · CC {n}", { ch: i.ch, n: i.num })
+      : t("Kanal {ch} · Note {note} ({n})", { ch: i.ch, note: `${NOTE[i.num % 12]}${Math.floor(i.num / 12) - 1}`, n: i.num });
+    case "dmx": return t("Universe {u} · Kanal {ch}", { u: i.universe, ch: i.channel });
     case "osc": return i.address;
   }
 }

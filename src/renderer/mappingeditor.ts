@@ -2,6 +2,7 @@
 // Ecke ziehen = verzerren (Trapez, Objekt), Mitte ziehen = verschieben, Pfeiltasten = pixelgenau.
 // Jede Leinwand zeigt das ganze Bild oder einen Ausschnitt; außerhalb bleibt der Beamer schwarz.
 import { MAX_MASK_POINTS, applyH, gridCorners, gridFromCorners, gridPoint, newMask, newSurface, snapCorner, squareToQuad, type Mask, type OutputLayout, type Surface } from "../core/layout";
+import { t } from "../core/i18n";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -33,7 +34,7 @@ export class MappingEditor {
 
   constructor(private get: () => OutputLayout, private set: (l: OutputLayout) => void, private onChange: () => void,
     private testGrid: { on: () => boolean; toggle: () => void },
-    private images: () => { id: string; name: string }[] = () => [{ id: "main", name: "Bild 1" }],
+    private images: () => { id: string; name: string }[] = () => [{ id: "main", name: t("Bild 1") }],
     /** Bühnenfotos je Beamer (Hilfe im Editor, nicht auf dem Beamer). */
     private photos: () => Record<string, { url: string; opacity: number }> = () => ({})) {}
 
@@ -49,12 +50,12 @@ export class MappingEditor {
     this.stage = stage; this.open = open;
     stage.classList.remove("off");
     stage.replaceChildren(); tools.replaceChildren();
-    if (!open.length) { hint.textContent = "Öffne links einen Bildschirm (Beamer) als Ausgang, dann legst du hier Leinwände auf sein Bild."; return; }
+    if (!open.length) { hint.textContent = t("Öffne links einen Bildschirm (Beamer) als Ausgang, dann legst du hier Leinwände auf sein Bild."); return; }
     if (this.screen === null || !open.some(o => o.id === this.screen)) this.screen = open[0]!.id;
     // Erster Besuch: eine Leinwand über das ganze Bild, damit sofort etwas zu sehen ist
     if (!this.mine().length) { const s = newSurface(this.screen, 1, 0); this.surfaces().push(s); this.sel = s.id; this.changed(); }
     if (!this.cur()) this.sel = this.mine()[0]?.id ?? null;
-    hint.textContent = "Leinwände auf das Bild des Beamers legen: Ecke ziehen passt die Leinwand an Wand, Kiste oder Trapez an, Mitte ziehen verschiebt. Pfeiltasten: 1 px (mit ⇧ 10 px). Ecken rasten am Rand und an anderen Leinwänden ein („Einrasten aus“ oder ⌥ beim Ziehen für volle Präzision). Außerhalb bleibt der Beamer schwarz.";
+    hint.textContent = t("Leinwände auf das Bild des Beamers legen: Ecke ziehen passt die Leinwand an Wand, Kiste oder Trapez an, Mitte ziehen verschiebt. Pfeiltasten: 1 px (mit ⇧ 10 px). Ecken rasten am Rand und an anderen Leinwänden ein („Einrasten aus“ oder ⌥ beim Ziehen für volle Präzision). Außerhalb bleibt der Beamer schwarz.");
     this.drawStage();
     this.drawTools(tools);
   }
@@ -121,7 +122,7 @@ export class MappingEditor {
       g.append(poly);
       const cx = m.pts.reduce((a, p) => a + p[0], 0) / m.pts.length, cy = m.pts.reduce((a, p) => a + p[1], 0) / m.pts.length;
       const name = svg("text", { x: P([cx, cy])[0], y: P([cx, cy])[1], class: "mp-name", "text-anchor": "middle" });
-      name.textContent = `${m.name}${m.invert ? " (nur innen)" : ""}`;
+      name.textContent = `${m.name}${m.invert ? t(" (nur innen)") : ""}`;
       g.append(name);
       m.pts.forEach((p, i) => {
         const h = svg("circle", { cx: P(p)[0], cy: P(p)[1], r: sel ? 6 : 4, class: `mp-mcorner${sel && this.selCorner === i ? " sel" : ""}` });
@@ -263,24 +264,24 @@ export class MappingEditor {
       }
       tools.append(w);
     }
-    const add = el("button", "btn small-btn", "+ Leinwand");
+    const add = el("button", "btn small-btn", t("+ Leinwand"));
     add.addEventListener("click", () => {
       const s = newSurface(this.screen!, this.mine().length + 1, 0.25);
       this.surfaces().push(s); this.sel = s.id; this.selCorner = null;
       this.changed(); this.drawStage(); this.drawTools(tools);
     });
-    const grid = el("button", `btn small-btn${this.testGrid.on() ? " on" : ""}`, "Raster zum Ausrichten");
-    grid.title = "Raster-Testbild auf die Leinwände legen (verzerrt), um Ecken genau an Kanten auszurichten";
+    const grid = el("button", `btn small-btn${this.testGrid.on() ? " on" : ""}`, t("Raster zum Ausrichten"));
+    grid.title = t("Raster-Testbild auf die Leinwände legen (verzerrt), um Ecken genau an Kanten auszurichten");
     grid.addEventListener("click", () => { this.testGrid.toggle(); grid.classList.toggle("on", this.testGrid.on()); });
-    const snap = el("button", `btn small-btn${this.snap ? " on" : ""}`, this.snap ? "Einrasten an" : "Einrasten aus");
-    snap.title = "Ecken rasten am Bildrand und an anderen Leinwänden ein. Aus für volle Präzision (⌥ beim Ziehen schaltet es kurz ab).";
+    const snap = el("button", `btn small-btn${this.snap ? " on" : ""}`, this.snap ? t("Einrasten an") : t("Einrasten aus"));
+    snap.title = t("Ecken rasten am Bildrand und an anderen Leinwänden ein. Aus für volle Präzision (⌥ beim Ziehen schaltet es kurz ab).");
     snap.addEventListener("click", () => {
       this.snap = !this.snap;
       try { localStorage.setItem("vjlink.mapSnap", this.snap ? "1" : "0"); } catch { /* ohne Speicher */ }
-      snap.classList.toggle("on", this.snap); snap.textContent = this.snap ? "Einrasten an" : "Einrasten aus";
+      snap.classList.toggle("on", this.snap); snap.textContent = this.snap ? t("Einrasten an") : t("Einrasten aus");
     });
-    const addMask = el("button", "btn small-btn", "+ Maske");
-    addMask.title = "Bereich schwärzen (z. B. Tür, Fenster, Person) – Punkte ziehen, Doppelklick auf die Maske fügt einen Punkt ein";
+    const addMask = el("button", "btn small-btn", t("+ Maske"));
+    addMask.title = t("Bereich schwärzen (z. B. Tür, Fenster, Person) – Punkte ziehen, Doppelklick auf die Maske fügt einen Punkt ein");
     addMask.addEventListener("click", () => {
       const m = newMask(this.screen!, this.myMasks().length + 1);
       this.masks().push(m); this.sel = m.id; this.selCorner = null;
@@ -288,8 +289,8 @@ export class MappingEditor {
     });
     // Bühnenfoto laden (vom Standort des Beamers fotografiert): Hilfe zum Anlegen der Leinwände
     const ph = this.photos()[String(this.screen)];
-    const photoBtn = el("button", "btn small-btn", ph ? "Foto ersetzen" : "Bühnenfoto …");
-    photoBtn.title = "Foto der Bühne (am besten vom Beamer aus) als Hilfe hinter die Leinwände legen; geht nicht an den Beamer";
+    const photoBtn = el("button", "btn small-btn", ph ? t("Foto ersetzen") : t("Bühnenfoto …"));
+    photoBtn.title = t("Foto der Bühne (am besten vom Beamer aus) als Hilfe hinter die Leinwände legen; geht nicht an den Beamer");
     const file = el("input"); file.type = "file"; file.accept = "image/png,image/jpeg,image/webp"; file.hidden = true;
     photoBtn.addEventListener("click", () => file.click());
     file.addEventListener("change", async () => {
@@ -298,7 +299,7 @@ export class MappingEditor {
       // Als data:-URL lesen (blob: ist in der Oberfläche gesperrt)
       const src = await new Promise<string>(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result)); fr.onerror = () => r(""); fr.readAsDataURL(f); });
       const img = new Image(); img.src = src;
-      try { await img.decode(); } catch { photoBtn.textContent = "Foto nicht lesbar"; return; }
+      try { await img.decode(); } catch { photoBtn.textContent = t("Foto nicht lesbar"); return; }
       const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
       const c = el("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
       c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
@@ -307,43 +308,43 @@ export class MappingEditor {
     });
     tools.append(add, addMask, grid, snap, photoBtn, file);
     if (ph) {
-      const ol = el("label", "", "Foto");
+      const ol = el("label", "", t("Foto"));
       const op = el("input"); op.type = "range"; op.min = "5"; op.max = "100"; op.value = String(Math.round(ph.opacity * 100));
       op.addEventListener("input", () => { ph.opacity = Number(op.value) / 100; this.drawStage(); });
       op.addEventListener("change", () => this.changed());
-      const rm = el("button", "icon", "×"); rm.title = "Foto entfernen";
+      const rm = el("button", "icon", "×"); rm.title = t("Foto entfernen");
       rm.addEventListener("click", () => { delete this.photos()[String(this.screen)]; this.changed(); this.drawStage(); this.drawTools(tools); });
       ol.append(op, rm); tools.append(ol);
     }
     const mk = this.curMask();
     if (mk) {
-      const nameLab = el("label", "", "Name");
+      const nameLab = el("label", "", t("Name"));
       const nm = el("input", "mp-nm"); nm.value = mk.name; nm.maxLength = 40; nm.id = "mp-name";
       nm.addEventListener("change", () => { mk.name = nm.value.trim() || mk.name; this.changed(); this.drawStage(); });
       nameLab.append(nm);
-      const inv = el("button", `btn small-btn${mk.invert ? " on" : ""}`, mk.invert ? "Nur innen zeigen" : "Innen schwärzen");
-      inv.title = "Umschalten: Bereich schwärzen ↔ nur diesen Bereich zeigen";
+      const inv = el("button", `btn small-btn${mk.invert ? " on" : ""}`, mk.invert ? t("Nur innen zeigen") : t("Innen schwärzen"));
+      inv.title = t("Umschalten: Bereich schwärzen ↔ nur diesen Bereich zeigen");
       inv.addEventListener("click", () => { mk.invert = !mk.invert; this.changed(); this.drawStage(); this.drawTools(tools); });
-      const fl = el("label", "", "Weiche Kante");
+      const fl = el("label", "", t("Weiche Kante"));
       const fr = el("input"); fr.type = "range"; fr.min = "0"; fr.max = "120"; fr.value = String(mk.feather);
       const fv = el("small", "muted", `${mk.feather} px`);
       fr.addEventListener("input", () => { mk.feather = Number(fr.value); fv.textContent = `${fr.value} px`; this.changed(); });
       fl.append(fr, fv);
-      const delPt = el("button", "btn small-btn", "Punkt löschen");
+      const delPt = el("button", "btn small-btn", t("Punkt löschen"));
       delPt.disabled = this.selCorner === null || mk.pts.length <= 3;
       delPt.addEventListener("click", () => { if (this.selCorner !== null && mk.pts.length > 3) { mk.pts.splice(this.selCorner, 1); this.selCorner = null; this.changed(); this.drawStage(); this.drawTools(tools); } });
-      const tog = el("button", `btn small-btn${mk.on ? " on" : ""}`, mk.on ? "An" : "Aus");
+      const tog = el("button", `btn small-btn${mk.on ? " on" : ""}`, mk.on ? t("An") : t("Aus"));
       tog.addEventListener("click", () => { mk.on = !mk.on; this.changed(); this.drawStage(); this.drawTools(tools); });
-      const del = el("button", "btn small-btn", "Maske löschen");
+      const del = el("button", "btn small-btn", t("Maske löschen"));
       del.addEventListener("click", () => { const l = this.get(); l.masks = this.masks().filter(x => x !== mk); this.sel = null; this.selCorner = null; this.changed(); this.drawStage(); this.drawTools(tools); });
       tools.append(nameLab, inv, fl, delPt, tog, del,
-        el("small", "muted", "Doppelklick auf die Maske: Punkt einfügen · Punkt wählen + Entf: löschen"));
+        el("small", "muted", t("Doppelklick auf die Maske: Punkt einfügen · Punkt wählen + Entf: löschen")));
       return;
     }
     const s = this.cur();
     if (!s) return;
-    const nameLab = el("label", "", "Name");
-    const name = el("input", "mp-nm"); name.value = s.name; name.maxLength = 40; name.setAttribute("aria-label", "Name der Leinwand");
+    const nameLab = el("label", "", t("Name"));
+    const name = el("input", "mp-nm"); name.value = s.name; name.maxLength = 40; name.setAttribute("aria-label", t("Name der Leinwand"));
     name.id = "mp-name";
     name.addEventListener("keydown", e => { if (e.key === "Enter") name.blur(); });
     nameLab.append(name);
@@ -351,12 +352,12 @@ export class MappingEditor {
     const full = s.src.x === 0 && s.src.y === 0 && s.src.w === 1 && s.src.h === 1;
     // Welches Bild (Tab VISUALS unter „Ausgang“), ganz oder als Ausschnitt
     const imgs = this.images();
-    const img = el("select"); img.setAttribute("aria-label", "Bild auf dieser Leinwand");
-    for (const im of imgs) img.append(new Option(`Zeigt: ${im.name}`, im.id));
+    const img = el("select"); img.setAttribute("aria-label", t("Bild auf dieser Leinwand"));
+    for (const im of imgs) img.append(new Option(t("Zeigt: {name}", { name: im.name }), im.id));
     img.value = imgs.some(im => im.id === s.image) ? s.image! : "main";
     img.addEventListener("change", () => { s.image = img.value; this.changed(); });
-    const content = el("select"); content.setAttribute("aria-label", "Ganzes Bild oder Ausschnitt");
-    content.append(new Option("ganz", "full"), new Option("Ausschnitt", "part"));
+    const content = el("select"); content.setAttribute("aria-label", t("Ganzes Bild oder Ausschnitt"));
+    content.append(new Option(t("ganz"), "full"), new Option(t("Ausschnitt"), "part"));
     content.value = full ? "full" : "part";
     content.addEventListener("change", () => {
       s.src = content.value === "full" ? { x: 0, y: 0, w: 1, h: 1 } : { x: 0, y: 0, w: 0.5, h: 0.5 };
@@ -374,10 +375,10 @@ export class MappingEditor {
         });
         lab.append(i, el("small", "muted", "%")); tools.append(lab);
       };
-      num("X", "x"); num("Y", "y"); num("Breite", "w"); num("Höhe", "h");
+      num("X", "x"); num("Y", "y"); num(t("Breite"), "w"); num(t("Höhe"), "h");
     }
-    const rect = el("button", "btn small-btn", "Ecken zurücksetzen");
-    rect.title = "Wieder ein gerades Rechteck";
+    const rect = el("button", "btn small-btn", t("Ecken zurücksetzen"));
+    rect.title = t("Wieder ein gerades Rechteck");
     rect.addEventListener("click", () => {
       const xs = s.corners.map(c => c[0]), ys = s.corners.map(c => c[1]);
       const a = Math.min(...xs), b = Math.max(...xs), c = Math.min(...ys), d = Math.max(...ys);
@@ -386,9 +387,9 @@ export class MappingEditor {
       this.changed(); this.drawStage();
     });
     // Raster-Verzerrung für gewölbte oder unebene Flächen
-    const gridSel = el("select"); gridSel.setAttribute("aria-label", "Raster-Verzerrung");
-    gridSel.title = "Raster: mehr Punkte zum Ziehen, die Fläche wird weich gebogen (Säulen, Kuppeln, unebene Wände)";
-    gridSel.append(new Option("Form: 4 Ecken", "0"), new Option("Form: Raster 3×3", "3"), new Option("Form: Raster 5×5", "5"));
+    const gridSel = el("select"); gridSel.setAttribute("aria-label", t("Raster-Verzerrung"));
+    gridSel.title = t("Raster: mehr Punkte zum Ziehen, die Fläche wird weich gebogen (Säulen, Kuppeln, unebene Wände)");
+    gridSel.append(new Option(t("Form: 4 Ecken"), "0"), new Option(t("Form: Raster 3×3"), "3"), new Option(t("Form: Raster 5×5"), "5"));
     gridSel.value = String(s.grid?.n ?? 0);
     gridSel.addEventListener("change", () => {
       const n = Number(gridSel.value);
@@ -404,9 +405,9 @@ export class MappingEditor {
       this.changed(); this.drawStage();
     });
     tools.append(gridSel);
-    const tog = el("button", `btn small-btn${s.on ? " on" : ""}`, s.on ? "An" : "Aus");
+    const tog = el("button", `btn small-btn${s.on ? " on" : ""}`, s.on ? t("An") : t("Aus"));
     tog.addEventListener("click", () => { s.on = !s.on; this.changed(); this.drawStage(); this.drawTools(tools); });
-    const del = el("button", "btn small-btn", "Löschen");
+    const del = el("button", "btn small-btn", t("Löschen"));
     del.addEventListener("click", () => {
       const l = this.get(); l.surfaces = this.surfaces().filter(x => x.id !== s.id);
       this.sel = null; this.selCorner = null; this.changed(); this.drawStage(); this.drawTools(tools);

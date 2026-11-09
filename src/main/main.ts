@@ -8,6 +8,7 @@ import { ProjectFiles } from "./projectfile";
 import { Updater } from "./updater";
 import { PROJECT_EXT } from "../core/projectfile";
 import { WINDOW_OUTPUT, WINDOW_SIZES, type ControlEvent, type DisplayInfo, type Frame, type MediaEvent, type NetConfig } from "../core/frame";
+import { LANGS, detectLang, setLang, t, type Lang } from "../core/i18n";
 
 // Eigenes Protokoll für Videos: streamt aus dem Bibliotheksordner, spulbar, für WebGL freigegeben.
 protocol.registerSchemesAsPrivileged([{ scheme: "vjmedia", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true } }]);
@@ -90,9 +91,18 @@ function createControl(): void {
 
 // ---- Projektdateien und Menü --------------------------------------------------------------
 
+/** Sprache vom letzten Start (die Oberfläche meldet ihre Wahl), sonst Systemsprache. */
+const langFile = () => path.join(app.getPath("userData"), "lang.txt");
+async function savedLang(): Promise<Lang> {
+  try { const s = (await fsp.readFile(langFile(), "utf8")).trim(); if (LANGS.some(x => x.id === s)) return s as Lang; } catch { /* erster Start */ }
+  return detectLang(app.getPreferredSystemLanguages());
+}
+/** Projektname für Titel und Dialoge („Unbenannt“ in der gewählten Sprache). */
+const projName = (): string => files?.current ? files.name : t("Unbenannt");
+
 function updateTitle(): void {
   if (!control || control.isDestroyed() || !files) return;
-  control.setTitle(`${files.name}${files.dirty ? " •" : ""} – VJ-Link`);
+  control.setTitle(`${projName()}${files.dirty ? " •" : ""} – VJ-Link`);
   if (process.platform === "darwin") {
     control.setDocumentEdited(files.dirty);
     control.setRepresentedFilename(files.current ?? "");
@@ -105,9 +115,9 @@ type FileCmd = "new" | "open" | "save" | "saveAs" | "openPath";
 async function confirmDiscard(json: string): Promise<boolean> {
   if (!files?.dirty || !control) return true;
   const r = await dialog.showMessageBox(control, {
-    type: "warning", buttons: ["Speichern", "Nicht speichern", "Abbrechen"], defaultId: 0, cancelId: 2,
-    message: `Änderungen in „${files.name}“ speichern?`,
-    detail: "Sonst gehen die Änderungen seit dem letzten Speichern verloren.",
+    type: "warning", buttons: [t("Speichern"), t("Nicht speichern"), t("Abbrechen")], defaultId: 0, cancelId: 2,
+    message: t("Änderungen in „{name}“ speichern?", { name: projName() }),
+    detail: t("Sonst gehen die Änderungen seit dem letzten Speichern verloren."),
   });
   if (r.response === 2) return false;
   if (r.response === 0) return (await saveTo(json, false)).ok;
@@ -119,8 +129,8 @@ async function saveTo(json: string, askPath: boolean): Promise<{ ok: boolean; na
   let target = askPath ? null : files.current;
   if (!target) {
     const r = await dialog.showSaveDialog(control, {
-      title: "Projekt speichern", defaultPath: files.current ?? path.join(app.getPath("documents"), `${files.name}.${PROJECT_EXT}`),
-      filters: [{ name: "VJ-Link-Projekt", extensions: [PROJECT_EXT] }],
+      title: t("Projekt speichern"), defaultPath: files.current ?? path.join(app.getPath("documents"), `${projName()}.${PROJECT_EXT}`),
+      filters: [{ name: t("VJ-Link-Projekt"), extensions: [PROJECT_EXT] }],
     });
     if (r.canceled || !r.filePath) return { ok: false };
     target = r.filePath;
@@ -128,10 +138,10 @@ async function saveTo(json: string, askPath: boolean): Promise<{ ok: boolean; na
   try {
     const res = await files.save(json, target);
     updateTitle(); buildMenu();
-    if (res.missing?.length) void dialog.showMessageBox(control, { type: "warning", message: "Projekt gespeichert, aber Videos fehlen", detail: `Nicht in der Bibliothek gefunden:\n${res.missing.join("\n")}` });
+    if (res.missing?.length) void dialog.showMessageBox(control, { type: "warning", message: t("Projekt gespeichert, aber Videos fehlen"), detail: `${t("Nicht in der Bibliothek gefunden:")}\n${res.missing.join("\n")}` });
     return { ok: true, name: res.name };
   } catch (e) {
-    void dialog.showMessageBox(control, { type: "error", message: "Speichern hat nicht geklappt", detail: (e as Error).message });
+    void dialog.showMessageBox(control, { type: "error", message: t("Speichern hat nicht geklappt"), detail: (e as Error).message });
     return { ok: false, message: (e as Error).message };
   }
 }
@@ -147,7 +157,7 @@ async function fileCommand(cmd: FileCmd, json: string, filePath?: string): Promi
     let file = cmd === "openPath" ? filePath : undefined;
     if (!file) {
       const r = await dialog.showOpenDialog(control, {
-        title: "Projekt öffnen", properties: ["openFile"], filters: [{ name: "VJ-Link-Projekt", extensions: [PROJECT_EXT] }],
+        title: t("Projekt öffnen"), properties: ["openFile"], filters: [{ name: t("VJ-Link-Projekt"), extensions: [PROJECT_EXT] }],
         defaultPath: files.current ? path.dirname(files.current) : app.getPath("documents"),
       });
       if (r.canceled || !r.filePaths[0]) return { ok: false };
@@ -157,10 +167,10 @@ async function fileCommand(cmd: FileCmd, json: string, filePath?: string): Promi
     const res = await files.open(file);
     if (!res.ok) {
       switching = false;
-      void dialog.showMessageBox(control, { type: "error", message: "Projekt lässt sich nicht öffnen", detail: res.message ?? "" });
+      void dialog.showMessageBox(control, { type: "error", message: t("Projekt lässt sich nicht öffnen"), detail: res.message ?? "" });
       return { ok: false, message: res.message };
     }
-    if (res.missing?.length) void dialog.showMessageBox(control, { type: "warning", message: "Einige Videos fehlen", detail: `Diese Videos lagen nicht im Medienordner neben der Projektdatei:\n${res.missing.join("\n")}` });
+    if (res.missing?.length) void dialog.showMessageBox(control, { type: "warning", message: t("Einige Videos fehlen"), detail: `${t("Diese Videos lagen nicht im Medienordner neben der Projektdatei:")}\n${res.missing.join("\n")}` });
   }
   buildMenu();
   // Ausgänge: Grafiken neu verteilen; Oberfläche lädt das Projekt frisch
@@ -178,44 +188,44 @@ function buildMenu(): void {
   const template: MenuItemConstructorOptions[] = [
     ...(mac ? [{
       label: "VJ-Link", submenu: [
-        { role: "about", label: "Über VJ-Link" }, { type: "separator" },
-        { label: "Einstellungen …", accelerator: "Cmd+,", click: menuSend("settings") }, { type: "separator" },
-        { role: "services", label: "Dienste" }, { type: "separator" },
-        { role: "hide", label: "VJ-Link ausblenden" }, { role: "hideOthers", label: "Andere ausblenden" }, { role: "unhide", label: "Alle einblenden" },
-        { type: "separator" }, { role: "quit", label: "VJ-Link beenden" },
+        { role: "about", label: t("Über VJ-Link") }, { type: "separator" },
+        { label: t("Einstellungen …"), accelerator: "Cmd+,", click: menuSend("settings") }, { type: "separator" },
+        { role: "services", label: t("Dienste") }, { type: "separator" },
+        { role: "hide", label: t("VJ-Link ausblenden") }, { role: "hideOthers", label: t("Andere ausblenden") }, { role: "unhide", label: t("Alle einblenden") },
+        { type: "separator" }, { role: "quit", label: t("VJ-Link beenden") },
       ],
     } as MenuItemConstructorOptions] : []),
     {
-      label: mac ? "Ablage" : "Datei", submenu: [
-        { label: "Neues Projekt", accelerator: "CmdOrCtrl+N", click: menuSend("new") },
-        { label: "Projekt öffnen …", accelerator: "CmdOrCtrl+O", click: menuSend("open") },
-        { label: "Zuletzt geöffnet", submenu: recent.length ? [...recent, { type: "separator" }, { label: "Liste leeren", click: () => { void files?.clearRecent().then(buildMenu); } }] : [{ label: "Keine", enabled: false }] },
+      label: mac ? t("Ablage") : t("Datei"), submenu: [
+        { label: t("Neues Projekt"), accelerator: "CmdOrCtrl+N", click: menuSend("new") },
+        { label: t("Projekt öffnen …"), accelerator: "CmdOrCtrl+O", click: menuSend("open") },
+        { label: t("Zuletzt geöffnet"), submenu: recent.length ? [...recent, { type: "separator" }, { label: t("Liste leeren"), click: () => { void files?.clearRecent().then(buildMenu); } }] : [{ label: t("Keine"), enabled: false }] },
         { type: "separator" },
-        { label: "Speichern", accelerator: "CmdOrCtrl+S", click: menuSend("save") },
-        { label: "Speichern unter …", accelerator: "Shift+CmdOrCtrl+S", click: menuSend("saveAs") },
-        ...(mac ? [] : [{ type: "separator" } as MenuItemConstructorOptions, { label: "Einstellungen …", accelerator: "Ctrl+,", click: menuSend("settings") }, { type: "separator" } as MenuItemConstructorOptions, { role: "quit", label: "Beenden" } as MenuItemConstructorOptions]),
+        { label: t("Speichern"), accelerator: "CmdOrCtrl+S", click: menuSend("save") },
+        { label: t("Speichern unter …"), accelerator: "Shift+CmdOrCtrl+S", click: menuSend("saveAs") },
+        ...(mac ? [] : [{ type: "separator" } as MenuItemConstructorOptions, { label: t("Einstellungen …"), accelerator: "Ctrl+,", click: menuSend("settings") }, { type: "separator" } as MenuItemConstructorOptions, { role: "quit", label: t("Beenden") } as MenuItemConstructorOptions]),
       ],
     },
     {
-      label: "Bearbeiten", submenu: [
-        { role: "undo", label: "Widerrufen" }, { role: "redo", label: "Wiederholen" }, { type: "separator" },
-        { role: "cut", label: "Ausschneiden" }, { role: "copy", label: "Kopieren" }, { role: "paste", label: "Einsetzen" }, { role: "selectAll", label: "Alles auswählen" },
+      label: t("Bearbeiten"), submenu: [
+        { role: "undo", label: t("Widerrufen") }, { role: "redo", label: t("Wiederholen") }, { type: "separator" },
+        { role: "cut", label: t("Ausschneiden") }, { role: "copy", label: t("Kopieren") }, { role: "paste", label: t("Einsetzen") }, { role: "selectAll", label: t("Alles auswählen") },
       ],
     },
     {
-      label: "Darstellung", submenu: [
-        { role: "togglefullscreen", label: "Vollbild" },
-        ...(app.isPackaged ? [] : [{ type: "separator" } as MenuItemConstructorOptions, { role: "reload", label: "Neu laden" } as MenuItemConstructorOptions, { role: "toggleDevTools", label: "Entwicklerwerkzeuge" } as MenuItemConstructorOptions]),
+      label: t("menu.view"), submenu: [
+        { role: "togglefullscreen", label: t("Vollbild") },
+        ...(app.isPackaged ? [] : [{ type: "separator" } as MenuItemConstructorOptions, { role: "reload", label: t("Neu laden") } as MenuItemConstructorOptions, { role: "toggleDevTools", label: t("Entwicklerwerkzeuge") } as MenuItemConstructorOptions]),
       ],
     },
-    { label: "Fenster", role: "windowMenu", submenu: [{ role: "minimize", label: "Im Dock ablegen" }, { role: "zoom", label: "Zoomen" }, ...(mac ? [{ type: "separator" } as MenuItemConstructorOptions, { role: "front", label: "Alle nach vorne bringen" } as MenuItemConstructorOptions] : [{ role: "close", label: "Schließen" } as MenuItemConstructorOptions])] },
+    { label: t("Fenster"), role: "windowMenu", submenu: [{ role: "minimize", label: mac ? t("Im Dock ablegen") : t("Minimieren") }, { role: "zoom", label: t("Zoomen") }, ...(mac ? [{ type: "separator" } as MenuItemConstructorOptions, { role: "front", label: t("Alle nach vorne bringen") } as MenuItemConstructorOptions] : [{ role: "close", label: t("Schließen") } as MenuItemConstructorOptions])] },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 function displayInfo(d: Display): DisplayInfo {
   return {
-    id: d.id, label: d.label || `Bildschirm ${d.id}`, width: d.size.width, height: d.size.height,
+    id: d.id, label: d.label || t("Bildschirm {n}", { n: d.id }), width: d.size.width, height: d.size.height,
     scaleFactor: d.scaleFactor, primary: d.id === screen.getPrimaryDisplay().id, open: outputs.has(d.id),
   };
 }
@@ -225,7 +235,7 @@ function windowInfo(): DisplayInfo {
   const w = outputs.get(WINDOW_OUTPUT);
   const sf = w && !w.isDestroyed() ? screen.getDisplayMatching(w.getBounds()).scaleFactor : 1;
   const [cw, ch] = w && !w.isDestroyed() ? w.getContentSize() : [winSize[0], winSize[1]];
-  return { id: WINDOW_OUTPUT, label: "Fenster-Ausgang", width: w ? cw ?? winSize[0] : winSize[0], height: w ? ch ?? winSize[1] : winSize[1], scaleFactor: w ? sf : 1, primary: false, open: !!w, window: true };
+  return { id: WINDOW_OUTPUT, label: t("Fenster-Ausgang"), width: w ? cw ?? winSize[0] : winSize[0], height: w ? ch ?? winSize[1] : winSize[1], scaleFactor: w ? sf : 1, primary: false, open: !!w, window: true };
 }
 const listDisplays = (): DisplayInfo[] => [...screen.getAllDisplays().map(displayInfo), windowInfo()];
 
@@ -245,13 +255,13 @@ function openWindowOutput(): void {
   const sf = screen.getPrimaryDisplay().scaleFactor;
   const win = secureWindow({
     width: Math.round(winSize[0] / sf), height: Math.round(winSize[1] / sf), useContentSize: true,
-    show: false, title: "VJ-Link Fenster-Ausgang", backgroundColor: "#000000",
+    show: false, title: `VJ-Link ${t("Fenster-Ausgang")}`, backgroundColor: "#000000",
   });
   win.setAspectRatio(winSize[0] / winSize[1]);
   win.setMenuBarVisibility(false);
   wireOutput(win, WINDOW_OUTPUT);
-  let t: NodeJS.Timeout | undefined;
-  win.on("resize", () => { clearTimeout(t); t = setTimeout(() => control?.webContents.send("displays", listDisplays()), 150); });
+  let timer: NodeJS.Timeout | undefined;
+  win.on("resize", () => { clearTimeout(timer); timer = setTimeout(() => control?.webContents.send("displays", listDisplays()), 150); });
 }
 
 function wireOutput(win: BrowserWindow, id: number): void {
@@ -277,7 +287,7 @@ function toggleOutput(id: number): DisplayInfo[] {
   if (!d) return listDisplays();
   const win = secureWindow({
     x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height,
-    frame: false, fullscreen: true, show: false, title: `VJ-Link Ausgang ${id}`, skipTaskbar: true,
+    frame: false, fullscreen: true, show: false, title: `VJ-Link ${t("Ausgang {n}", { n: id })}`, skipTaskbar: true,
   });
   win.setMenuBarVisibility(false);
   // Esc schließt den Ausgang, auch wenn er das Hauptfenster verdeckt.
@@ -318,6 +328,7 @@ app.whenReady().then(async () => {
   files = new ProjectFiles(storage, path.join(app.getPath("userData"), "state.json"));
   await files.init();
   app.setAboutPanelOptions({ applicationName: "VJ-Link", applicationVersion: app.getVersion() });
+  setLang(await savedLang());
   buildMenu();
   protocol.handle("vjmedia", req => storage!.serveVideo(req));
   if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(ICON));
@@ -345,6 +356,12 @@ app.whenReady().then(async () => {
   ipcMain.on("privacy:open", (e, kind: unknown) => {
     if (e.sender !== control?.webContents || process.platform !== "darwin") return;
     void shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${kind === "microphone" ? "Privacy_Microphone" : "Privacy_Camera"}`);
+  });
+  // Sprache der Oberfläche: Menü und Dialoge folgen ihr, gemerkt für den nächsten Start
+  ipcMain.on("ui:lang", (e, l: unknown) => {
+    if (e.sender !== control?.webContents || !LANGS.some(x => x.id === l)) return;
+    setLang(l as Lang); buildMenu(); updateTitle();
+    void fsp.writeFile(langFile(), String(l)).catch(() => { /* egal */ });
   });
   ipcMain.on("ui:scale", (e, v: unknown) => {
     if (e.sender !== control?.webContents) return;
@@ -399,8 +416,8 @@ app.whenReady().then(async () => {
     return updater.install(async () => {
       if (!control) return false;
       const r = await dialog.showMessageBox(control, {
-        type: "info", buttons: ["Jetzt installieren", "Später"], defaultId: 0, cancelId: 1,
-        message: "Update ist geladen", detail: "VJ-Link wird beendet, aktualisiert und startet von selbst neu. Das Projekt ist automatisch gesichert.",
+        type: "info", buttons: [t("Jetzt installieren"), t("Später")], defaultId: 0, cancelId: 1,
+        message: t("Update ist geladen"), detail: t("VJ-Link wird beendet, aktualisiert und startet von selbst neu. Das Projekt ist automatisch gesichert."),
       });
       return r.response === 0;
     });

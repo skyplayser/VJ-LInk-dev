@@ -3,6 +3,7 @@
 import { arrange, canvasBounds, snapRect, syncScreens, type OutputLayout, type ScreenRect } from "../core/layout";
 import type { DisplayInfo } from "../core/frame";
 import { MappingEditor } from "./mappingeditor";
+import { t } from "../core/i18n";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -48,10 +49,10 @@ export class OutputTab {
     }
     const b = canvasBounds(onCanvas);
     document.getElementById("out-mode-hint")!.textContent = l.mode === "mirror"
-      ? "Jeder Ausgang zeigt das ganze Bild in seiner eigenen Auflösung."
+      ? t("Jeder Ausgang zeigt das ganze Bild in seiner eigenen Auflösung.")
       : onCanvas.length
-        ? `Leinwand ${b.w} × ${b.h} Pixel. Jeder Ausgang zeigt seinen Teil, Visuals und Videos laufen nahtlos über alle Bildschirme. Ziehen zum Anordnen, Kanten rasten ein.`
-        : "Öffne links mindestens einen Bildschirm als Ausgang, dann erscheint er hier.";
+        ? t("Leinwand {w} × {h} Pixel. Jeder Ausgang zeigt seinen Teil, Visuals und Videos laufen nahtlos über alle Bildschirme. Ziehen zum Anordnen, Kanten rasten ein.", { w: b.w, h: b.h })
+        : t("Öffne links mindestens einen Bildschirm als Ausgang, dann erscheint er hier.");
 
     const stage = document.getElementById("cv-stage")!;
     stage.classList.toggle("off", l.mode !== "canvas");
@@ -67,15 +68,15 @@ export class OutputTab {
     const ox = (sw - b.w * scale) / 2 - b.x * scale, oy = (sh - b.h * scale) / 2 - b.y * scale;
     const frame = el("div", "cv-canvas");
     Object.assign(frame.style, { left: `${ox + b.x * scale}px`, top: `${oy + b.y * scale}px`, width: `${b.w * scale}px`, height: `${b.h * scale}px` });
-    frame.append(el("span", "", `Leinwand ${b.w} × ${b.h}`));
+    frame.append(el("span", "", t("Leinwand {w} × {h}", { w: b.w, h: b.h })));
     stage.append(frame);
 
     onCanvas.forEach((s, i) => {
       const r = el("div", `cv-rect${this.sel === s.id ? " sel" : ""}`);
       Object.assign(r.style, { left: `${ox + s.x * scale}px`, top: `${oy + s.y * scale}px`, width: `${s.w * scale}px`, height: `${s.h * scale}px` });
-      r.append(el("b", "", `${i + 1} · ${s.label}`), el("small", "", `${s.w} × ${s.h} · bei ${s.x}, ${s.y}`));
+      r.append(el("b", "", `${i + 1} · ${s.label}`), el("small", "", t("{w} × {h} · bei {x}, {y}", { w: s.w, h: s.h, x: s.x, y: s.y })));
       r.setAttribute("role", "button"); r.tabIndex = 0;
-      r.setAttribute("aria-label", `${s.label}, ${s.w} mal ${s.h}, Position ${s.x}, ${s.y}`);
+      r.setAttribute("aria-label", t("{label}, {w} mal {h}, Position {x}, {y}", { label: s.label, w: s.w, h: s.h, x: s.x, y: s.y }));
       r.addEventListener("pointerdown", e => {
         if (l.mode !== "canvas") return;
         e.preventDefault();
@@ -116,9 +117,9 @@ export class OutputTab {
       });
       tools.append(btn);
     };
-    auto("row", "Nebeneinander"); auto("column", "Untereinander");
+    auto("row", t("Nebeneinander")); auto("column", t("Untereinander"));
     const s = onCanvas.find(x => x.id === this.sel);
-    if (!s) { tools.append(el("span", "muted small", "Bildschirm anklicken für genaue Werte (Pfeiltasten: 10 px, mit ⇧ 100 px).")); return; }
+    if (!s) { tools.append(el("span", "muted small", t("Bildschirm anklicken für genaue Werte (Pfeiltasten: 10 px, mit ⇧ 100 px)."))); return; }
     const field = (label: string, key: keyof Pick<ScreenRect, "x" | "y" | "w" | "h">, min: number) => {
       const lab = el("label", "", label);
       const inp = el("input"); inp.type = "number"; inp.value = String(s[key]); inp.min = String(min);
@@ -128,10 +129,10 @@ export class OutputTab {
       });
       lab.append(inp); tools.append(lab);
     };
-    field("X", "x", -32768); field("Y", "y", -32768); field("Breite", "w", 16); field("Höhe", "h", 16);
+    field("X", "x", -32768); field("Y", "y", -32768); field(t("Breite"), "w", 16); field(t("Höhe"), "h", 16);
     const nat = open.find(o => o.id === s.id);
     if (nat && (nat.w !== s.w || nat.h !== s.h)) {
-      const btn = el("button", "btn small-btn", `Native Größe ${nat.w} × ${nat.h}`);
+      const btn = el("button", "btn small-btn", t("Native Größe {w} × {h}", { w: nat.w, h: nat.h }));
       btn.addEventListener("click", () => { s.w = nat.w; s.h = nat.h; this.set({ ...l, screens: [...l.screens] }); this.render(); this.onChange(); });
       tools.append(btn);
     }

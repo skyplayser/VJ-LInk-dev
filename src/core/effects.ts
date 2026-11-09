@@ -1,13 +1,17 @@
 // Katalog der Visuals. `status: "ready"` heißt: die Engine hat dafür einen Generator.
+// Englische Namen und Beschreibungen: i18n-catalog.ts (gelten, wenn die Oberfläche auf Englisch steht).
+import { getLang } from "./i18n";
+import { CATEGORY_EN, EFFECT_EN, POST_EN } from "./i18n-catalog";
 export type EffectCategory = "audio" | "geometry" | "particles" | "retro" | "optical" | "laser" | "lj" | "tools"
   | "minimal" | "space3d" | "data" | "opart" | "organic" | "fractal" | "demo" | "sacred";
 
 /** Anzeigenamen der Kategorien (Galerie, Bibliothek), in dieser Reihenfolge. */
-export const CATEGORY_LABEL: Record<EffectCategory, string> = {
+const CATEGORY_DE: Record<EffectCategory, string> = {
   minimal: "Minimal und Monochrom", space3d: "3D und Raum", fractal: "Fraktale", demo: "Demoscene", sacred: "Heilige Geometrie", data: "Daten und Glitch", opart: "Op-Art und Muster", organic: "Organisch und Flüssig",
   audio: "Audio und Equalizer", geometry: "Geometrie und Tunnel", particles: "Partikel und Natur", retro: "Retro und Analog",
   optical: "Licht und Raum", laser: "Laser (Beamer im Nebel)", lj: "LJ-Link (DJ)", tools: "Werkzeuge",
 };
+export const CATEGORY_LABEL: Record<EffectCategory, string> = getLang() === "en" ? CATEGORY_EN : CATEGORY_DE;
 export type EffectKind = "generator" | "post" | "master";
 export type EffectStatus = "ready" | "planned";
 
@@ -26,8 +30,10 @@ export interface EffectDef {
 }
 
 const e = (no: number, id: string, name: string, category: EffectCategory, kind: EffectKind,
-  status: EffectStatus, info: string, reactsTo: EffectDef["reactsTo"] = []): EffectDef =>
-  ({ no, id, name, category, kind, status, info, reactsTo });
+  status: EffectStatus, info: string, reactsTo: EffectDef["reactsTo"] = []): EffectDef => {
+  const en = getLang() === "en" ? EFFECT_EN[id] : undefined;
+  return { no, id, name: en?.[0] ?? name, category, kind, status, info: en?.[1] ?? info, reactsTo };
+};
 
 export const EFFECTS: readonly EffectDef[] = [
   // Audio-reaktiv und Equalizer
@@ -219,7 +225,11 @@ export const READY_GENERATORS: readonly EffectDef[] = (() => {
 /** Effekte im Stapel einer Ebene. Reihenfolge = Nummer im Shader (src/engine/shaders.ts, POST_IDS). */
 export interface PostEffectDef { id: string; name: string; info: string; /** Nummer in der Wunschliste, falls vorhanden. */ no?: number }
 
-export const POST_EFFECTS: readonly PostEffectDef[] = [
+/** Bei Englisch: Name und Info aus i18n-catalog.ts. */
+const localizePosts = (list: PostEffectDef[]): PostEffectDef[] => getLang() !== "en" ? list
+  : list.map(p => { const en = POST_EN[p.id]; return en ? { ...p, name: en[0], info: en[1] } : p; });
+
+export const POST_EFFECTS: readonly PostEffectDef[] = localizePosts([
   { id: "kaleidoscope", name: "Kaleidoskop", info: "Spiegelt in 3 bis 12 Segmente, dreht langsam.", no: 13 },
   { id: "mirror", name: "Spiegeln", info: "Links auf rechts, ab halber Stärke auch oben auf unten." },
   { id: "rgb-shift", name: "RGB-Versatz", info: "Farbkanäle laufen auseinander, stärker auf dem Beat." },
@@ -271,6 +281,6 @@ export const POST_EFFECTS: readonly PostEffectDef[] = [
   { id: "false-color", name: "Falschfarben", info: "Helligkeit wird zur Farbskala von Blau bis Rot." },
   { id: "beat-flip", name: "Beat-Flip", info: "Spiegelt im Takt, ab halber Stärke auch oben/unten." },
   { id: "turbulence", name: "Turbulenz", info: "Flimmert wie Luft über heißem Asphalt." },
-];
+]);
 
 export const POST_BY_ID: ReadonlyMap<string, PostEffectDef> = new Map(POST_EFFECTS.map(x => [x.id, x]));

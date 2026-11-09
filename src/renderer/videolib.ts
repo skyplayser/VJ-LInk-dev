@@ -2,6 +2,7 @@
 import type { VideoItem } from "../core/video";
 import { VIDEO_EXTENSIONS } from "../core/video";
 import { bridge } from "./bridge";
+import { t } from "../core/i18n";
 
 export function isVideoFile(f: File): boolean {
   const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
@@ -35,9 +36,9 @@ export class VideoLibrary {
     let item: VideoItem;
     if (bridge) {
       const path = bridge.pathForFile(file);
-      if (!path) return `„${file.name}“ lässt sich nicht lesen.`;
+      if (!path) return t("„{name}“ lässt sich nicht lesen.", { name: file.name });
       const r = await bridge.addVideo(path, name);
-      if (typeof r === "string") return `„${file.name}“: ${r}`;
+      if (typeof r === "string") return `„${file.name}“: ${t(r)}`;
       item = { id: r.id, name: r.name, ext: r.ext, duration: 0, width: 0, height: 0 };
     } else {
       const b = new Uint8Array(8); crypto.getRandomValues(b);
@@ -47,7 +48,7 @@ export class VideoLibrary {
     }
     this.items.push(item);
     const ok = await this.probe(item);
-    if (!ok) return `„${file.name}“ lässt sich nicht abspielen (Format?). Geht sicher: MP4 mit H.264, WebM.`;
+    if (!ok) return t("„{name}“ lässt sich nicht abspielen (Format?). Geht sicher: MP4 mit H.264, WebM.", { name: file.name });
     return item;
   }
 

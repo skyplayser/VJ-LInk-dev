@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 // Ausgänge: entweder zeigt jeder Bildschirm dasselbe Bild („Gleiches Bild“), oder die Bildschirme liegen
 // auf einer gemeinsamen Leinwand und jeder zeigt seinen Ausschnitt („Leinwand“), z. B. zwei Beamer
 // nebeneinander oder LED-Wand über Bühnenbeamer.
@@ -48,7 +49,7 @@ export const defaultLayout = (): OutputLayout => ({ mode: "mirror", screens: [],
 /** Neue Leinwand: Rechteck mit etwas Rand, zeigt das ganze Bild. */
 export function newSurface(screen: number, n: number, inset = 0.1): Surface {
   const a = inset, b = 1 - inset;
-  return { id: `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, screen, name: `Leinwand ${n}`,
+  return { id: `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, screen, name: t("Leinwand {n}", { n }),
     corners: [[a, a], [b, a], [b, b], [a, b]], src: { x: 0, y: 0, w: 1, h: 1 }, on: true, image: "main" };
 }
 
@@ -244,7 +245,7 @@ export const MAX_MASK_POINTS = 32;
 
 /** Neue Maske: Rechteck in der Mitte. */
 export function newMask(screen: number, n: number): Mask {
-  return { id: `m${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, screen, name: `Maske ${n}`,
+  return { id: `m${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, screen, name: t("Maske {n}", { n }),
     pts: [[0.4, 0.4], [0.6, 0.4], [0.6, 0.6], [0.4, 0.6]], invert: false, feather: 0, on: true };
 }
 

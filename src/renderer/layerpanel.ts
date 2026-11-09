@@ -2,6 +2,7 @@
 import type { ControlContext } from "../core/control";
 import { DRIVE_LABEL } from "../core/controls";
 import { EFFECT_BY_ID } from "../core/effects";
+import { t } from "../core/i18n";
 import {
   DRIVES, LASER_LIMITS, SLOT_NAMES, defaultLaser, layerName, toggleColorSlot,
   type ColorSource, type Drive, type LaserSettings, type LayerState,
@@ -12,20 +13,20 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 }
 
 const DRIVE_HINT: Record<Drive, string> = {
-  auto: "Audio-Eingang, wenn er auf diese Ebene wirkt, sonst im Takt.",
-  bpm: "Pulsiert nur im Takt der BPM. Audio wird ignoriert.",
-  audio: "Reagiert nur auf Audio (Eingang oder LJ-Link). Ohne Audio bleibt es ruhig.",
-  static: "Kein Pulsieren: gleichmäßige Bewegung, unabhängig von Takt und Audio.",
+  auto: t("Audio-Eingang, wenn er auf diese Ebene wirkt, sonst im Takt."),
+  bpm: t("Pulsiert nur im Takt der BPM. Audio wird ignoriert."),
+  audio: t("Reagiert nur auf Audio (Eingang oder LJ-Link). Ohne Audio bleibt es ruhig."),
+  static: t("Kein Pulsieren: gleichmäßige Bewegung, unabhängig von Takt und Audio."),
 };
 
 type NumKey = "x" | "y" | "size" | "thick" | "rot";
 interface LaserField { key: NumKey; label: string; scale: number; unit: string; laserOnly?: boolean }
 const LASER_FIELDS: LaserField[] = [
-  { key: "y", label: "Y · Höhe", scale: 100, unit: "" },
-  { key: "x", label: "X · Seite", scale: 100, unit: "" },
-  { key: "size", label: "Größe", scale: 100, unit: " %" },
-  { key: "rot", label: "Drehung", scale: 1, unit: "°" },
-  { key: "thick", label: "Stärke", scale: 100, unit: " %", laserOnly: true },
+  { key: "y", label: t("Y · Höhe"), scale: 100, unit: "" },
+  { key: "x", label: t("X · Seite"), scale: 100, unit: "" },
+  { key: "size", label: t("Größe"), scale: 100, unit: " %" },
+  { key: "rot", label: t("Drehung"), scale: 1, unit: "°" },
+  { key: "thick", label: t("Stärke"), scale: 100, unit: " %", laserOnly: true },
 ];
 
 const rgbCss = (c: readonly number[]) => `rgb(${c.map(v => Math.round(v * 255)).join(",")})`;
@@ -65,18 +66,18 @@ export class LayerPanel {
     const n = this.layerOf();
     this.root.replaceChildren();
     this.ranges.clear();
-    this.root.append(el("h2", "", `Ebene ${n + 1}`));
+    this.root.append(el("h2", "", t("Ebene {n}", { n: n + 1 })));
     // Name der Ebene (erscheint im Clip-Raster)
-    const nr = el("div", "lp-row"); nr.append(el("span", "lp-lab", "Name"));
+    const nr = el("div", "lp-row"); nr.append(el("span", "lp-lab", t("Name")));
     const name = el("input", "lp-name"); name.maxLength = 24; name.value = l.name ?? ""; name.placeholder = layerName(undefined, n);
-    name.setAttribute("aria-label", `Name Ebene ${n + 1}`);
+    name.setAttribute("aria-label", t("Name Ebene {n}", { n: n + 1 }));
     name.addEventListener("change", () => { l.name = name.value.trim().slice(0, 24) || undefined; this.onRename(); });
     name.addEventListener("keydown", e => { if (e.key === "Enter") name.blur(); });
     nr.append(name); this.root.append(nr);
 
     // Antrieb
-    const dr = el("div", "lp-row"); dr.append(el("span", "lp-lab", "Antrieb"));
-    const seg = el("div", "seg2 lp-seg"); seg.setAttribute("role", "radiogroup"); seg.setAttribute("aria-label", `Antrieb Ebene ${n + 1}`);
+    const dr = el("div", "lp-row"); dr.append(el("span", "lp-lab", t("Antrieb")));
+    const seg = el("div", "seg2 lp-seg"); seg.setAttribute("role", "radiogroup"); seg.setAttribute("aria-label", t("Antrieb Ebene {n}", { n: n + 1 }));
     seg.dataset.ctl = `layer.${n + 1}.drive`;
     for (const d of DRIVES) {
       const b = el("button", l.drive === d ? "on" : "", DRIVE_LABEL[d]);
@@ -88,7 +89,7 @@ export class LayerPanel {
     this.root.append(dr, el("p", "muted small lp-hint", DRIVE_HINT[l.drive ?? "auto"]));
 
     // Farben: Original | A B C D E (mehrere wählbar) | Verlauf | Regenbogen
-    const cr = el("div", "lp-row"); cr.append(el("span", "lp-lab", "Farben"));
+    const cr = el("div", "lp-row"); cr.append(el("span", "lp-lab", t("Farben")));
     const chips = el("div", "lp-colors");
     const plain = (src: ColorSource, label: string) => {
       const b = el("button", `lp-chip${l.colorSource === src ? " on" : ""}`, label);
@@ -96,41 +97,41 @@ export class LayerPanel {
       b.addEventListener("click", () => { l.colorSource = src; this.update(true); });
       return b;
     };
-    chips.append(plain("original", "Original"));
+    chips.append(plain("original", t("Original")));
     const chosen = l.colorSource === "multi" ? l.colorSlots : SLOT_NAMES.includes(l.colorSource as typeof SLOT_NAMES[number]) ? [SLOT_NAMES.indexOf(l.colorSource as typeof SLOT_NAMES[number])] : [];
     SLOT_NAMES.forEach((name, i) => {
       const pos = chosen.indexOf(i);
       const b = el("button", `lp-chip lp-slot${pos >= 0 ? " on" : ""}`, name);
       b.style.setProperty("--sw", rgbCss(this.ctx.show.slots[i] ?? [1, 1, 1]));
       b.setAttribute("aria-pressed", String(pos >= 0));
-      b.title = `Slot ${name}: antippen fügt ihn hinzu oder nimmt ihn heraus. Mehrere Slots = mehrere Farben.`;
+      b.title = t("Slot {name}: antippen fügt ihn hinzu oder nimmt ihn heraus. Mehrere Slots = mehrere Farben.", { name });
       if (pos >= 0 && chosen.length > 1) b.append(el("small", "", String(pos + 1)));
       b.addEventListener("click", () => { toggleColorSlot(l, i); this.update(true); });
       chips.append(b);
     });
-    chips.append(plain("gradient", "Verlauf"), plain("rainbow", "Regenbogen"));
+    chips.append(plain("gradient", t("Verlauf")), plain("rainbow", t("Regenbogen")));
     cr.append(chips);
     this.root.append(cr);
     if (l.colorSource === "multi") {
       this.root.append(el("p", "muted small lp-hint", isLaser
-        ? `${chosen.length} Farben: jeder Strahl bzw. jede Linie bekommt eine andere, alle 8 Beats rücken sie weiter.`
-        : `${chosen.length} Farben: Verlauf durch alle gewählten Slots in dieser Reihenfolge.`));
+        ? t("{n} Farben: jeder Strahl bzw. jede Linie bekommt eine andere, alle 8 Beats rücken sie weiter.", { n: chosen.length })
+        : t("{n} Farben: Verlauf durch alle gewählten Slots in dieser Reihenfolge.", { n: chosen.length })));
     }
 
     // Lage, Größe, Drehung (jedes Visual); Stärke und XY-Override nur bei Lasern
     if (!isGen) return;
-    this.root.append(el("h4", "lp-sub", isLaser ? "Lage · Laser" : "Lage"));
+    this.root.append(el("h4", "lp-sub", isLaser ? t("Lage · Laser") : t("Lage")));
     const ov = !!l.laser?.override;
     if (isLaser) {
     const ovRow = el("div", "lp-row");
     ovRow.append(el("span", "lp-lab", "XY-Override"));
-    const ovBtn = el("button", `btn small-btn${ov ? " on" : ""}`, ov ? "An: X/Y steuern die Lage" : "Aus: Effekt bewegt sich selbst");
+    const ovBtn = el("button", `btn small-btn${ov ? " on" : ""}`, ov ? t("An: X/Y steuern die Lage") : t("Aus: Effekt bewegt sich selbst"));
     ovBtn.dataset.ctl = `layer.${n + 1}.laser.xy`;
     ovBtn.setAttribute("aria-pressed", String(ov));
     ovBtn.addEventListener("click", () => { l.laser = { ...(l.laser ?? defaultLaser()), override: !ov }; this.update(true); });
     ovRow.append(ovBtn);
     this.root.append(ovRow);
-    if (ov) this.root.append(el("p", "muted small lp-hint", "Die Eigenbewegung ist aus: X und Y setzen die Lage direkt (0 = Mitte, ±100 = Bildrand). Per Mapping auf Kanäle der MA legen (MAPPING → DMX), auch Größe, Drehung und den Schalter selbst."));
+    if (ov) this.root.append(el("p", "muted small lp-hint", t("Die Eigenbewegung ist aus: X und Y setzen die Lage direkt (0 = Mitte, ±100 = Bildrand). Per Mapping auf Kanäle der MA legen (MAPPING → DMX), auch Größe, Drehung und den Schalter selbst.")));
     }
     for (const f of LASER_FIELDS) {
       if (f.laserOnly && !isLaser) continue;
@@ -147,10 +148,10 @@ export class LayerPanel {
       this.root.append(row);
       this.ranges.set(f.key, { input, val });
     }
-    const reset = el("button", "btn small-btn", "Lage zurücksetzen");
+    const reset = el("button", "btn small-btn", t("Lage zurücksetzen"));
     reset.addEventListener("click", () => { l.laser = { ...defaultLaser(), override: l.laser?.override ?? false }; });
     this.root.append(reset, el("p", "muted small lp-hint", isLaser
-      ? "Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt von dort. Stärke macht Linien und Punkte dicker, damit sie im Nebel mehr Licht tragen. Alles auch per Mapping. Doppelklick setzt einen Regler zurück."
-      : "Verschieben, vergrößern, drehen; was aus dem Rahmen fällt, bleibt schwarz. Alles auch per Mapping (MIDI, DMX, OSC). Doppelklick setzt einen Regler zurück."));
+      ? t("Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt von dort. Stärke macht Linien und Punkte dicker, damit sie im Nebel mehr Licht tragen. Alles auch per Mapping. Doppelklick setzt einen Regler zurück.")
+      : t("Verschieben, vergrößern, drehen; was aus dem Rahmen fällt, bleibt schwarz. Alles auch per Mapping (MIDI, DMX, OSC). Doppelklick setzt einen Regler zurück.")));
   }
 }

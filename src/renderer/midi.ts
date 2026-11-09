@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 // MIDI-Controller über Web MIDI: Eingänge lesen, Ausgänge für LED-Rückmeldung (ohne SysEx).
 export type MidiHandler = (data: Uint8Array, device: string, tMs: number) => void;
 
@@ -10,13 +11,13 @@ export class MidiIn {
   constructor(private onMessage: MidiHandler, private onChange: () => void) {}
 
   async start(): Promise<void> {
-    if (!("requestMIDIAccess" in navigator)) { this.error = "MIDI wird hier nicht unterstützt"; this.onChange(); return; }
+    if (!("requestMIDIAccess" in navigator)) { this.error = t("MIDI wird hier nicht unterstützt"); this.onChange(); return; }
     try {
       this.access = await navigator.requestMIDIAccess({ sysex: false });
       this.access.onstatechange = () => this.bind();
       this.bind();
     } catch {
-      this.error = "Zugriff auf MIDI verweigert";
+      this.error = t("Zugriff auf MIDI verweigert");
       this.onChange();
     }
   }
@@ -27,7 +28,7 @@ export class MidiIn {
     const names: string[] = [];
     this.access.inputs.forEach(input => {
       if (input.state !== "connected") return;
-      names.push(input.name ?? "MIDI-Gerät");
+      names.push(input.name ?? t("MIDI-Gerät"));
       input.onmidimessage = e => {
         if (!e.data) return;
         // Zeitstempel des Ereignisses in Epoch-ms (genauer für MIDI-Clock)
