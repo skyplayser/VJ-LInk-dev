@@ -155,11 +155,11 @@ describe("Steuerung", () => {
 });
 
 describe("Effekt-Katalog", () => {
-  it("enthält die 35 Visuals der Wunschliste, Laser, LJ-Link und 30 moderne Visuals mit eindeutigen IDs", () => {
-    expect(EFFECTS.length).toBe(82);
-    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(82);
-    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 82 }, (_, i) => i + 1));
-    for (const c of ["minimal", "space3d", "data", "opart", "organic"]) expect(EFFECTS.filter(e => e.category === c).length).toBeGreaterThanOrEqual(5);
+  it("enthält Wunschliste, Laser, LJ-Link, moderne Visuals und die großen Pakete mit eindeutigen IDs", () => {
+    expect(EFFECTS.length).toBe(158);
+    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(158);
+    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 158 }, (_, i) => i + 1));
+    for (const c of ["minimal", "space3d", "data", "opart", "organic", "fractal", "demo", "sacred", "retro", "particles"]) expect(EFFECTS.filter(e => e.category === c).length).toBeGreaterThanOrEqual(5);
     expect(EFFECTS.filter(e => e.category === "lj").map(e => e.id)).toEqual(["now-playing", "dj-waveform"]);
     expect(EFFECTS.filter(e => e.category === "laser").length).toBe(16);
   });
@@ -735,7 +735,7 @@ describe("Bibliothek der Visuals", () => {
   it("jeder fertige Generator existiert im Shader, Start-Clips stehen vorn", () => {
     for (const g of READY_GENERATORS) expect(GEN_IDS as readonly string[]).toContain(g.id);
     expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
-    expect(READY_GENERATORS.length).toBe(74);
+    expect(READY_GENERATORS.length).toBe(150);
     expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual([]);
   });
 });
@@ -1572,6 +1572,19 @@ describe("Techno-Effekte", () => {
     for (const id of HISTORY_FX) expect(POST_IDS as readonly string[]).toContain(id);
     for (const id of ["datamosh", "echo", "stutter", "zoom-blur", "tiles", "edges", "one-bit", "shake", "polar", "liquid", "slices", "hue-cycle", "posterize", "beat-invert"])
       expect(POST_EFFECTS.map(e => e.id)).toContain(id);
-    expect(POST_EFFECTS.length).toBe(27);
+    expect(POST_EFFECTS.length).toBe(50);
+  });
+});
+
+import { FRAG, POST_FRAG } from "../src/engine/shaders";
+describe("Shader-Zweige", () => {
+  it("jedes Visual hat einen eigenen Fall im Generator-Shader (außer den Overlays Now Playing und DJ-Wellenform)", () => {
+    GEN_IDS.forEach((id, i) => {
+      if (id === "now-playing" || id === "dj-waveform") return;
+      expect(FRAG, id).toContain(`case ${i}: c = `);
+    });
+  });
+  it("jeder Effekt hat einen eigenen Zweig im Effekt-Shader (Farbüberlagerung ist der Rest-Zweig)", () => {
+    POST_IDS.forEach((id, i) => { if (id !== "tint") expect(POST_FRAG, id).toContain(`uEffect == ${i})`); });
   });
 });
