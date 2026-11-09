@@ -74,11 +74,12 @@ export const EFFECTS: readonly EffectDef[] = [
   // Lichteffekt-Typen im Nebel: so wirkt der Beamer wie das jeweilige Gerät
   e(43, "beam-moonflower", "Moonflower", "laser", "generator", "ready", "Viele farbige Strahlen aus einem Punkt, drehen sich langsam, wechseln im Takt.", ["beat"]),
   e(44, "beam-derby", "Derby", "laser", "generator", "ready", "Strahlenbündel in mehreren Farben, gegenläufig schwenkend.", ["beat"]),
-  e(45, "beam-scanner", "Scanner", "laser", "generator", "ready", "Zwei Strahlen über den ganzen Bildschirm: einer fährt von oben nach unten, einer von links nach rechts, im Takt hin und her.", ["beat"]),
+  e(45, "beam-scanner", "Scanner horizontal", "laser", "generator", "ready", "Waagerechter Balken fährt über den ganzen Bildschirm von oben nach unten und zurück (2 Beats pro Weg). Mit XY-Override setzt Y die Lage.", ["beat"]),
   e(46, "beam-spots", "RGB-Spots", "laser", "generator", "ready", "Wenige breite, weiche Strahlen in kräftigen Farben, wandern durch den Raum.", ["beat"]),
   e(47, "beam-snow", "Schneesturm", "laser", "generator", "ready", "Sehr viele feine weiße Strahlen, drehen und funkeln.", ["high"]),
   e(48, "beam-polygon", "Polygon", "laser", "generator", "ready", "Drehendes Vieleck (3–8 Ecken): Lichtflächen wie ein Prisma-Tunnel, dazu Eckstrahlen.", ["beat"]),
   e(49, "beam-burst", "Laser-Burst", "laser", "generator", "ready", "Feine grüne Strahlen, die auf jedem Beat neu aufblitzen.", ["beat"]),
+  e(50, "beam-scanner-v", "Scanner vertikal", "laser", "generator", "ready", "Senkrechter Balken fährt über den ganzen Bildschirm von links nach rechts und zurück (2 Beats pro Weg). Mit XY-Override setzt X die Lage.", ["beat"]),
 ];
 
 export const EFFECT_BY_ID: ReadonlyMap<string, EffectDef> = new Map(EFFECTS.map(x => [x.id, x]));

@@ -2,7 +2,7 @@
 export const GEN_IDS = ["bar-spectrum", "radial-eq", "oscilloscope", "pulse-rings", "tunnel", "synth-grid", "starfield", "plasma",
   "lissajous", "vu-meter", "dot-matrix", "plexus", "hypercube", "vector-gobos", "bokeh", "burst", "lightning", "ripples", "fire", "liquid-light", "mirror-ball", "uv-glow", "laser-sheet", "laser-fans", "moire", "flower", "co2-jet", "testcard",
   "laser-beams", "laser-sky", "laser-cone", "laser-wave", "laser-matrix", "laser-propeller", "laser-scan",
-  "beam-moonflower", "beam-derby", "beam-scanner", "beam-spots", "beam-snow", "beam-polygon", "beam-burst"] as const;
+  "beam-moonflower", "beam-derby", "beam-scanner", "beam-spots", "beam-snow", "beam-polygon", "beam-burst", "beam-scanner-v"] as const;
 export type GenId = typeof GEN_IDS[number];
 
 export const VERT = `#version 300 es
@@ -714,25 +714,23 @@ vec3 beamDerby(vec2 uv){
   return min(acc, vec3(1.0)) * (0.75 + 0.25 * uPulse);
 }
 
-// 45 Scanner: zwei Strahlen fahren über den ganzen Bildschirm hin und her,
-// einer von oben nach unten, einer von links nach rechts (gegeneinander versetzt, im Takt)
+// 45/50 Scanner: ein Balken (Linie wie die Laser-Fläche) fährt über den ganzen Bildschirm hin und her.
+// Horizontal: waagerechter Balken, oben ↔ unten. Vertikal: senkrechter Balken, links ↔ rechts. 2 Beats pro Weg.
+// XY-Override: keine Fahrt, Y (horizontal) bzw. X (vertikal) setzt die Lage des Balkens.
 float pingPong(float x){ float f = fract(x * 0.5) * 2.0; return f < 1.0 ? f : 2.0 - f; }
-vec3 beamScanner(vec2 uv){
-  vec2 p = lzP(uv); float P = lzPx();
-  float a = uRes.x / uRes.y * 0.5 / max(uLz.z, 0.05), h = 0.5 / max(uLz.z, 0.05);
-  float k = floor(uBeat / 8.0);
-  // weich umkehren wie ein Spiegel, ein Durchlauf = 2 Beats
-  float sv = smoothstep(0.0, 1.0, pingPong(uBeat / 2.0)), sh = smoothstep(0.0, 1.0, pingPong(uBeat / 2.0 + 0.5));
-  vec2 c1 = vec2(sin(uTime * 0.23) * a * 0.6, mix(h * 0.92, -h * 0.92, sv));   // oben ↔ unten
-  vec2 c2 = vec2(mix(-a * 0.92, a * 0.92, sh), cos(uTime * 0.19) * h * 0.6);    // links ↔ rechts
-  if (uLzOv > 0.5) {
-    // XY-Override: Strahl 1 genau auf X/Y, Strahl 2 gespiegelt (wie zwei Scanner im Paar)
-    c1 = vec2(0.0);
-    c2 = vec2(-uLz.x * uRes.x / uRes.y / max(uLz.z, 0.05), 0.0);
-  }
-  float r = 0.024 * P;
-  return min(lzColN(k, 0.0) * lzSpot(length(p - c1) * P, r) + lzColN(k, 1.0) * lzSpot(length(p - c2) * P, r), vec3(1.0));
+vec3 beamScan(vec2 uv, bool vertical){
+  float sz = max(uLz.z, 0.05);
+  // Scanner nutzen die ganze Fläche: den eingebauten Laser-Versatz nach oben hier wieder abziehen
+  vec2 p = lzP(uv) + vec2(0.0, 0.15 * (1.0 - uLzOv)) / sz;
+  float P = lzPx();
+  float a = uRes.x / uRes.y * 0.5 / sz, h = 0.5 / sz;
+  float s = smoothstep(0.0, 1.0, pingPong(uBeat / 2.0)) * (1.0 - uLzOv) + 0.5 * uLzOv;
+  float d, ends;
+  if (vertical) { d = abs(p.x - mix(-a * 0.97, a * 0.97, s)) * P; ends = smoothstep(h * 1.02, h * 0.92, abs(p.y)); }
+  else { d = abs(p.y - mix(h * 0.97, -h * 0.97, s)) * P; ends = smoothstep(a * 1.02, a * 0.92, abs(p.x)); }
+  return lzCol(floor(uBeat / 8.0), vertical ? 1.0 : 0.0) * lzLine(d) * ends * (0.75 + 0.25 * uPulse);
 }
+vec3 beamScanner(vec2 uv){ return beamScan(uv, false); }
 
 // 46 RGB-Spots: fünf breite, weiche Strahlen wandern
 vec3 beamSpots(vec2 uv){
@@ -850,6 +848,7 @@ void main(){
   else if (uGen == 39) c = beamSnow(uv);
   else if (uGen == 40) c = beamPolygon(uv);
   else if (uGen == 41) c = beamBurst(uv);
+  else if (uGen == 42) c = beamScan(uv, true);
   else c = vec3(0.0);
 
   // Laser: Helligkeit = stärkster Kanal (ein blauer Strahl ist voll hell, nicht dunkel)
