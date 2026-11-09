@@ -3,6 +3,9 @@ import { StartScreen } from "./startscreen";
 import { changeLang, initLang } from "./lang";
 import { t } from "../core/i18n";
 import { UpdateUi } from "./updatepanel";
+import { captureErrors, recentErrors, ReportDialog } from "./report";
+import type { DiagSection } from "../core/report";
+import { getLang } from "../core/i18n";
 import { Gallery } from "./gallery";
 import { isCamClip, camIdOf } from "../core/camera";
 import { CameraPool } from "./campool";
@@ -629,6 +632,7 @@ function openSettings(sec = "audio"): void {
   if (sec === "audio") { void fillAudioDevices(); void fillAudioOuts(); }
   if (sec === "timecode") tcPanel.build($("set-tc"));
   if (sec === "midi") buildMidiSection();
+  if (sec === "report") { closeSettings(); report.open(); return; }
   if (sec === "update") { updates.mount($("set-update")); void updates.check(); }
 }
 const closeSettings = () => { setBox.hidden = true; };
@@ -1140,6 +1144,7 @@ projBtn.addEventListener("click", () => { projMenu.hidden = !projMenu.hidden; pr
 projMenu.querySelectorAll<HTMLButtonElement>("[data-proj]").forEach(b => b.addEventListener("click", () => { closeProjMenu(); void runFileCmd(b.dataset.proj as ProjectFileCmd); }));
 document.addEventListener("pointerdown", e => { if (!projMenu.hidden && !(e.target as HTMLElement).closest(".proj-wrap")) closeProjMenu(); });
 bridge?.onMenu((cmd, arg) => {
+  if (cmd === "report") { report.open(); return; }
   if (cmd === "settings") { if (showLock.locked) showLock.hint(); else openSettings(); return; }
   if (["new", "open", "save", "saveAs", "openPath"].includes(cmd)) void runFileCmd(cmd as ProjectFileCmd, arg);
 });
@@ -1147,6 +1152,49 @@ if (!bridge) projBtn.hidden = true;
 
 // ---- Updates (wie bei LJ-Link) -----------------------------------------------------------
 const updates = new UpdateUi(bridge ?? null, "0.1.0");
+
+// ---- Fehler melden (wie bei LJ-Link) ------------------------------------------------------
+/** Diagnosedaten: nur Technik, keine Dateinamen, Texte, Titel oder Passwörter. */
+function diagnostics(): DiagSection[] {
+  const sh = ctx.show;
+  let gpu = "?";
+  try {
+    const g = document.createElement("canvas").getContext("webgl2");
+    const ext = g?.getExtension("WEBGL_debug_renderer_info");
+    gpu = g ? String(ext ? g.getParameter(ext.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER)) : "kein WebGL2";
+  } catch { /* egal */ }
+  const pill = (id: string) => { const e = document.getElementById(id); return e ? `${e.textContent?.replace(/\s+/g, " ").trim()}${e.classList.contains("ok") ? " (ok)" : e.classList.contains("warn") ? " (Warnung)" : ""}` : "?"; };
+  const kinds = (list: { kind: string }[]) => Object.entries(list.reduce<Record<string, number>>((m, c) => { m[c.kind] = (m[c.kind] ?? 0) + 1; return m; }, {})).map(([k, n]) => `${k} ${n}`).join(", ") || "keine";
+  const clipKind = (c: string | null) => !c ? "–" : c.startsWith("img:") ? "Grafik" : c.startsWith("vid:") ? "Video" : c.startsWith("cam:") ? "Kamera" : c;
+  return [
+    { title: "VJ-Link", lines: [
+      `Version ${updates.state?.current ?? "0.1.0"}${updates.state?.dev ? " (Entwicklung)" : ""}, ${new Date().toISOString()}`,
+      `System ${bridge?.platform ?? "Browser"}, ${navigator.userAgent.replace(/^.*?(Chrome\/\S+).*?(Electron\/\S+)?.*$/, "$1 $2").trim()}`,
+      `Sprache ${getLang()}, Oberfläche ${window.innerWidth}×${window.innerHeight} @${Math.round(devicePixelRatio * 100) / 100}`,
+      `Grafik ${gpu}`,
+      `Leistung ${pill("st-fps")}`,
+    ] },
+    { title: "Verbindungen", lines: [
+      `${pill("st-dmx")} · Art-Net Universe ${settings.universe}, sACN ${settings.sacn}, Startadresse ${settings.address}`,
+      `${pill("st-osc")}`, `${pill("st-lj")}${settings.ljHost ? " (feste Adresse)" : " (automatisch)"}`,
+      `Ableton ${pill("st-link")}`, `${pill("st-midi")} · Eingänge: ${midi.devices.join(", ") || "keine"} · Ausgänge: ${midi.outputs.join(", ") || "keine"}`,
+      `Tempo ${ctx.tempo.bpm.toFixed(2)} BPM`,
+    ] },
+    { title: "Ausgänge", lines: [
+      ...displays.map(d => `${d.primary ? "Haupt" : "Bildschirm"} ${d.width}×${d.height} @${d.scaleFactor}${d.open ? (d.window ? " · Fenster-Ausgang offen" : " · Ausgang offen") : ""}`),
+      `Modus ${outLayout.mode}`,
+    ] },
+    { title: "Projekt", lines: [
+      `Ebenen ${sh.layers.length}: ${sh.layers.map((l, i) => `E${i + 1} ${clipKind(l.clip)} (${l.clips.length} Clips, ${l.effects.length} Effekte, ${l.blend}, ${l.drive})`).join("; ")}`,
+      `Szenen ${ctx.scenes.length}, aktiv ${sh.scene}, Auto ${sh.autoVj ? "an" : "aus"}`,
+      `Cues ${ctx.cues.list.length}: ${kinds(ctx.cues.list)}`,
+      `Grafiken ${library.items.length}, Videos ${videoLib.items.length}, Kameras ${sh.cameras.length}, Modulationen ${ctx.mods?.length ?? 0}`,
+      `Audio-Eingang ${audioIn.active ? "an" : "aus"}, Personen-Erkennung ${personMasks.state}`,
+    ] },
+    { title: "Letzte Meldungen", lines: recentErrors().length ? recentErrors() : ["keine"] },
+  ];
+}
+const report = new ReportDialog(diagnostics, () => updates.state?.current ?? "", url => { if (bridge) bridge.openWeb(url); else window.open(url, "_blank", "noopener"); });
 
 // ---- Startbildschirm --------------------------------------------------------------------
 const startScreen = new StartScreen({
@@ -1161,6 +1209,7 @@ const startScreen = new StartScreen({
   version: () => updates.state?.current ?? "0.1.0",
   mountUpdate: box => { updates.mount(box, true); void updates.check(); },
   setLang: l => changeLang(l),
+  report: () => report.open(),
   openWeb: url => { if (bridge) bridge.openWeb(url); else window.open(url, "_blank", "noopener"); },
 });
 $("proj-start").addEventListener("click", () => { closeProjMenu(); void startScreen.show(); });

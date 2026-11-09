@@ -223,6 +223,11 @@ function buildMenu(): void {
       ],
     },
     { label: t("Fenster"), role: "windowMenu", submenu: [{ role: "minimize", label: mac ? t("Im Dock ablegen") : t("Minimieren") }, { role: "zoom", label: t("Zoomen") }, ...(mac ? [{ type: "separator" } as MenuItemConstructorOptions, { role: "front", label: t("Alle nach vorne bringen") } as MenuItemConstructorOptions] : [{ role: "close", label: t("Schließen") } as MenuItemConstructorOptions])] },
+    { label: t("Hilfe"), role: "help", submenu: [
+      { label: t("Fehler melden …"), click: menuSend("report") },
+      { label: t("Website und Anleitungen"), click: () => { void shell.openExternal("https://skyplayser.github.io/VJ-LINK/"); } },
+      { label: "Discord", click: () => { void shell.openExternal("https://discord.gg/N6DMca4Bjk"); } },
+    ] },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -442,7 +447,7 @@ app.whenReady().then(async () => {
   // Nur bekannte Seiten öffnen (Instagram, Veröffentlichungen auf GitHub)
   ipcMain.on("web:open", (e, url: unknown) => {
     if (!fromControl(e) || typeof url !== "string") return;
-    if (/^https:\/\/(www\.)?(instagram\.com|github\.com)\//.test(url)) void shell.openExternal(url);
+    if (/^https:\/\/(www\.)?(instagram\.com|github\.com)\//.test(url) || /^mailto:fehlermelden@nextphilm\.de\?/.test(url)) void shell.openExternal(url);
   });
   ipcMain.on("configure", (e, c: NetConfig) => {
     if (e.sender !== control?.webContents) return;

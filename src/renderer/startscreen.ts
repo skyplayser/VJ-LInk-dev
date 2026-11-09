@@ -47,6 +47,8 @@ export interface StartDeps {
   setLang: (l: Lang) => void;
   /** Bekannte Seite im Browser öffnen. */
   openWeb: (url: string) => void;
+  /** Fenster „Fehler melden“ öffnen. */
+  report: () => void;
 }
 
 const KEY_STARTED = "vjlink.started", KEY_SHOW = "vjlink.startScreen";
@@ -164,7 +166,10 @@ export class StartScreen {
     try { box.checked = localStorage.getItem(KEY_SHOW) !== "off"; } catch { box.checked = true; }
     box.addEventListener("change", () => { try { localStorage.setItem(KEY_SHOW, box.checked ? "on" : "off"); } catch { /* egal */ } });
     chk.append(box, document.createTextNode(` ${t("start.showOnStart")}`));
-    foot.append(chk, el("span", "muted small", t("start.foot", { v: this.d.version() })));
+    const rep = el("button", "linkish", t("Fehler melden"));
+    rep.addEventListener("click", () => { this.continue(); this.d.report(); });
+    const fr = el("span", "muted small start-foot-r"); fr.append(rep, document.createTextNode(" · " + t("start.foot", { v: this.d.version() })));
+    foot.append(chk, fr);
     r.append(card, foot);
   }
 }

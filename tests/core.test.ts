@@ -1693,3 +1693,27 @@ describe("Sprache", () => {
     expect(missing).toEqual([]);
   });
 });
+
+import { firstLine, formatDiagnostics, issueLink, mailLink, MAIL_LIMIT, REPORT_MAIL } from "../src/core/report";
+describe("Fehler melden", () => {
+  const diag = formatDiagnostics([{ title: "VJ-Link", lines: ["Version 0.0.1"] }]);
+  it("baut Diagnose-Abschnitte wie LJ-Link", () => {
+    expect(diag).toBe("== VJ-Link ==\nVersion 0.0.1\n");
+    expect(firstLine("Absturz beim Start\nDetails", 80)).toBe("Absturz beim Start");
+  });
+  it("E-Mail mit Diagnose, zu lang → Datei anhängen", () => {
+    const short = mailLink("Kamera schwarz", diag, "ANHANG");
+    expect(short.url.startsWith(`mailto:${REPORT_MAIL}?subject=VJ-Link%3A%20Kamera%20schwarz`)).toBe(true);
+    expect(short.attach).toBe(false);
+    expect(decodeURIComponent(short.url)).toContain("== VJ-Link ==");
+    const long = mailLink("Kamera schwarz", "x".repeat(MAIL_LIMIT * 2), "ANHANG");
+    expect(long.attach).toBe(true);
+    expect(decodeURIComponent(long.url)).toContain("ANHANG");
+  });
+  it("GitHub-Issue im öffentlichen Repo, lange Diagnose über die Zwischenablage", () => {
+    const r = issueLink("Ausgang flackert", diag, "0.0.1", "hier einfügen");
+    expect(r.url).toContain("github.com/skyplayser/VJ-LINK/issues/new?labels=bug&title=Ausgang%20flackert");
+    expect(r.clipboard).toBe(false);
+    expect(issueLink("x", "y".repeat(9000), "0.0.1", "hier").clipboard).toBe(true);
+  });
+});
