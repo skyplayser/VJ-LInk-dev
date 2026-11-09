@@ -1062,8 +1062,11 @@ void main(){
   float cs = cos(-uRot), sn = sin(-uRot);
   p = mat2(cs, sn, -sn, cs) * p;
   vec2 q = p / (max(uScale, 0.001) * vec2(uImgAspect, 1.0)) + 0.5;
-  if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) { outColor = vec4(0.0); return; }
-  vec4 c = texture(uImg, vec2(q.x, 1.0 - q.y));
+  // Textur immer lesen (gleichmäßiger Ablauf: sonst wählt die Grafikkarte an der Bildkante die falsche
+  // Mipmap-Stufe, und es entsteht ein feiner Rahmen). Außerhalb der Bildfläche per Maske ausblenden.
+  vec4 c = texture(uImg, vec2(clamp(q.x, 0.0, 1.0), 1.0 - clamp(q.y, 0.0, 1.0)));
+  c.rgb = min(c.rgb, vec3(c.a));   // vormultipliziert: keine Farbe ohne Deckkraft
+  c *= step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
   if (uKeyMode != 0 && c.a > 0.0) {
     vec3 u = c.rgb / c.a;                                   // Farbe ohne Vormultiplikation
     float d = uKeyMode == 1 ? 1.0 - min(u.r, min(u.g, u.b)) // Abstand zu Weiß
