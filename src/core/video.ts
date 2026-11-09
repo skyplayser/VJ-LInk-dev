@@ -116,7 +116,11 @@ export interface Cue {
 }
 
 /** Szenen-Marker in einem Video: Zeit in der Datei (s), Szene (1…), nur die anderen Bilder oder alle. */
-export interface SceneMark { t: number; scene: number; others: boolean }
+export interface SceneMark {
+  t: number; scene: number; others: boolean;
+  /** Länge in Sekunden (Block wie im Schnittprogramm). Fehlt sie, gilt die Szene bis zur nächsten. Danach: Ausgangsszene. */
+  len?: number;
+}
 
 export function newCue(kind: CueKind, name: string, media: string | null = null, id = newCueId()): Cue {
   return {
@@ -146,6 +150,8 @@ export interface ActiveCue {
   fired: boolean;
   /** Timeline: zuletzt gesehene Video-Zeit (für die Szenen-Marker). */
   lastT?: number;
+  /** Timeline: Szene (1…), die beim Start des Cues lief; in Lücken zwischen Blöcken gilt wieder sie. */
+  baseScene?: number;
 }
 
 export interface CueRun { active: ActiveCue[]; next: number; current: number }
@@ -272,6 +278,8 @@ export interface CueEnv {
   timecode?(): TcNow | null;
   /** Videos folgen dem Timecode (sonst nur Start). */
   chase?: boolean;
+  /** Gerade aktive Szene (1…, 0 = keine) – Ausgangsszene für die Timeline. */
+  currentScene?(): number;
 }
 
 const byId = (s: CueState, id: string) => s.list.find(c => c.id === id);
@@ -442,21 +450,43 @@ export function cueStatus(s: CueState, c: Cue, nowMs: number, env: CueEnv): { li
   return { live: true, remaining: rem, progress: total > 0 ? 1 - rem / total : 1 };
 }
 
+/** Ereignisse der Timeline: Blockanfänge und Blockenden (Ende = zurück zur Ausgangsszene, Szene 0). */
+export function timelineEvents(marks: readonly SceneMark[]): SceneMark[] {
+  const sorted = [...marks].sort((a, b) => a.t - b.t);
+  // Ende jedes Blocks: eigene Länge, sonst bis zum nächsten Block (der letzte offene Block läuft bis zum Schluss)
+  const endOf = (k: number) => { const m = sorted[k]!; return m.len !== undefined && m.len > 0 ? m.t + m.len : sorted[k + 1]?.t ?? Infinity; };
+  const ev: SceneMark[] = [];
+  sorted.forEach((m, k) => {
+    ev.push({ t: m.t, scene: m.scene, others: m.others });
+    if (m.len !== undefined && m.len > 0) {
+      const end = m.t + m.len;
+      // Lücke nur, wenn dort kein anderer Block liegt (angrenzend oder überlappend)
+      const covered = sorted.some((o, j) => j !== k && o.t <= end + 0.06 && endOf(j) > end + 0.01);
+      if (!covered) ev.push({ t: end, scene: 0, others: m.others });
+    }
+  });
+  return ev.sort((a, b) => a.t - b.t);
+}
+
 /**
- * Timeline: Marker zwischen der zuletzt gesehenen und der jetzigen Video-Zeit auslösen.
- * Im Loop zählt der Sprung an den Anfang mit; springt das Video sonst zurück (z. B. Timecode), gilt der Stand
- * des letzten Markers vor der neuen Stelle.
+ * Timeline: Ereignisse zwischen der zuletzt gesehenen und der jetzigen Zeit auslösen.
+ * Im Loop zählt der Sprung an den Anfang mit; springt die Zeit sonst zurück (z. B. Timecode), gilt der Stand
+ * des letzten Ereignisses vor der neuen Stelle. Blockenden rufen die Ausgangsszene wieder ab.
  */
 export function fireMarks(c: Cue, ac: ActiveCue, t: number, looping: boolean, env: CueEnv): SceneMark[] {
-  const marks = [...(c.marks ?? [])].sort((a, b) => a.t - b.t);
+  const evs = timelineEvents(c.marks ?? []);
   const prev = ac.lastT;
+  if (prev === undefined && ac.baseScene === undefined) ac.baseScene = env.currentScene?.() ?? 0;
   ac.lastT = t;
   let due: SceneMark[];
-  if (prev === undefined) due = marks.filter(m => m.t <= t);
-  else if (t >= prev) due = marks.filter(m => m.t > prev && m.t <= t);
-  else if (looping) due = [...marks.filter(m => m.t > prev), ...marks.filter(m => m.t <= t)];
-  else { const last = marks.filter(m => m.t <= t).pop(); due = last ? [last] : []; }
-  for (const m of due) env.recallScene(m.scene - 1, m.others);
+  if (prev === undefined) due = evs.filter(m => m.t <= t);
+  else if (t >= prev) due = evs.filter(m => m.t > prev && m.t <= t);
+  else if (looping) due = [...evs.filter(m => m.t > prev), ...evs.filter(m => m.t <= t)];
+  else { const last = evs.filter(m => m.t <= t).pop(); due = last ? [last] : []; }
+  for (const m of due) {
+    const sc = m.scene > 0 ? m.scene : ac.baseScene ?? 0;
+    if (sc > 0) env.recallScene(sc - 1, m.others);
+  }
   return due;
 }
 

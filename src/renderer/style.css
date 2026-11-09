@@ -592,3 +592,11 @@ body.mapping .cell-edit,body.modding .cell-edit{display:none}
 .tlv-scene{background:var(--raise);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:4px;color:var(--text);padding:5px 9px;font:600 11px system-ui,sans-serif;cursor:pointer}
 .tlv-scene:hover{background:color-mix(in srgb,var(--c) 25%,var(--raise))}
 .tlv-edit{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tlv-block.open{border-right:1px dashed color-mix(in srgb,var(--c) 70%,transparent)}
+.tlv-h{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:2}
+.tlv-h.l{left:-3px}.tlv-h.r{right:-3px}
+.tlv-h:hover,.tlv-block.sel .tlv-h{background:color-mix(in srgb,var(--c) 70%,transparent)}
+.tlv-block{cursor:grab}
+.tlv-drop{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;box-shadow:0 0 6px #fff;pointer-events:none;z-index:4}
+.tlv-ghost{position:fixed;z-index:80;pointer-events:none;background:color-mix(in srgb,var(--c) 40%,#0c0e13);border-left:3px solid var(--c);color:#fff;border-radius:4px;padding:5px 9px;font:600 11px system-ui,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.tlv-scene{touch-action:none;user-select:none}

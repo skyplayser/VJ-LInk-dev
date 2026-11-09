@@ -32,6 +32,9 @@ export class TimelineView {
   private span: [number, number] = [0, 0];
   private timeEl: HTMLElement | null = null;
   private playBtn: HTMLButtonElement | null = null;
+  /** Während gezogen wird, nicht neu aufbauen (die Elemente unter dem Zeiger bleiben). */
+  private dragging = false;
+  private drop: HTMLElement | null = null;
 
   constructor(private root: HTMLElement, private d: TimelineDeps) {
     root.tabIndex = 0;
@@ -69,7 +72,7 @@ export class TimelineView {
     const span = timelineSpan(c, this.d.env.duration(c.media));
     const live = this.liveT(c) !== null;
     const sig = `${JSON.stringify(c.marks ?? [])}|${span.join(",")}|${this.sel}|${this.recording}|${live}|${this.d.ctx.scenes.map(s => s.name).join(",")}|${c.name}`;
-    if (force || sig !== this.sig) { this.sig = sig; this.span = span; this.build(c); }
+    if (!this.dragging && (force || sig !== this.sig)) { this.sig = sig; this.span = span; this.build(c); }
     this.tick(c);
   }
 
@@ -136,17 +139,23 @@ export class TimelineView {
     const lane = el("div", "tlv-lane"); this.lane = lane;
     const pctOf = (t: number) => ((t - a) / len) * 100;
     marks.forEach((m, k) => {
-      const next = marks[k + 1]?.t ?? b;
-      const blk = el("div", `tlv-block${k === this.sel ? " sel" : ""}`);
+      const end = this.endOf(marks, k, b);
+      const blk = el("div", `tlv-block${k === this.sel ? " sel" : ""}${m.len === undefined ? " open" : ""}`);
       const sc = d.ctx.scenes[m.scene - 1];
       blk.style.left = `${pctOf(Math.max(a, m.t))}%`;
-      blk.style.width = `${Math.max(0.4, pctOf(Math.min(b, next)) - pctOf(Math.max(a, m.t)))}%`;
+      blk.style.width = `${Math.max(0.4, pctOf(Math.min(b, end)) - pctOf(Math.max(a, m.t)))}%`;
       blk.style.setProperty("--c", sceneColor(m.scene));
-      blk.append(el("b", "", `${m.scene} · ${sc?.name ?? "?"}`), el("small", "", m.others ? "andere Bilder" : "alle Bilder"));
-      blk.title = `${fmt1(m.t - a)} · Szene ${m.scene}. Ziehen verschiebt, Entf löscht.`;
-      blk.addEventListener("pointerdown", e => this.dragMark(e, c, m, k));
+      blk.append(el("b", "", `${m.scene} · ${sc?.name ?? "?"}`), el("small", "", `${fmt1(end - m.t)}${m.len === undefined ? " · bis zur nächsten" : ""} · ${m.others ? "andere Bilder" : "alle Bilder"}`));
+      blk.title = `${fmt1(m.t - a)} · Szene ${m.scene}. Mitte ziehen verschiebt, Ränder ziehen ändert die Länge (⌥ ohne Einrasten), Entf löscht.`;
+      const hl = el("span", "tlv-h l"), hr = el("span", "tlv-h r");
+      hl.title = "Anfang ziehen"; hr.title = "Ende ziehen (Länge)";
+      hl.addEventListener("pointerdown", e => this.dragMark(e, c, m, k, "l", blk));
+      hr.addEventListener("pointerdown", e => this.dragMark(e, c, m, k, "r", blk));
+      blk.addEventListener("pointerdown", e => this.dragMark(e, c, m, k, "move", blk));
+      blk.append(hl, hr);
       lane.append(blk);
     });
+    this.drop = el("i", "tlv-drop"); this.drop.hidden = true; lane.append(this.drop);
     this.play = el("i", "tlv-play"); this.cursor = el("i", "tlv-cursor");
     tracks.append(vid, lane, this.play, this.cursor);
     // Klick ins Lineal/Spuren: spulen (läuft) bzw. Cursor setzen (steht)
@@ -164,17 +173,12 @@ export class TimelineView {
 
     // Szenen-Palette
     const pal = el("div", "tlv-pal");
-    pal.append(el("span", "muted small", live ? "Szene jetzt setzen:" : "Szene am Cursor setzen:"));
+    pal.append(el("span", "muted small", live ? "Szenen ziehen oder antippen (jetzt):" : "Szenen auf die Spur ziehen oder antippen (Cursor):"));
     d.ctx.scenes.forEach((sc, i) => {
       const bt = el("button", "tlv-scene", `${i + 1} · ${sc.name}`);
       bt.style.setProperty("--c", sceneColor(i + 1));
-      bt.addEventListener("click", () => {
-        const t = this.liveT(c);
-        this.sel = this.place(c, t ?? this.cursorT, i + 1);
-        // läuft das Video, sofort zeigen (Marker liegt schon hinter der Abspielposition)
-        if (t !== null) d.env.recallScene(i, marks[this.sel]?.others ?? true);
-        d.changed();
-      });
+      bt.title = "Auf die Szenen-Spur ziehen (4 s, Länge danach an den Rändern ziehen) oder antippen (an Abspielposition bzw. Cursor)";
+      bt.addEventListener("pointerdown", e => this.dragScene(e, c, i + 1, bt));
       pal.append(bt);
     });
     r.append(pal);
@@ -192,34 +196,131 @@ export class TimelineView {
       oth.addEventListener("click", () => { m.others = !m.others; d.changed(); });
       const del = el("button", "btn small-btn", "Löschen (Entf)");
       del.addEventListener("click", () => { marks.splice(marks.indexOf(m), 1); this.sel = -1; d.changed(); });
-      row.append(el("span", "muted small", "Marker:"), tIn, el("small", "muted", "s"), sc, oth, del);
+      const lenIn = el("input", "tc-in"); lenIn.placeholder = "bis nächste";
+      lenIn.value = m.len !== undefined ? m.len.toFixed(2) : ""; lenIn.setAttribute("aria-label", "Länge in Sekunden (leer = bis zur nächsten Szene)");
+      lenIn.addEventListener("change", () => { const v = Number(lenIn.value.replace(",", ".")); if (lenIn.value.trim() === "") delete m.len; else if (Number.isFinite(v) && v > 0) m.len = Math.min(v, b - m.t); d.changed(); });
+      const open = el("button", "btn small-btn", "bis zur nächsten");
+      open.title = "Keine eigene Länge: die Szene gilt bis zum nächsten Block";
+      open.addEventListener("click", () => { delete m.len; d.changed(); });
+      row.append(el("span", "muted small", "Block:"), tIn, el("small", "muted", "s ab"), lenIn, el("small", "muted", "s lang"), open, sc, oth, del);
       r.append(row);
     } else if (!marks.length) {
-      r.append(el("p", "muted small", "Szenen auf die Timeline setzen: Video abspielen und unten eine Szene anklicken, oder „Aufnehmen“ und Szenen wie gewohnt auslösen. Im Stand setzt ein Klick ins Lineal den Cursor."));
+      r.append(el("p", "muted small", "Szenen aus der Palette auf die Spur ziehen und die Länge an den Rändern ziehen – wie im Schnittprogramm. Oder Video abspielen und Szenen antippen bzw. „Aufnehmen“. In Lücken gilt die Szene, die beim Start lief."));
     }
     this.tick(c);
   }
 
-  /** Marker waagerecht ziehen. */
-  private dragMark(e: PointerEvent, c: Cue, m: SceneMark, k: number): void {
+  /** Ende eines Blocks: eigene Länge, sonst bis zum nächsten Block bzw. Ende der Timeline. */
+  private endOf(marks: readonly SceneMark[], k: number, b: number): number {
+    const m = marks[k]!;
+    return m.len !== undefined ? Math.min(b, m.t + m.len) : (marks[k + 1]?.t ?? b);
+  }
+
+  /** Einrasten an Blockkanten, Anfang/Ende und Cursor (tol in Sekunden). */
+  private snapT(t: number, c: Cue, skip: SceneMark | null, tol: number): number {
+    const [a, b] = this.span, marks = c.marks ?? [];
+    const pts = [a, b, this.cursorT];
+    marks.forEach((m, k) => { if (m !== skip) pts.push(m.t, this.endOf(marks, k, b)); });
+    let best = t, dist = tol;
+    for (const p of pts) if (Math.abs(p - t) < dist) { dist = Math.abs(p - t); best = p; }
+    return best;
+  }
+
+  /** Block ziehen: Mitte verschiebt, linker Rand = Anfang, rechter Rand = Ende (Länge). */
+  private dragMark(e: PointerEvent, c: Cue, m: SceneMark, k: number, mode: "move" | "l" | "r", blk: HTMLElement): void {
     e.preventDefault(); e.stopPropagation();
-    this.sel = k;
+    this.sel = k; this.dragging = true;
+    blk.classList.add("sel");
+    const marks = (c.marks ??= []);
     const lane = this.lane!, [a, b] = this.span, rr = lane.getBoundingClientRect();
-    const sx = e.clientX, t0 = m.t;
-    let moved = false;
+    const secPerPx = (b - a) / rr.width, tol = 8 * secPerPx;
+    const sx = e.clientX, t0 = m.t, end0 = this.endOf(marks, k, b), len0 = end0 - t0;
+    const pct = (x: number) => `${((x - a) / (b - a)) * 100}%`;
     const move = (ev: PointerEvent) => {
-      const dt = ((ev.clientX - sx) / rr.width) * (b - a);
-      if (Math.abs(ev.clientX - sx) > 2) moved = true;
-      m.t = Math.round(Math.max(a, Math.min(b, t0 + dt)) * 100) / 100;
-      const blk = lane.children[k] as HTMLElement | undefined;
-      if (blk) blk.style.left = `${((m.t - a) / (b - a)) * 100}%`;
+      const dt = (ev.clientX - sx) * secPerPx;
+      const snap = (x: number) => (ev.altKey ? x : this.snapT(x, c, m, tol));
+      if (mode === "move") {
+        let t = Math.max(a, Math.min(b - 0.05, t0 + dt));
+        const st = snap(t), en = snap(t + len0);
+        t = Math.abs(st - t) <= Math.abs(en - (t + len0)) ? st : en - len0;
+        m.t = Math.round(Math.max(a, t) * 100) / 100;
+        if (m.len !== undefined) m.len = Math.min(m.len, b - m.t);
+      } else if (mode === "r") {
+        const en = Math.max(t0 + 0.1, Math.min(b, snap(end0 + dt)));
+        m.len = Math.round((en - t0) * 100) / 100;
+      } else {
+        const t = Math.max(a, Math.min(end0 - 0.1, snap(t0 + dt)));
+        m.t = Math.round(t * 100) / 100; m.len = Math.round((end0 - m.t) * 100) / 100;
+      }
+      const en = m.len !== undefined ? m.t + m.len : end0 + (m.t - t0);
+      blk.style.left = pct(m.t); blk.style.width = pct(a + Math.max(0.05, Math.min(b, en) - m.t));
     };
     const up = () => {
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
-      (c.marks ??= []).sort((x, y) => x.t - y.t);
-      this.sel = c.marks.indexOf(m);
-      void moved;
+      marks.sort((x, y) => x.t - y.t);
+      this.sel = marks.indexOf(m);
+      this.dragging = false;
       this.d.changed();
+    };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  }
+
+  /** Szene aus der Palette ziehen und auf der Spur ablegen; ohne Ziehen = antippen. */
+  private dragScene(e: PointerEvent, c: Cue, scene: number, bt: HTMLElement): void {
+    e.preventDefault();
+    const d = this.d, lane = this.lane, [a, b] = this.span;
+    const sx = e.clientX, sy = e.clientY;
+    let ghost: HTMLElement | null = null;
+    this.dragging = true;
+    const tAt = (x: number, alt: boolean) => {
+      if (!lane) return null;
+      const rr = lane.getBoundingClientRect();
+      const t = a + ((x - rr.left) / rr.width) * (b - a);
+      return alt ? t : this.snapT(t, c, null, (8 / rr.width) * (b - a));
+    };
+    const over = (ev: PointerEvent) => {
+      if (!lane) return false;
+      const rr = lane.getBoundingClientRect();
+      return ev.clientX >= rr.left && ev.clientX <= rr.right && ev.clientY >= rr.top - 20 && ev.clientY <= rr.bottom + 20;
+    };
+    const move = (ev: PointerEvent) => {
+      if (!ghost && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 4) {
+        ghost = el("div", "tlv-ghost", bt.textContent ?? "");
+        ghost.style.setProperty("--c", sceneColor(scene));
+        document.body.append(ghost);
+      }
+      if (!ghost) return;
+      ghost.style.left = `${ev.clientX + 10}px`; ghost.style.top = `${ev.clientY + 10}px`;
+      const inLane = over(ev);
+      if (this.drop && lane) {
+        this.drop.hidden = !inLane;
+        const t = tAt(ev.clientX, ev.altKey);
+        if (inLane && t !== null) this.drop.style.left = `${((Math.max(a, Math.min(b, t)) - a) / (b - a)) * 100}%`;
+      }
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+      this.dragging = false;
+      if (this.drop) this.drop.hidden = true;
+      if (ghost) {
+        ghost.remove();
+        const t = tAt(ev.clientX, ev.altKey);
+        if (over(ev) && t !== null && b > a) {
+          const marks = (c.marks ??= []);
+          const at = Math.max(a, Math.min(b - 0.1, t));
+          const next = marks.filter(m => m.t > at + 0.01).sort((x, y) => x.t - y.t)[0]?.t ?? b;
+          this.sel = this.place(c, at, scene);
+          const m = marks[this.sel];
+          if (m) m.len = Math.round(Math.max(0.2, Math.min(4, next - at, b - at)) * 100) / 100;
+        }
+        d.changed();
+        return;
+      }
+      // Antippen: an Abspielposition (läuft, sofort zeigen) bzw. am Cursor
+      const t = this.liveT(c);
+      this.sel = this.place(c, t ?? this.cursorT, scene);
+      if (t !== null) d.env.recallScene(scene - 1, c.marks?.[this.sel]?.others ?? true);
+      d.changed();
     };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   }

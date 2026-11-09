@@ -211,6 +211,7 @@ const cueEnv: CueEnv = {
   // Szenen-Marker der Timeline: „nur andere Bilder“ lässt das Bild des SHOW-Ablaufs unberührt
   recallScene: (i, othersOnly) => { recallScene(ctx, i, Date.now(), othersOnly ? [showImage()] : [], true); },
   timecode: () => tcClock.now(Date.now()),
+  currentScene: () => ctx.show.scene,
   tcCommand: (action, target) => {
     const now = Date.now(), t = parseTc(target, tcClock.sendFps);
     if (!tcClock.sendOn) toast("Timecode-Cue: Senden ist aus (Einstellungen → Timecode).");

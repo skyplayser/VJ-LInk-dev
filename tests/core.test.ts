@@ -1263,3 +1263,27 @@ describe("Timeline-Cue", () => {
     expect(p.cues[0]!.timeline).toBe(true);
   });
 });
+
+describe("Timeline-Blöcke mit Länge", () => {
+  it("Blockende ruft die Ausgangsszene ab, angrenzende Blöcke lassen keine Lücke", async () => {
+    const { fireMarks, newCue, timelineEvents } = await import("../src/core/video");
+    const c = newCue("video", "Film", "vid:0011223344556677");
+    c.marks = [{ t: 2, scene: 3, others: true, len: 2 }, { t: 6, scene: 4, others: true, len: 1 }, { t: 7, scene: 5, others: false }];
+    expect(timelineEvents(c.marks).map(e => [e.t, e.scene])).toEqual([[2, 3], [4, 0], [6, 4], [7, 5]]);
+    const calls: number[] = [];
+    const env = { duration: () => 20, recallScene: (i: number) => { calls.push(i + 1); }, currentScene: () => 1 };
+    const ac = { uid: "x", cueId: c.id, startMs: 0, releasedMs: null, fadeOutMs: null, fadeOutDur: 0, endHandled: false, fired: false } as import("../src/core/video").ActiveCue;
+    fireMarks(c, ac, 0.5, false, env);   // Start: Ausgangsszene 1 gemerkt
+    fireMarks(c, ac, 3, false, env);
+    fireMarks(c, ac, 5, false, env);     // Blockende bei 4 → Szene 1
+    expect(calls).toEqual([3, 1]);
+  });
+});
+
+describe("Timeline-Blöcke überlappend", () => {
+  it("Ende eines Blocks führt nicht zur Ausgangsszene, wenn ein anderer Block noch läuft", async () => {
+    const { timelineEvents } = await import("../src/core/video");
+    const ev = timelineEvents([{ t: 1, scene: 2, others: true, len: 5 }, { t: 5.2, scene: 3, others: true, len: 1.6 }]);
+    expect(ev.map(e => [Math.round(e.t * 100) / 100, e.scene])).toEqual([[1, 2], [5.2, 3], [6.8, 0]]);
+  });
+});
