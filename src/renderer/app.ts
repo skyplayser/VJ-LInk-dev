@@ -748,8 +748,11 @@ const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => 
   on: () => ctx.show.testCard && ctx.show.testPattern === "grid",
   toggle: () => { const on = !(ctx.show.testCard && ctx.show.testPattern === "grid"); ctx.show.testPattern = "grid"; ctx.show.testCard = on; syncTestUi(); },
 }, () => imageList(ctx.show), () => (ctx.photos ??= {}));
+/** Nur Entwicklung: vorgespielte Bildschirme im Browser-Modus (Screenshots für Website und Wiki). */
+let demoDisplays = false;
 async function refreshDisplays(): Promise<void> {
   const list = $("displays");
+  if (!bridge && demoDisplays) { renderDisplays(); return; }
   if (!bridge) {
     $("output-note").textContent = t("Mehrere Ausgänge gibt es nur in der Desktop-App. Im Browser siehst du nur die Vorschau.");
     list.replaceChildren(); return;
@@ -1538,4 +1541,5 @@ requestAnimationFrame(frame);
   importFiles: (f: File[]) => importToLibrary(f),
   rebuild: () => { rebuildGrid(); rebuildDeck(); },
   scene: (i: number) => recallScene(ctx, i),
+  demoOutputs: (d: DisplayInfo[], layout?: OutputLayout) => { displays = d; demoDisplays = true; if (layout) outLayout = layout; renderDisplays(); outputTab.render(); fitPreview(); },
 };
