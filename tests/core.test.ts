@@ -496,12 +496,18 @@ describe("Zuweisungen", () => {
     t.dispatch(c, { p: "key", code: "KeyF", label: "F" }, 1); expect(c.show.strobe.flash).toBe(true);
     t.dispatch(c, { p: "key", code: "KeyF", label: "F" }, 0); expect(c.show.strobe.flash).toBe(false);
   });
-  it("ein Eingang hat genau ein Ziel", () => {
+  it("ein Eingang darf mehrere Ziele steuern (doppelt belegen), dieselbe Zuweisung nur einmal", () => {
+    const c = ctx();
     const t = new MappingTable();
     t.add("master", { p: "osc", address: "/fader1" });
     t.add("fx.master", { p: "osc", address: "/fader1" });
-    expect(t.list.length).toBe(1);
-    expect(t.list[0]!.target).toBe("fx.master");
+    t.add("master", { p: "osc", address: "/fader1" });
+    expect(t.list.map(m => m.target)).toEqual(["master", "fx.master"]);
+    t.dispatch(c, { p: "osc", address: "/fader1" }, 0.3);
+    expect(c.show.master).toBeCloseTo(0.3, 6);
+    expect(c.show.fxMaster).toBeCloseTo(0.3, 6);
+    t.remove(t.list[0]!.id);
+    expect(t.findAll({ p: "osc", address: "/fader1" }).map(m => m.target)).toEqual(["fx.master"]);
   });
   it("OSC: Werte normalisieren, BPM direkt als Zahl", () => {
     expect(oscValue(0.5)).toBe(0.5); expect(oscValue(127)).toBe(1); expect(oscValue(255)).toBe(1); expect(oscValue(true)).toBe(1);

@@ -104,7 +104,10 @@ export class MapMode {
   private mark(): void {
     if (!this.protocol) return;
     const mapped = new Map<string, string>();
-    for (const m of this.table.ofProtocol(this.protocol)) mapped.set(m.target, describeInput(m.input));
+    for (const m of this.table.ofProtocol(this.protocol)) {
+      const prev = mapped.get(m.target);
+      mapped.set(m.target, prev ? `${prev}, ${describeInput(m.input)}` : describeInput(m.input));
+    }
     document.querySelectorAll<HTMLElement>("[data-ctl]").forEach(e => {
       const id = e.dataset.ctl!;
       const d = mapped.get(id);
@@ -151,16 +154,30 @@ export class MapMode {
     if (this.target) {
       const what = p === "key" ? "eine Taste drücken" : p === "midi" ? "Regler, Taste oder Pad am Controller bewegen"
         : p === "dmx" ? "den Kanal am Pult bewegen" : "die OSC-Nachricht senden";
-      hint.append(el("b", "", label(this.target)), el("span", "", ` · jetzt ${what} …`));
+      const existing = this.table.forTarget(this.target).filter(m => m.input.p === p);
+      hint.append(el("b", "", label(this.target)), el("span", "", existing.length ? ` · belegt – weiteren Eingang bewegen zum Doppelt-Belegen …` : ` · jetzt ${what} …`));
       const cancel = el("button", "icon", "×"); cancel.title = "Abbrechen";
       cancel.addEventListener("click", () => { this.target = null; this.render(); this.mark(); });
       hint.append(cancel);
+      if (existing.length) {
+        const ex = el("div", "map-existing");
+        for (const m of existing) {
+          const chip = el("span", "map-chip", describeInput(m.input));
+          const x = el("button", "icon", "×"); x.title = "Diese Zuweisung entfernen";
+          x.addEventListener("click", () => { this.table.remove(m.id); this.onChanged(); this.render(); this.mark(); });
+          chip.append(x); ex.append(chip);
+        }
+        hint.append(ex);
+      }
     } else {
-      hint.textContent = this.lastAssigned ? `Zugewiesen: ${this.lastAssigned}` : "Ein lila markiertes Element anklicken.";
+      hint.textContent = this.lastAssigned ? `Zugewiesen: ${this.lastAssigned}` : "Element anklicken, dann Eingang bewegen. Grün = schon belegt: anklicken zeigt seine Zuweisungen (zum Entfernen oder Doppelt-Belegen).";
     }
     box.append(hint);
 
     const list = this.table.ofProtocol(p);
+    const uses = new Map<string, number>();
+    for (const m of list) { const k = describeInput(m.input); uses.set(k, (uses.get(k) ?? 0) + 1); }
+    box.append(el("div", "map-sub", `Alle ${PROTOCOL_LABEL[p]}-Zuweisungen (${list.length})`));
     const tbl = el("div", "map-list");
     const hdr = el("div", "map-row hdr"); hdr.append(el("span", "", "Ziel"), el("span", "", "Eingang"), el("span", "", ""));
     tbl.append(hdr);
@@ -171,10 +188,15 @@ export class MapMode {
       t.addEventListener("click", () => this.select(m.target));
       const del = el("button", "icon", "×"); del.title = "Zuweisung entfernen";
       del.addEventListener("click", () => { this.table.remove(m.id); this.onChanged(); this.render(); this.mark(); });
-      row.append(t, el("span", "map-in", describeInput(m.input)), del);
+      const inp = describeInput(m.input), n = uses.get(inp) ?? 1;
+      const inEl = el("span", "map-in", inp);
+      if (n > 1) { inEl.append(el("small", "map-dup", ` · ${n} Ziele`)); inEl.title = "Dieser Eingang steuert mehrere Ziele"; }
+      row.append(t, inEl, del);
       tbl.append(row);
     }
     box.append(tbl);
+    // Gewähltes Ziel: zu seinen Zeilen springen
+    requestAnimationFrame(() => tbl.querySelector(".map-row.sel")?.scrollIntoView({ block: "nearest" }));
 
     if (p === "midi") box.append(this.templateBox());
 
@@ -252,7 +274,9 @@ export class MapMode {
     try {
       const p = JSON.parse(localStorage.getItem("vjlink.mapPanel") ?? "null") as { x: number; y: number; w: number; h: number } | null;
       if (!p) return;
-      Object.assign(this.panel.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${p.w}px`, height: `${p.h}px` });
+      // Höhe mindestens so, dass die Liste der Zuweisungen gut zu sehen ist (alte, kleine Fenster wachsen einmal mit)
+      const h = Math.max(p.h, Math.min(560, window.innerHeight * 0.8));
+      Object.assign(this.panel.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${p.w}px`, height: `${h}px` });
     } catch { /* Standardlage */ }
   }
 

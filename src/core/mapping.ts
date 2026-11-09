@@ -58,7 +58,8 @@ const isButtonLike = (m: Mapping): boolean => m.input.p === "key" || (m.input.p 
 
 export class MappingTable {
   list: Mapping[] = [];
-  private byInput = new Map<string, Mapping>();
+  /** Ein Eingang kann mehrere Ziele haben (doppelt belegen). */
+  private byInput = new Map<string, Mapping[]>();
   private last = new Map<string, number>();
 
   constructor(list: Mapping[] = []) { this.replace(list); }
@@ -69,17 +70,17 @@ export class MappingTable {
     for (const m of list) this.add(m.target, m.input, m.id, m);
   }
 
-  /** Neue Zuweisung. Ein Eingang hat genau ein Ziel: eine alte Zuweisung desselben Eingangs fällt weg. */
+  /** Neue Zuweisung. Ein Eingang darf mehrere Ziele haben; dieselbe Zuweisung zweimal gibt es nicht. */
   add(target: string, input: MapInput, id = newId(), extra: MapExtra = {}): Mapping {
     const key = inputKey(input);
-    const old = this.byInput.get(key);
-    if (old) this.list = this.list.filter(m => m !== old);
+    const same = this.byInput.get(key)?.find(m => m.target === target);
+    if (same) return same;
     const m: Mapping = { id, target, input };
     if (extra.device) m.device = extra.device;
     if (extra.led) m.led = { ...extra.led };
     if (extra.button) m.button = true;
     this.list.push(m);
-    this.byInput.set(key, m);
+    this.byInput.set(key, [...(this.byInput.get(key) ?? []), m]);
     return m;
   }
 
@@ -87,12 +88,15 @@ export class MappingTable {
     const m = this.list.find(x => x.id === id);
     if (!m) return;
     this.list = this.list.filter(x => x !== m);
-    this.byInput.delete(inputKey(m.input));
+    const key = inputKey(m.input), rest = (this.byInput.get(key) ?? []).filter(x => x !== m);
+    if (rest.length) this.byInput.set(key, rest); else this.byInput.delete(key);
   }
 
   clear(protocol: MapProtocol): void { this.replace(this.list.filter(m => m.input.p !== protocol)); }
 
-  find(input: MapInput): Mapping | undefined { return this.byInput.get(inputKey(input)); }
+  find(input: MapInput): Mapping | undefined { return this.byInput.get(inputKey(input))?.[0]; }
+  /** Alle Ziele dieses Eingangs. */
+  findAll(input: MapInput): Mapping[] { return this.byInput.get(inputKey(input)) ?? []; }
   forTarget(target: string): Mapping[] { return this.list.filter(m => m.target === target); }
   ofProtocol(p: MapProtocol): Mapping[] { return this.list.filter(m => m.input.p === p); }
 
@@ -101,8 +105,13 @@ export class MappingTable {
    * `raw` ist der unveränderte Wert (für BPM per OSC, z. B. 128).
    */
   dispatch(c: ControlContext, input: MapInput, value: number, raw?: number): boolean {
-    const m = this.find(input);
-    if (!m) return false;
+    const all = this.findAll(input);
+    if (!all.length) return false;
+    for (const m of all) this.dispatchOne(c, m, value, raw);
+    return true;
+  }
+
+  private dispatchOne(c: ControlContext, m: Mapping, value: number, raw?: number): boolean {
     const def = resolveControl(m.target);
     if (!def) return true;
     if (m.target === "tempo.bpm" && raw !== undefined && raw >= 20) {
