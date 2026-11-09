@@ -60,7 +60,7 @@ export class ModMode {
   }
 
   private pick(id: string): void {
-    if (!modulatable(id)) { this.toast(t("„{name}“ lässt sich nicht modulieren (nur Regler, kein Tempo, keine Auswahl).", { name: label(id) })); return; }
+    if (!modulatable(id)) { this.toast(t("„{name}“ lässt sich nicht modulieren (nur Regler – kein Tempo, keine Auswahlfelder).", { name: label(id) })); return; }
     this.target = id;
     if (!this.mods.some(m => m.target === id)) {
       if (this.mods.length >= MAX_MODS) { this.toast(t("Höchstens {n} Modulationen.", { n: MAX_MODS })); return; }
@@ -96,7 +96,7 @@ export class ModMode {
     box.append(head);
     const m = this.mods.find(x => x.target === this.target);
     if (!m) {
-      box.append(el("p", "map-hint", t("Einen Regler anklicken (türkis umrandet). Er schwingt dann um seine eingestellte Position, im Takt (LFO) oder mit dem Audio.")));
+      box.append(el("p", "map-hint", t("Klick auf einen Regler (türkis umrandet). Er schwingt dann um seine eingestellte Position – im Takt (LFO) oder mit dem Audio.")));
     } else {
       const ed = el("div", "mod-edit");
       ed.append(el("b", "mod-target", label(m.target)));

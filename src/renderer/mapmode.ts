@@ -145,7 +145,7 @@ export class MapMode {
     const status = el("p", "map-status");
     if (p === "midi") {
       const devs = this.info.midiDevices();
-      status.textContent = this.info.midiError() || (devs.length ? t("Geräte: {list}", { list: devs.join(", ") }) : t("Kein MIDI-Gerät gefunden. Controller anstecken, er erscheint sofort."));
+      status.textContent = this.info.midiError() || (devs.length ? t("Geräte: {list}", { list: devs.join(", ") }) : t("Kein MIDI-Gerät gefunden. Sobald du einen Controller ansteckst, erscheint er hier."));
     } else if (p === "dmx") status.textContent = this.info.dmx();
     else if (p === "osc") status.textContent = this.info.osc();
     else status.textContent = t("Tasten wirken, solange kein Eingabefeld aktiv ist.");
@@ -156,7 +156,7 @@ export class MapMode {
       const what = p === "key" ? t("eine Taste drücken") : p === "midi" ? t("Regler, Taste oder Pad am Controller bewegen")
         : p === "dmx" ? t("den Kanal am Pult bewegen") : t("die OSC-Nachricht senden");
       const existing = this.table.forTarget(this.target).filter(m => m.input.p === p);
-      hint.append(el("b", "", label(this.target)), el("span", "", existing.length ? t(" · belegt – weiteren Eingang bewegen zum Doppelt-Belegen …") : t(" · jetzt {what} …", { what })));
+      hint.append(el("b", "", label(this.target)), el("span", "", existing.length ? t(" · schon belegt – beweg einen weiteren Eingang, um doppelt zu belegen …") : t(" · jetzt {what} …", { what })));
       const cancel = el("button", "icon", "×"); cancel.title = t("Abbrechen");
       cancel.addEventListener("click", () => { this.target = null; this.render(); this.mark(); });
       hint.append(cancel);
@@ -171,7 +171,7 @@ export class MapMode {
         hint.append(ex);
       }
     } else {
-      hint.textContent = this.lastAssigned ? t("Zugewiesen: {what}", { what: this.lastAssigned }) : t("Element anklicken, dann Eingang bewegen. Grün = schon belegt: anklicken zeigt seine Zuweisungen (zum Entfernen oder Doppelt-Belegen).");
+      hint.textContent = this.lastAssigned ? t("Zugewiesen: {what}", { what: this.lastAssigned }) : t("Klick auf ein Element und beweg dann den Eingang. Grün heißt schon belegt: Ein Klick zeigt die Zuweisungen (zum Entfernen oder doppelt Belegen).");
     }
     box.append(hint);
 

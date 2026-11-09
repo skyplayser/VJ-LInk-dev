@@ -91,7 +91,7 @@ export class TcPanel {
       const r = el("label", "set-row"); r.append(el("span", "", label));
       const w = el("span", "inline");
       const i = el("input", wide ? "tc-in wide" : "tc-in"); i.value = get();
-      i.addEventListener("change", () => { if (set(i.value.trim())) { this.save(); this.apply(); } else { this.d.toast(t("Eingabe prüfen.")); i.value = get(); } });
+      i.addEventListener("change", () => { if (set(i.value.trim())) { this.save(); this.apply(); } else { this.d.toast(t("Bitte die Eingabe prüfen.")); i.value = get(); } });
       w.append(i); if (hint) w.append(el("small", "muted", hint));
       r.append(w); root.append(r);
     };
@@ -115,7 +115,7 @@ export class TcPanel {
     }
 
     // ---- Ausgang
-    onOff(t("Senden"), () => s.send, v => { s.send = v; }, t("VJ-Link schickt Timecode, z. B. an eine MA, deren Timecode-Show dann Befehle auslöst."));
+    onOff(t("Senden"), () => s.send, v => { s.send = v; }, t("VJ-Link sendet Timecode, z. B. an eine MA, deren Timecode-Show dann Befehle auslöst."));
     if (s.send) {
       root.append(this.outBig, this.outStatus);
       seg(t("Was senden"), [["own", t("eigene Uhr")], ["thru", t("Empfangenen weitergeben")]], () => s.sendFrom, v => { s.sendFrom = v; });

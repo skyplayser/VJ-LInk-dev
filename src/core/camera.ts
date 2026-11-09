@@ -21,8 +21,8 @@ export const CAM_LOOK_LABEL: Record<CamLook, string> = {
 };
 export const CAM_LOOK_INFO: Record<CamLook, string> = {
   normal: t("Das Kamerabild, wie es ist."),
-  silhouette: t("Personen als Umriss vor den Visuals, schwarz oder in der Farbe der Ebene."),
-  outline: t("Leuchtende Konturen der Person bzw. der Kanten im Bild."),
+  silhouette: t("Personen als gefüllte Form vor den Visuals, schwarz oder in der Farbe der Ebene."),
+  outline: t("Leuchtende Linie um die Person bzw. um die Kanten im Bild."),
   dots: t("Punkte nach Helligkeit, in den Farben des Bildes."),
   ascii: t("Zeichen . : + # @ nach Helligkeit."),
   halftone: t("Zeitungsraster: Punkte in der Farbe der Ebene."),

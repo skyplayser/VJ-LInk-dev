@@ -139,8 +139,8 @@ const midi = new MidiIn((data, device, tMs) => {
 const mapMode = new MapMode(ctx, mappings, {
   midiDevices: () => midi.devices,
   midiError: () => midi.error,
-  dmx: () => t("Art-Net Universe {u} · sACN Universe {s}. Kanal am Pult deutlich bewegen. Zusätzlich zum festen Pult-Profil (Adresse {a}–{b}).", { u: settings.universe, s: settings.sacn, a: settings.address, b: settings.address + DMX_MODE_STANDARD_CHANNELS - 1 }),
-  osc: () => t("Port 8000. Werte 0–1, 0–127 oder 0–255. Für BPM die Zahl direkt senden (z. B. 128). Adressen /vjlink/… sind fest belegt."),
+  dmx: () => t("Art-Net Universe {u} · sACN Universe {s}. Beweg den Kanal am Pult deutlich. Gilt zusätzlich zum festen Pult-Profil (Adresse {a}–{b}).", { u: settings.universe, s: settings.sacn, a: settings.address, b: settings.address + DMX_MODE_STANDARD_CHANNELS - 1 }),
+  osc: () => t("Port 8000. Werte 0–1, 0–127 oder 0–255. Für BPM einfach die Zahl senden (z. B. 128). Die Adressen /vjlink/… sind fest vergeben."),
   toast: msg => toast(msg),
 }, () => { leds.reset(); });
 void midi.start();
@@ -241,7 +241,7 @@ const cueEnv: CueEnv = {
   currentScene: () => ctx.show.scene,
   tcCommand: (action, target) => {
     const now = Date.now(), tc = parseTc(target, tcClock.sendFps);
-    if (!tcClock.sendOn) toast(t("Timecode-Cue: Senden ist aus (Einstellungen → Timecode)."));
+    if (!tcClock.sendOn) toast(t("Timecode-Cue: Das Senden ist ausgeschaltet (Einstellungen → Timecode)."));
     if (action === "stop") tcClock.stop(now);
     else { if (tc) tcClock.locate(tcToFrames(tc, tcClock.sendFps), now); if (action === "start") tcClock.start(now); }
   },
@@ -259,7 +259,7 @@ function addText(layer: number): void {
   textEditor.show(null, t("Text hinzufügen"), async (spec, dataUrl) => {
     const p = { id: newMediaId(), name: textName(spec), dataUrl };
     const item = await library.load(p);
-    if (!item) { toast(t("Text ließ sich nicht anlegen.")); return; }
+    if (!item) { toast(t("Der Text konnte nicht angelegt werden.")); return; }
     item.text = spec; item.name = p.name;
     bridge?.addMedia(p);
     const l = ctx.show.layers[layer]!;
@@ -270,7 +270,7 @@ function addText(layer: number): void {
     Object.assign(l.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
     if (layer > 0 && l.opacity < 0.05) l.opacity = 1;
     rebuildGrid(); libraryPanel.render(); fxPanel.select(layer);
-    toast(t("Text „{name}“ liegt auf Ebene {n}. Bearbeiten: Bleistift am Clip.", { name: p.name, n: layer + 1 }));
+    toast(t("Text „{name}“ liegt jetzt auf Ebene {n}. Zum Bearbeiten auf den Stift am Clip klicken.", { name: p.name, n: layer + 1 }));
   });
 }
 /** Vorhandenen Text-Clip bearbeiten (gleiche ID: alle Ebenen, Szenen und Cues zeigen die neue Fassung). */
@@ -300,7 +300,7 @@ function rebuildGrid(): void {
   for (let l = n - 1; l >= 0; l--) {
     const row = el("div", "lrow");
     const name = el("div", "lname");
-    name.title = t("Anklicken: Effekte und Grafik dieser Ebene bearbeiten");
+    name.title = t("Klicken, um Effekte und Grafik dieser Ebene zu bearbeiten");
     name.addEventListener("click", e => {
       if ((e.target as HTMLElement).closest("input,select")) return;
       fxPanel.select(l);
@@ -339,7 +339,7 @@ function rebuildGrid(): void {
     // Antrieb: woher Pulsieren und Reaktion kommen
     const drive = el("select", "drive-sel"); drive.ariaLabel = t("Antrieb Ebene {n}", { n: l + 1 });
     for (const d of DRIVES) drive.append(new Option(`${DRIVE_ICON[d]} ${DRIVE_LABEL[d]}`, d));
-    drive.title = t("Antrieb: Auto (Audio wenn vorhanden, sonst Takt), Takt (BPM), Audio, Statisch (kein Pulsieren)");
+    drive.title = t("Antrieb: Auto (Audio, falls vorhanden, sonst Takt), Takt (BPM), Audio oder Statisch (kein Pulsieren)");
     drive.addEventListener("change", () => { ctx.show.layers[l]!.drive = drive.value as Drive; });
     drive.dataset.ctl = `layer.${l + 1}.drive`;
     name.append(op, color, blend, drive);
@@ -353,7 +353,7 @@ function rebuildGrid(): void {
       if (isVideoClip(clip.id)) b.append(el("span", "vbadge", "VIDEO"));
       if (isCamClip(clip.id)) b.append(el("span", "vbadge cam", t("LIVE-KAMERA")));
       b.dataset.ctl = `clip.${l + 1}.${clip.id}`;
-      b.title = t("{name} · Klick startet/stoppt", { name: clip.name });
+      b.title = t("{name} · Klicken zum Starten oder Stoppen", { name: clip.name });
       b.addEventListener("click", ev => {
         if ((ev.target as HTMLElement).closest(".cell-x, .cell-edit")) return;
         const layer = ctx.show.layers[l]!;
@@ -428,10 +428,10 @@ async function importFiles(files: FileList | File[], layer: number): Promise<voi
     libraryPanel.render();
     l.clip = first;
     const bg = first.startsWith("img:") ? library.background.get(first.slice(4)) : undefined;
-    if (bg) { l.media.keyMode = bg; toast(bg === "white" ? t("Logo auf weißem Grund erkannt: Hintergrund wird ausgeblendet (Grafik → Freistellen).") : t("Logo auf schwarzem Grund erkannt: Hintergrund wird ausgeblendet (Grafik → Freistellen).")); }
+    if (bg) { l.media.keyMode = bg; toast(bg === "white" ? t("Logo auf weißem Hintergrund erkannt – der Hintergrund wird ausgeblendet (Grafik → Freistellen).") : t("Logo auf schwarzem Hintergrund erkannt – der Hintergrund wird ausgeblendet (Grafik → Freistellen).")); }
     if (layer > 0 && l.opacity < 0.05) l.opacity = 1;
     fxPanel.select(layer);
-    toast(isVideoClip(first) ? t("Video geladen. Loop und Takt rechts unter „Video“.") : t("Grafik geladen. Lage und Animation rechts unter „Grafik“."));
+    toast(isVideoClip(first) ? t("Video geladen. Loop und Takt stellst du rechts unter „Video“ ein.") : t("Grafik geladen. Position und Animation stellst du rechts unter „Grafik“ ein."));
   }
 }
 $<HTMLInputElement>("file-input").addEventListener("change", e => {
@@ -535,7 +535,7 @@ async function fillAudioDevices(): Promise<void> {
     b.addEventListener("click", () => { void chooseAudio(id); });
     box.append(b);
   };
-  item("", t("Aus (EQ im Takt)"));
+  item("", t("Aus (EQ folgt dem Takt)"));
   for (const d of list) item(d.id, d.label);
   if (!list.length) box.append(el("p", "am-hint", t("Kein Eingang gefunden.")));
 }
@@ -644,20 +644,20 @@ function buildMidiSection(): void {
   const list = (title: string, items: string[]) => {
     box.append(el("h3", "", title));
     const l = el("div", "am-list");
-    if (!items.length) l.append(el("p", "am-hint", t("Keines gefunden. Gerät anstecken, es erscheint sofort.")));
+    if (!items.length) l.append(el("p", "am-hint", t("Keins gefunden. Sobald du ein Gerät ansteckst, erscheint es hier.")));
     for (const i of items) l.append(el("div", "am-item static", i));
     box.append(l);
   };
   list(t("Eingänge"), midi.devices);
   list(t("Ausgänge (LEDs, MIDI-Timecode)"), midi.outputs);
-  const p = el("p", "am-hint", t("Tasten, Regler und Pads zuweisen: oben MAPPING → MIDI. Dort gibt es auch fertige Vorlagen für Controller."));
+  const p = el("p", "am-hint", t("Tasten, Regler und Pads weist du oben unter MAPPING → MIDI zu. Dort findest du auch fertige Vorlagen für Controller."));
   box.append(p);
   if (midi.error) box.append(el("p", "am-hint", midi.error));
 }
 
 // DMX-Felder und Oberflächen-Größe wohnen jetzt in den Einstellungen
 $("set-dmx").append(...Array.from(document.querySelectorAll("#tab-connect .form")));
-$("set-dmx").append(el("p", "am-hint", t("Live-Werte und Status der Eingänge: Tab VERBINDEN.")));
+$("set-dmx").append(el("p", "am-hint", t("Live-Werte und Status der Eingänge findest du im Tab VERBINDEN.")));
 document.querySelectorAll("#tab-connect h2").forEach(h => { if (h.textContent === t("DMX-Einstellungen")) h.remove(); });
 // Ebenen hinzufügen
 $("layer-add").addEventListener("click", () => {
@@ -747,7 +747,7 @@ const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => 
 async function refreshDisplays(): Promise<void> {
   const list = $("displays");
   if (!bridge) {
-    $("output-note").textContent = t("Mehrere Ausgänge gibt es nur in der Desktop-App. Im Browser läuft die Vorschau.");
+    $("output-note").textContent = t("Mehrere Ausgänge gibt es nur in der Desktop-App. Im Browser siehst du nur die Vorschau.");
     list.replaceChildren(); return;
   }
   displays = await bridge.listDisplays();
@@ -766,7 +766,7 @@ function renderDisplays(): void {
     b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); outputTab.render(); fitPreview(); });
     if (d.window) {
       // Fenster-Ausgang: Größe wählen; zum Abgreifen mit OBS, Resolume, Syphon-/NDI-Werkzeugen (Fensteraufnahme)
-      info.querySelector("b")!.title = t("Normales Fenster statt Vollbild – zum Abgreifen per Fensteraufnahme (OBS, Syphon Recorder, NDI-Werkzeuge)");
+      info.querySelector("b")!.title = t("Normales Fenster statt Vollbild – zum Abgreifen per Fensteraufnahme (OBS, Syphon Recorder, NDI-Tools)");
       info.append(el("small", "muted", t("für OBS, NDI, Syphon (Fensteraufnahme)")));
       const size = el("select"); size.title = t("Bildgröße des Fensters");
       const cur = `${Math.round(d.width * d.scaleFactor)}x${Math.round(d.height * d.scaleFactor)}`;
@@ -779,7 +779,7 @@ function renderDisplays(): void {
     } else row.append(info, b);
     list.append(row);
   }
-  $("output-note").textContent = displays.filter(d => !d.window).length > 1 ? "" : t("Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darüber verdeckt diese Oberfläche; Taste Esc oder Schließen im Hauptfenster beendet ihn.");
+  $("output-note").textContent = displays.filter(d => !d.window).length > 1 ? "" : t("Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darauf verdeckt diese Oberfläche – mit Esc oder „Schließen“ im Hauptfenster beendest du ihn.");
 }
 $<HTMLInputElement>("testpattern").addEventListener("change", e => { ctx.show.testCard = (e.target as HTMLInputElement).checked; syncTestUi(); });
 /** Testbild-Knöpfe und Häkchen auf den aktuellen Stand bringen. */
@@ -1237,7 +1237,7 @@ async function openDemo(): Promise<void> {
   if (!bridge) {
     await setupDemoProject();
     rebuildGrid(); rebuildDeck(); fxPanel.select(0); scenePanel.update(true); showProjName();
-    toast(t("Demo geladen: Auto spielt die Szenen von selbst durch."));
+    toast(t("Demo geladen – die Szenen laufen automatisch durch."));
     return;
   }
   try { sessionStorage.setItem(DEMO_FLAG, "1"); } catch { /* egal */ }
@@ -1275,7 +1275,7 @@ function syncCanvases(): void {
         tile.dataset.img = im.id;
         const c = el("canvas"); c.width = 384; c.height = 216; tileCanvases.set(im.id, c);
         const nm = el("span", "img-name", im.name);
-        nm.title = t("Doppelklick oder ✎: umbenennen");
+        nm.title = t("Zum Umbenennen doppelklicken oder ✎ wählen");
         const pen = el("button", "img-pen", "✎"); pen.title = t("Umbenennen");
         pen.addEventListener("click", ev => { ev.stopPropagation(); renameImage(im.id); });
         // Helligkeit des Bilds (fester Regler „bild.N.hell“, per MIDI/OSC/Pult belegbar)
@@ -1313,7 +1313,7 @@ function syncCanvases(): void {
       if (images.length < MAX_IMAGES) {
         const add = el("button", "img-add", t("+ Bild"));
         add.title = t("Weiteres Bild mit eigenen Ebenen (bis {n})", { n: MAX_IMAGES });
-        add.addEventListener("click", () => { const id = addImage(s); if (id) { editImage(id); toast(t("Neues Bild (Kopie von Bild 1). Rechts einer Leinwand zuweisen.")); } });
+        add.addEventListener("click", () => { const id = addImage(s); if (id) { editImage(id); toast(t("Neues Bild (Kopie von Bild 1). Weise es rechts einer Leinwand zu.")); } });
         box.append(add);
       }
     }
@@ -1349,7 +1349,7 @@ function syncCanvases(): void {
   box.replaceChildren();
   if (!mappingOn()) return;
   box.append(el("div", "cp-head", t("Leinwände")));
-  if (!surfaces.length) box.append(el("p", "muted small", t("Noch keine Leinwand. Im Tab AUSGABE → Projektionsmapping anlegen.")));
+  if (!surfaces.length) box.append(el("p", "muted small", t("Noch keine Leinwand. Leg eine im Tab AUSGABE unter Projektionsmapping an.")));
   for (const sf of surfaces) {
     const row = el("div", "cp-row");
     const scr = displays.find(d => d.id === sf.screen)?.label ?? t("Ausgang");
@@ -1369,7 +1369,7 @@ function syncCanvases(): void {
     row.append(cell, sel);
     box.append(row);
   }
-  box.append(el("p", "muted small", t("Welches Bild auf welche Leinwand kommt. Ein Bild bearbeiten: links seine Vorschau anklicken. Szenen speichern alle Bilder.")));
+  box.append(el("p", "muted small", t("Hier legst du fest, welches Bild auf welche Leinwand kommt. Zum Bearbeiten links auf die Vorschau eines Bildes klicken. Szenen speichern alle Bilder mit.")));
 }
 
 $<HTMLSelectElement>("cue-image").addEventListener("change", e => { ctx.show.cueImage = (e.target as HTMLSelectElement).value; cueImgSig = ""; });
@@ -1449,7 +1449,7 @@ async function loadProject(): Promise<void> {
     let demo = false;
     try { demo = sessionStorage.getItem(DEMO_FLAG) === "1"; sessionStorage.removeItem(DEMO_FLAG); } catch { /* egal */ }
     if (!p) { if (demo) await setupDemoProject(); else await setupStarterProject(); }
-    if (!p && demo) toast(t("Demo geladen: Auto spielt die zehn Szenen von selbst durch. SHOW-Tab: Timeline-Show mit WEITER starten."));
+    if (!p && demo) toast(t("Demo geladen – die zehn Szenen laufen automatisch durch. Im Tab SHOW startest du die Timeline-Show mit WEITER."));
     if (p) {
       applyProject(ctx, p);
       outLayout = p.outputs;

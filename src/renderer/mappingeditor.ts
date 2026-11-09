@@ -55,7 +55,7 @@ export class MappingEditor {
     // Erster Besuch: eine Leinwand über das ganze Bild, damit sofort etwas zu sehen ist
     if (!this.mine().length) { const s = newSurface(this.screen, 1, 0); this.surfaces().push(s); this.sel = s.id; this.changed(); }
     if (!this.cur()) this.sel = this.mine()[0]?.id ?? null;
-    hint.textContent = t("Leinwände auf das Bild des Beamers legen: Ecke ziehen passt die Leinwand an Wand, Kiste oder Trapez an, Mitte ziehen verschiebt. Pfeiltasten: 1 px (mit ⇧ 10 px). Ecken rasten am Rand und an anderen Leinwänden ein („Einrasten aus“ oder ⌥ beim Ziehen für volle Präzision). Außerhalb bleibt der Beamer schwarz.");
+    hint.textContent = t("Leg Leinwände auf das Bild des Beamers: Ziehen an einer Ecke passt die Leinwand an Wand, Kiste oder Trapez an, Ziehen in der Mitte verschiebt sie. Pfeiltasten: 1 px (mit ⇧ 10 px). Ecken rasten am Rand und an anderen Leinwänden ein (für volle Präzision „Einrasten aus“ oder beim Ziehen ⌥ halten). Außerhalb bleibt der Beamer schwarz.");
     this.drawStage();
     this.drawTools(tools);
   }
@@ -274,7 +274,7 @@ export class MappingEditor {
     grid.title = t("Raster-Testbild auf die Leinwände legen (verzerrt), um Ecken genau an Kanten auszurichten");
     grid.addEventListener("click", () => { this.testGrid.toggle(); grid.classList.toggle("on", this.testGrid.on()); });
     const snap = el("button", `btn small-btn${this.snap ? " on" : ""}`, this.snap ? t("Einrasten an") : t("Einrasten aus"));
-    snap.title = t("Ecken rasten am Bildrand und an anderen Leinwänden ein. Aus für volle Präzision (⌥ beim Ziehen schaltet es kurz ab).");
+    snap.title = t("Ecken rasten am Bildrand und an anderen Leinwänden ein. Ausschalten für volle Präzision (⌥ beim Ziehen schaltet es kurz ab).");
     snap.addEventListener("click", () => {
       this.snap = !this.snap;
       try { localStorage.setItem("vjlink.mapSnap", this.snap ? "1" : "0"); } catch { /* ohne Speicher */ }
@@ -290,7 +290,7 @@ export class MappingEditor {
     // Bühnenfoto laden (vom Standort des Beamers fotografiert): Hilfe zum Anlegen der Leinwände
     const ph = this.photos()[String(this.screen)];
     const photoBtn = el("button", "btn small-btn", ph ? t("Foto ersetzen") : t("Bühnenfoto …"));
-    photoBtn.title = t("Foto der Bühne (am besten vom Beamer aus) als Hilfe hinter die Leinwände legen; geht nicht an den Beamer");
+    photoBtn.title = t("Foto der Bühne (am besten vom Beamer aus aufgenommen) als Hilfe hinter die Leinwände legen; der Beamer zeigt es nicht");
     const file = el("input"); file.type = "file"; file.accept = "image/png,image/jpeg,image/webp"; file.hidden = true;
     photoBtn.addEventListener("click", () => file.click());
     file.addEventListener("change", async () => {
@@ -299,7 +299,7 @@ export class MappingEditor {
       // Als data:-URL lesen (blob: ist in der Oberfläche gesperrt)
       const src = await new Promise<string>(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result)); fr.onerror = () => r(""); fr.readAsDataURL(f); });
       const img = new Image(); img.src = src;
-      try { await img.decode(); } catch { photoBtn.textContent = t("Foto nicht lesbar"); return; }
+      try { await img.decode(); } catch { photoBtn.textContent = t("Foto lässt sich nicht lesen"); return; }
       const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
       const c = el("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
       c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);

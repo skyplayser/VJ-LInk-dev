@@ -55,7 +55,7 @@ function whoAmI(f: Frame): { n: number; label: string; at: string } {
   const i = screens.findIndex(s => s.id === displayId);
   const me = screens[i];
   const n = i >= 0 ? i + 1 : Math.max(1, open.indexOf(displayId) + 1);
-  const at = f.layout?.mode === "canvas" && me ? `${t("Leinwand bei {x}, {y}", { x: me.x, y: me.y })}${me.w !== canvas.width || me.h !== canvas.height ? t(" · als {w} × {h}", { w: me.w, h: me.h }) : ""}` : t("Gleiches Bild auf allen");
+  const at = f.layout?.mode === "canvas" && me ? `${t("Leinwand bei {x}, {y}", { x: me.x, y: me.y })}${me.w !== canvas.width || me.h !== canvas.height ? t(" · als {w} × {h}", { w: me.w, h: me.h }) : ""}` : t("Überall dasselbe Bild");
   return { n, label: me?.label ?? t("Ausgang {n}", { n }), at };
 }
 

@@ -28,7 +28,7 @@ export function cameraHelp(): HTMLElement {
       box.append(b);
     }
   } else {
-    p.textContent = t("Keine Kamera gefunden. Kamera anstecken oder in OBS „Virtuelle Kamera starten“, dann neu suchen.");
+    p.textContent = t("Keine Kamera gefunden. Steck eine Kamera an oder starte in OBS die virtuelle Kamera, dann such noch einmal.");
     box.append(p);
   }
   return box;

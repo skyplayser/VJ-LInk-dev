@@ -48,7 +48,7 @@ export class VideoLibrary {
     }
     this.items.push(item);
     const ok = await this.probe(item);
-    if (!ok) return t("„{name}“ lässt sich nicht abspielen (Format?). Geht sicher: MP4 mit H.264, WebM.", { name: file.name });
+    if (!ok) return t("„{name}“ lässt sich nicht abspielen (falsches Format?). Sicher funktionieren MP4 mit H.264 und WebM.", { name: file.name });
     return item;
   }
 

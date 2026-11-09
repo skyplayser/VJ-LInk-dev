@@ -94,8 +94,8 @@ export class VideoPanel {
     this.sound.classList.toggle("on", v.sound);
     const len = Math.min(b, d || b) - a;
     this.info.textContent = v.beats > 0 && bpm > 0
-      ? t("Loop {len} s auf {beats} Beats = {s} s, also {x}× Tempo. Startet auf dem Beat.", { len: len.toFixed(1), beats: v.beats, s: ((v.beats * 60) / bpm).toFixed(2), x: (len / ((v.beats * 60) / bpm)).toFixed(2) })
-      : t("Spielt in normaler Geschwindigkeit im Loop.");
+      ? t("Loop von {len} s auf {beats} Beats gestreckt ({s} s, also {x}-fache Geschwindigkeit). Startet auf dem Beat.", { len: len.toFixed(1), beats: v.beats, s: ((v.beats * 60) / bpm).toFixed(2), x: (len / ((v.beats * 60) / bpm)).toFixed(2) })
+      : t("Läuft in normaler Geschwindigkeit als Loop.");
     if (!this.armed) this.del.textContent = t("Video aus der Bibliothek löschen");
   }
 }

@@ -51,7 +51,7 @@ export class OutputTab {
     document.getElementById("out-mode-hint")!.textContent = l.mode === "mirror"
       ? t("Jeder Ausgang zeigt das ganze Bild in seiner eigenen Auflösung.")
       : onCanvas.length
-        ? t("Leinwand {w} × {h} Pixel. Jeder Ausgang zeigt seinen Teil, Visuals und Videos laufen nahtlos über alle Bildschirme. Ziehen zum Anordnen, Kanten rasten ein.", { w: b.w, h: b.h })
+        ? t("Leinwand {w} × {h} Pixel. Jeder Ausgang zeigt seinen Teil, Visuals und Videos laufen nahtlos über alle Bildschirme. Zum Anordnen ziehen, die Kanten rasten ein.", { w: b.w, h: b.h })
         : t("Öffne links mindestens einen Bildschirm als Ausgang, dann erscheint er hier.");
 
     const stage = document.getElementById("cv-stage")!;
@@ -119,7 +119,7 @@ export class OutputTab {
     };
     auto("row", t("Nebeneinander")); auto("column", t("Untereinander"));
     const s = onCanvas.find(x => x.id === this.sel);
-    if (!s) { tools.append(el("span", "muted small", t("Bildschirm anklicken für genaue Werte (Pfeiltasten: 10 px, mit ⇧ 100 px)."))); return; }
+    if (!s) { tools.append(el("span", "muted small", t("Klick auf einen Bildschirm für genaue Werte (Pfeiltasten: 10 px, mit ⇧ 100 px)."))); return; }
     const field = (label: string, key: keyof Pick<ScreenRect, "x" | "y" | "w" | "h">, min: number) => {
       const lab = el("label", "", label);
       const inp = el("input"); inp.type = "number"; inp.value = String(s[key]); inp.min = String(min);

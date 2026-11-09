@@ -196,7 +196,7 @@ export class Gallery {
     add.title = t("Nimmt das Visual in die Clip-Zeile der Ziel-Ebene auf");
     add.addEventListener("click", () => this.addVisual(g.id, false));
     const play = el("button", "btn small-btn primary-btn", t("Jetzt abspielen"));
-    play.title = t("Aufnehmen und sofort in der Ziel-Ebene starten (Doppelklick auf die Karte)");
+    play.title = t("In die Ziel-Ebene aufnehmen und sofort starten (oder Doppelklick auf die Karte)");
     play.addEventListener("click", () => this.addVisual(g.id, true));
     row.append(add, play);
     info.append(row);
@@ -224,7 +224,7 @@ export class Gallery {
       });
       grid.append(c);
     }
-    main.append(el("p", "muted small", t("Effekte liegen im Stapel einer Ebene und wirken auf ihren Clip. Vorschau: Tunnel mit dem Effekt bei 80 %.")), grid);
+    main.append(el("p", "muted small", t("Effekte liegen im Effekt-Stapel einer Ebene und wirken auf deren Clip. Die Vorschau zeigt den Tunnel mit dem Effekt bei 80 %.")), grid);
     const fill = () => {
       const fx = POST_EFFECTS.find(e => e.id === this.selected)!;
       info.replaceChildren(el("b", "", fx.name), el("p", "muted small", fx.info));
@@ -235,7 +235,7 @@ export class Gallery {
         if (l.effects.length >= MAX_EFFECTS) { this.d.toast(t("Ebene {n} hat schon {max} Effekte.", { n: i + 1, max: MAX_EFFECTS })); return; }
         l.effects.push({ id: fx.id, on: true, amount: 0.5 });
         this.d.changed(); this.d.selectLayer(i);
-        this.d.toast(t("{name} liegt im Stapel von Ebene {n} (Stärke 50 %).", { name: fx.name, n: i + 1 }));
+        this.d.toast(t("{name} liegt jetzt im Effekt-Stapel von Ebene {n} (Stärke 50 %).", { name: fx.name, n: i + 1 }));
       });
       info.append(add);
     };
@@ -255,7 +255,7 @@ export class Gallery {
     const load = el("button", "btn small-btn primary-btn", t("+ Dateien laden"));
     load.addEventListener("click", () => file.click());
     main.append(el("div", "gal-bar"), file);
-    main.firstElementChild!.append(load, el("span", "muted small", t("Bilder, Logos und Videos. Auch einfach hineinziehen.")));
+    main.firstElementChild!.append(load, el("span", "muted small", t("Bilder, Logos und Videos – oder einfach hineinziehen.")));
 
     const section = (title: string, items: { id: string; clip: string; name: string; kind: string; rename?: (n: string) => void; remove?: () => void }[], empty: string) => {
       main.append(el("h4", "gal-cat", `${title} (${items.length})`));
@@ -309,7 +309,7 @@ export class Gallery {
       id: k.id, clip: camClip(k.id), name: k.label || t("Kamera"), kind: "Kamera",
       rename: (n: string) => { k.label = n; },
       remove: () => { forget(camClip(k.id)); this.d.ctx.show.cameras.splice(this.d.ctx.show.cameras.indexOf(k), 1); },
-    })), t("Noch keine Kamera. VISUALS → „+ Clips“ → Kameras suchen, oder SHOW → „+ Kamera“."));
-    info.replaceChildren(el("p", "muted small", t("Namen anklicken zum Umbenennen. „+“ legt in die Ziel-Ebene, „×“ löscht (fragt einmal nach).")));
+    })), t("Noch keine Kamera. Füg eine hinzu unter VISUALS → „+ Clips“ → Kameras suchen oder unter SHOW → „+ Kamera“."));
+    info.replaceChildren(el("p", "muted small", t("Zum Umbenennen auf den Namen klicken. „+“ legt in die Ziel-Ebene, „×“ löscht (mit Rückfrage).")));
   }
 }

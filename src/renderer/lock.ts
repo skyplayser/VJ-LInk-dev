@@ -40,7 +40,7 @@ export class ShowLock {
       if (this.justUnlocked) { this.justUnlocked = false; return; }
       if (this.on) { if (!btn.classList.contains("holding")) this.hint(); return; }
       this.set(true);
-      this.toast(t("Gesperrt: nur noch bedienen. Zum Entsperren das Schloss 1 Sekunde halten."));
+      this.toast(t("Gesperrt: nur noch bedienen. Zum Entsperren das Schloss eine Sekunde lang gedrückt halten."));
     });
     // Alles außerhalb der erlaubten Bereiche abfangen, bevor es wirkt
     const block = (e: Event) => {
@@ -73,14 +73,14 @@ export class ShowLock {
     const now = Date.now();
     if (now - this.lastHint < 3000) return;
     this.lastHint = now;
-    this.toast(t("Gesperrt. Zum Entsperren das Schloss oben 1 Sekunde halten."));
+    this.toast(t("Gesperrt. Zum Entsperren das Schloss oben eine Sekunde lang gedrückt halten."));
   }
 
   private apply(): void {
     document.body.classList.toggle("locked", this.on);
     this.btn.classList.toggle("on", this.on);
     this.btn.setAttribute("aria-pressed", String(this.on));
-    this.btn.title = this.on ? t("Gesperrt: zum Entsperren 1 Sekunde halten") : t("Sperren: während der Show nur bedienen, nichts ändern");
+    this.btn.title = this.on ? t("Gesperrt: zum Entsperren eine Sekunde gedrückt halten") : t("Sperren: Während der Show nur bedienen, nichts verändern");
     this.btn.querySelector("span")!.textContent = this.on ? t("GESPERRT") : "";
   }
 }

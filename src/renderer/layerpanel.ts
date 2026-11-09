@@ -13,8 +13,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 }
 
 const DRIVE_HINT: Record<Drive, string> = {
-  auto: t("Audio-Eingang, wenn er auf diese Ebene wirkt, sonst im Takt."),
-  bpm: t("Pulsiert nur im Takt der BPM. Audio wird ignoriert."),
+  auto: t("Folgt dem Audio-Eingang, wenn er auf diese Ebene wirkt, sonst dem Takt."),
+  bpm: t("Pulsiert nur im Takt (BPM), Audio wird ignoriert."),
   audio: t("Reagiert nur auf Audio (Eingang oder LJ-Link). Ohne Audio bleibt es ruhig."),
   static: t("Kein Pulsieren: gleichmäßige Bewegung, unabhängig von Takt und Audio."),
 };
@@ -104,7 +104,7 @@ export class LayerPanel {
       const b = el("button", `lp-chip lp-slot${pos >= 0 ? " on" : ""}`, name);
       b.style.setProperty("--sw", rgbCss(this.ctx.show.slots[i] ?? [1, 1, 1]));
       b.setAttribute("aria-pressed", String(pos >= 0));
-      b.title = t("Slot {name}: antippen fügt ihn hinzu oder nimmt ihn heraus. Mehrere Slots = mehrere Farben.", { name });
+      b.title = t("Slot {name}: Antippen fügt ihn hinzu oder entfernt ihn. Mehrere Slots ergeben mehrere Farben.", { name });
       if (pos >= 0 && chosen.length > 1) b.append(el("small", "", String(pos + 1)));
       b.addEventListener("click", () => { toggleColorSlot(l, i); this.update(true); });
       chips.append(b);
@@ -114,7 +114,7 @@ export class LayerPanel {
     this.root.append(cr);
     if (l.colorSource === "multi") {
       this.root.append(el("p", "muted small lp-hint", isLaser
-        ? t("{n} Farben: jeder Strahl bzw. jede Linie bekommt eine andere, alle 8 Beats rücken sie weiter.", { n: chosen.length })
+        ? t("{n} Farben: Jeder Strahl bzw. jede Linie bekommt eine eigene, alle 8 Beats wechseln sie weiter.", { n: chosen.length })
         : t("{n} Farben: Verlauf durch alle gewählten Slots in dieser Reihenfolge.", { n: chosen.length })));
     }
 
@@ -125,13 +125,13 @@ export class LayerPanel {
     if (isLaser) {
     const ovRow = el("div", "lp-row");
     ovRow.append(el("span", "lp-lab", "XY-Override"));
-    const ovBtn = el("button", `btn small-btn${ov ? " on" : ""}`, ov ? t("An: X/Y steuern die Lage") : t("Aus: Effekt bewegt sich selbst"));
+    const ovBtn = el("button", `btn small-btn${ov ? " on" : ""}`, ov ? t("An: X/Y bestimmen die Position") : t("Aus: Der Effekt bewegt sich selbst"));
     ovBtn.dataset.ctl = `layer.${n + 1}.laser.xy`;
     ovBtn.setAttribute("aria-pressed", String(ov));
     ovBtn.addEventListener("click", () => { l.laser = { ...(l.laser ?? defaultLaser()), override: !ov }; this.update(true); });
     ovRow.append(ovBtn);
     this.root.append(ovRow);
-    if (ov) this.root.append(el("p", "muted small lp-hint", t("Die Eigenbewegung ist aus: X und Y setzen die Lage direkt (0 = Mitte, ±100 = Bildrand). Per Mapping auf Kanäle der MA legen (MAPPING → DMX), auch Größe, Drehung und den Schalter selbst.")));
+    if (ov) this.root.append(el("p", "muted small lp-hint", t("Die Eigenbewegung ist aus: X und Y bestimmen die Position direkt (0 = Mitte, ±100 = Bildrand). Über MAPPING → DMX lassen sich diese Regler auf Kanäle der MA legen, ebenso Größe, Drehung und der Schalter selbst.")));
     }
     for (const f of LASER_FIELDS) {
       if (f.laserOnly && !isLaser) continue;
@@ -151,7 +151,7 @@ export class LayerPanel {
     const reset = el("button", "btn small-btn", t("Lage zurücksetzen"));
     reset.addEventListener("click", () => { l.laser = { ...defaultLaser(), override: l.laser?.override ?? false }; });
     this.root.append(reset, el("p", "muted small lp-hint", isLaser
-      ? t("Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt von dort. Stärke macht Linien und Punkte dicker, damit sie im Nebel mehr Licht tragen. Alles auch per Mapping. Doppelklick setzt einen Regler zurück.")
-      : t("Verschieben, vergrößern, drehen; was aus dem Rahmen fällt, bleibt schwarz. Alles auch per Mapping (MIDI, DMX, OSC). Doppelklick setzt einen Regler zurück.")));
+      ? t("Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt sie von dort aus. „Stärke“ macht Linien und Punkte dicker, damit sie im Nebel besser wirken. Alles lässt sich auch mappen. Doppelklick setzt einen Regler zurück.")
+      : t("Verschieben, vergrößern, drehen – was über den Rand hinausragt, bleibt schwarz. Alles lässt sich auch mappen (MIDI, DMX, OSC). Doppelklick setzt einen Regler zurück.")));
   }
 }

@@ -48,7 +48,7 @@ export class CamPanel {
     this.cells.type = "range"; this.cells.min = "12"; this.cells.max = "140"; this.cells.setAttribute("aria-label", t("Rastergröße"));
     this.cells.addEventListener("input", () => { const c = this.cam(); if (c) c.cells = Number(this.cells.value); });
     this.cellsRow.append(el("span", "", t("Raster")), this.cells, this.cellsV);
-    this.bg.title = t("Bühne ohne Personen merken: danach wird alles, was neu im Bild ist, zur Person");
+    this.bg.title = t("Leere Bühne merken: Danach gilt alles, was neu ins Bild kommt, als Person");
     this.bg.addEventListener("click", () => { const c = this.cam(); if (c) c.bgStamp = Date.now(); });
     this.bgClear.textContent = t("vergessen");
     this.bgClear.addEventListener("click", () => { const c = this.cam(); if (c) c.bgStamp = 0; });
@@ -93,12 +93,12 @@ export class CamPanel {
     this.hint.textContent = isMaskLook(c.look)
       ? (top ? t("Maske wirkt auf alle Ebenen darunter.") : t("Tipp: Für die Maske diese Ebene ganz nach oben legen, sie wirkt auf alle Ebenen darunter."))
       : fig && ai === "ready"
-        ? t("Person wird automatisch erkannt (läuft lokal, ohne Internet). Kontur höher = enger an der Person, niedriger = weicher und großzügiger.")
+        ? t("Die Person wird automatisch erkannt (lokal, ohne Internet). Höhere Kontur = enger an der Person, niedrigere = weicher und großzügiger.")
         : fig && ai === "loading"
         ? t("Personen-Erkennung startet …")
         : fig
-        ? (c.bgStamp > 0 ? t("Person = Unterschied zum gemerkten Hintergrund. Schwelle höher = weniger Rauschen.")
-          : t("Person = dunkel vor hellem Hintergrund (Gegenlicht). Besser: leere Bühne → „Hintergrund merken“."))
-        : t("Webcam, Capture-Karte oder OBS Virtual Camera. Farbe der Ebene färbt Silhouette, Umriss, Raster und Duoton.");
+        ? (c.bgStamp > 0 ? t("Als Person gilt, was sich vom gemerkten Hintergrund unterscheidet. Eine höhere Schwelle ergibt weniger Rauschen.")
+          : t("Als Person gilt, was dunkel vor hellem Hintergrund steht (Gegenlicht). Besser: bei leerer Bühne „Hintergrund merken“."))
+        : t("Webcam, Capture-Karte oder OBS Virtual Camera. Die Farbe der Ebene färbt Silhouette, Umriss, Raster und Duoton.");
   }
 }

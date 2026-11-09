@@ -44,7 +44,7 @@ export class FxPanel {
     this.title.textContent = `${t("Effekte")} · ${t("Ebene {n}", { n: this.layer + 1 })}`;
     this.list.replaceChildren();
     this.ranges = [];
-    if (!fx.length) this.list.append(el("p", "muted small", t("Kein Effekt. Unten einen hinzufügen.")));
+    if (!fx.length) this.list.append(el("p", "muted small", t("Noch kein Effekt. Füg unten einen hinzu.")));
     fx.forEach((e, i) => {
       const def = POST_BY_ID.get(e.id);
       const row = el("div", e.on ? "fx-row" : "fx-row off");

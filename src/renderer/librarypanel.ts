@@ -64,7 +64,7 @@ export class LibraryPanel {
     head.append(el("b", "", t("Bibliothek · Ebene {n}", { n: this.layer + 1 })));
     const x = el("button", "icon", "×"); x.title = t("Schließen (Esc)"); x.addEventListener("click", () => this.close());
     head.append(x);
-    box.append(head, el("p", "lib-hint", t("Antippen nimmt einen Clip in diese Zeile auf oder wieder heraus.")));
+    box.append(head, el("p", "lib-hint", t("Antippen fügt einen Clip zu dieser Zeile hinzu oder entfernt ihn wieder.")));
 
     const body = el("div", "lib-body");
     for (const cat of Object.keys(CAT) as EffectCategory[]) {
@@ -95,7 +95,7 @@ export class LibraryPanel {
       const on = !!id && l.clips.includes(id);
       const b = el("button", `lib-chip${on ? " on" : ""}`, d.label);
       b.setAttribute("aria-pressed", String(on));
-      b.title = t("Live-Bild als Clip in diese Ebene (Bild oder Silhouette)");
+      b.title = t("Live-Bild als Clip in diese Ebene legen (Bild oder Silhouette)");
       b.addEventListener("click", () => {
         const cam = ensureCamera(this.ctx.show.cameras, d.deviceId, d.label);
         const cid = camClip(cam.id);
@@ -105,7 +105,7 @@ export class LibraryPanel {
       cg.append(b);
     }
     const find = el("button", "lib-chip add", this.camDevices.length ? t("Kameras neu suchen") : t("Kameras suchen"));
-    find.title = t("Fragt einmal nach der Kamera-Freigabe und listet alle Video-Eingänge");
+    find.title = t("Fragt einmalig nach der Kamera-Freigabe und zeigt alle Video-Eingänge");
     find.addEventListener("click", async () => { this.camDevices = await cameraDevices(); this.camSearched = true; this.render(); });
     cg.append(find);
     if (this.camSearched && !this.camDevices.length) { const h = cameraHelp(); h.style.gridColumn = "1 / -1"; cg.append(h); }
@@ -140,7 +140,7 @@ export class LibraryPanel {
       b.setAttribute("aria-pressed", String(on));
       b.addEventListener("click", () => { if (on) removeClip(l, id); else addClip(l, id); this.onChange(); this.render(); });
       const del = el("button", "icon danger", this.armedDelete === v.id ? t("Löschen?") : "×");
-      del.title = t("Video ganz aus der Bibliothek löschen (alle Ebenen, Szenen und Cues)");
+      del.title = t("Video komplett aus der Bibliothek löschen (aus allen Ebenen, Szenen und Cues)");
       del.classList.toggle("wide", this.armedDelete === v.id);
       del.addEventListener("click", () => {
         if (this.armedDelete !== v.id) { this.armedDelete = v.id; this.render(); return; }
@@ -153,7 +153,7 @@ export class LibraryPanel {
       wrap.append(b, del);
       vg.append(wrap);
     }
-    if (!this.videos.items.length) vg.append(el("p", "lib-hint", t("Noch keine Videos. Über „+ Datei laden“ unten oder einfach hineinziehen.")));
+    if (!this.videos.items.length) vg.append(el("p", "lib-hint", t("Noch keine Videos. Lade welche über „+ Datei laden“ oder zieh sie einfach hinein.")));
     body.append(vg);
 
     body.append(el("h4", "", t("Eigene Grafiken")));
@@ -166,7 +166,7 @@ export class LibraryPanel {
       b.setAttribute("aria-pressed", String(on));
       b.addEventListener("click", () => { if (on) removeClip(l, id); else addClip(l, id); this.onChange(); this.render(); });
       const del = el("button", "icon danger", this.armedDelete === m.id ? t("Löschen?") : "×");
-      del.title = t("Grafik ganz aus der Bibliothek löschen (alle Ebenen und Szenen)");
+      del.title = t("Grafik komplett aus der Bibliothek löschen (aus allen Ebenen und Szenen)");
       del.classList.toggle("wide", this.armedDelete === m.id);
       del.addEventListener("click", () => {
         if (this.armedDelete !== m.id) { this.armedDelete = m.id; this.render(); return; }

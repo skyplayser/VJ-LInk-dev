@@ -99,7 +99,7 @@ export class TextEditor {
     head.append(el("span", "grow"), x, ok);
     const body = el("div", "text-body");
     const left = el("div", "text-form"), right = el("div", "text-view");
-    right.append(this.preview, el("p", "muted small", t("Vorschau des Rahmens (1920 × 1080). Schwarz = durchsichtig. Lage, Größe und Animation danach rechts unter „Grafik“.")));
+    right.append(this.preview, el("p", "muted small", t("Vorschau des Rahmens (1920 × 1080). Schwarz ist durchsichtig. Position, Größe und Animation stellst du danach rechts unter „Grafik“ ein.")));
     body.append(left, right);
     box.append(head, body);
     d.append(box);
@@ -148,7 +148,7 @@ export class TextEditor {
     row(t("Waagerecht"), seg([["left", t("Links")], ["center", t("Mitte")], ["right", t("Rechts")]], () => s.align, v => { s.align = v; }));
     row(t("Senkrecht"), seg([["top", t("Oben")], ["middle", t("Mitte")], ["bottom", t("Unten")]], () => s.valign, v => { s.valign = v; }));
     row(t("Zeilenabstand"), range(0.6, 2.5, 0.05, () => s.lineHeight, v => { s.lineHeight = v; }));
-    row(t("Buchstaben"), range(-10, 60, 1, () => s.letterSpacing, v => { s.letterSpacing = v; }, " px"));
+    row(t("Zeichenabstand"), range(-10, 60, 1, () => s.letterSpacing, v => { s.letterSpacing = v; }, " px"));
     sub(t("Wirkung"));
     row(t("Leuchten"), toggle("an", () => s.glow.on, v => { s.glow.on = v; }), color(() => s.glow.color, v => { s.glow.color = v; }), range(2, 120, 1, () => s.glow.blur, v => { s.glow.blur = v; }));
     row(t("Kontur"), toggle("an", () => s.outline.on, v => { s.outline.on = v; }), color(() => s.outline.color, v => { s.outline.color = v; }), range(1, 40, 1, () => s.outline.width, v => { s.outline.width = v; }, " px"));

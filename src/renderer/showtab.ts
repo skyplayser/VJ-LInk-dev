@@ -148,7 +148,7 @@ export class ShowTab {
     box.replaceChildren();
     this.rows = [];
     if (!this.list.length) {
-      box.append(el("p", "muted small", t("Noch kein Cue. Videos oder Bilder hierher ziehen oder oben „+ Video / Bild“.")));
+      box.append(el("p", "muted small", t("Noch keine Cues. Zieh Videos oder Bilder hierher oder klick oben auf „+ Video / Bild“.")));
     }
     this.list.forEach((c, i) => {
       const row = el("div", `crow${c.start === "with" ? " sub" : ""}${i === this.selected ? " sel" : ""}`);
@@ -167,7 +167,7 @@ export class ShowTab {
       row.append(el("span", "cstate"), el("i", "cprog"));
       row.addEventListener("click", () => { this.selected = i; this.armedDelete = false; this.update(true); });
       row.addEventListener("dblclick", () => { cueSetNext(this.d.ctx.cues, i); });
-      row.title = t("Klick: Details · Doppelklick: als Nächstes");
+      row.title = t("Klicken für Details · Doppelklick: als Nächstes");
       box.append(row);
       this.rows.push(row);
     });
@@ -178,7 +178,7 @@ export class ShowTab {
     const box = document.getElementById("cue-details")!;
     box.replaceChildren();
     const c = this.list[this.selected];
-    if (!c) { box.append(el("p", "muted small", t("Einen Cue anklicken, um ihn einzustellen."))); return; }
+    if (!c) { box.append(el("p", "muted small", t("Klick auf einen Cue, um ihn einzustellen."))); return; }
     const head = el("div", "cd-head");
     const name = el("input"); name.value = c.name; name.maxLength = 60; name.setAttribute("aria-label", t("Name des Cues"));
     name.addEventListener("change", () => { c.name = name.value.trim() || c.name; this.update(true); });
@@ -220,11 +220,11 @@ export class ShowTab {
         if (tc) c.tc = formatTc(tc, 25).replace(";", ":"); else this.d.toast(t("Timecode als hh:mm:ss:ff eingeben, z. B. 00:20:00:00."));
         this.update(true);
       });
-      const learn = el("button", "btn small-btn", t("Hier lernen"));
+      const learn = el("button", "btn small-btn", t("Jetzt übernehmen"));
       learn.title = t("Übernimmt den gerade laufenden Timecode");
       learn.addEventListener("click", () => {
         const now = this.d.tcNow();
-        if (!now) { this.d.toast(t("Kein Timecode aktiv. In den Einstellungen unter Timecode einschalten.")); return; }
+        if (!now) { this.d.toast(t("Kein Timecode aktiv. Schalte ihn in den Einstellungen unter „Timecode“ ein.")); return; }
         c.tc = formatFrames(Math.round(now.frames), now.fps).replace(";", ":");
         this.update(true);
       });
@@ -256,7 +256,7 @@ export class ShowTab {
       seg(t("Wiederholen"), LOOP_LABEL, () => c.loop, v => { c.loop = v; });
       if (c.loop === "count") num(t("Anzahl"), () => c.loopCount, v => { c.loopCount = Math.max(1, Math.round(v)); }, "×", 1, 999);
       if (c.loop !== "off") {
-        seg(t("Was loopt"), { all: t("ganzes Video"), range: t("nur Bereich") } as Record<"all" | "range", string>, () => (c.loopRange ? "range" : "all"), v => { c.loopRange = v === "range"; });
+        seg(t("Was wiederholt wird"), { all: t("ganzes Video"), range: t("nur Bereich") } as Record<"all" | "range", string>, () => (c.loopRange ? "range" : "all"), v => { c.loopRange = v === "range"; });
         if (c.loopRange && d > 0) {
           range(t("Loop von"), () => c.loopIn || c.trimIn, v => { c.loopIn = v; }, d);
           range(t("Loop bis"), () => c.loopOut || c.trimOut || d, v => { c.loopOut = v; }, d);
@@ -264,7 +264,7 @@ export class ShowTab {
       }
       // Kleine Timeline in den Details; als Timeline umgewandelte Cues haben den großen Editor unter der Liste
       if (d > 0 && !c.timeline) this.timeline(box, c, d);
-      if (c.timeline) box.append(el("p", "muted small", t("Timeline: Szenen im großen Editor unter der Cue-Liste setzen.")));
+      if (c.timeline) box.append(el("p", "muted small", t("Timeline: Szenen setzt du im großen Editor unter der Cue-Liste.")));
     }
     if (c.kind === "tcsignal") {
       seg(t("Befehl"), { start: t("Start ab"), stop: t("Stopp"), locate: t("Springen auf") } as Record<"start" | "stop" | "locate", string>, () => c.tcAction, v => {
@@ -276,7 +276,7 @@ export class ShowTab {
         i.addEventListener("change", () => { const tc = parseTc(i.value, 30); if (tc) c.tcTarget = formatTc(tc, 25); else this.d.toast(t("Zeit als hh:mm:ss:ff eingeben.")); this.update(true); });
         r.append(i); box.append(r);
       }
-      box.append(el("p", "muted small", t("Steuert die eigene Timecode-Uhr von VJ-Link. Ist unter Einstellungen → Timecode „Senden“ an, bekommt z. B. eine MA den Timecode und ihre Timecode-Show löst Befehle aus.")));
+      box.append(el("p", "muted small", t("Steuert die Timecode-Uhr von VJ-Link. Ist unter Einstellungen → Timecode „Senden“ eingeschaltet, empfängt z. B. eine MA den Timecode, und ihre Timecode-Show löst Befehle aus.")));
     }
     if (c.kind === "image" || c.kind === "camera" || c.kind === "black") num(t("Dauer"), () => c.hold, v => { c.hold = v; }, t("s · 0 = bis WEITER"));
     if (c.kind !== "scene" && c.kind !== "tcsignal") {
@@ -304,7 +304,7 @@ export class ShowTab {
     if (c.kind === "video" || c.kind === "image" || c.kind === "camera" || c.kind === "black") {
       mk(c.timeline ? t("Timeline schließen") : t("In Timeline umwandeln"), () => {
         // Bild/Schwarz ohne Dauer: 30 s vorgeben (in der Timeline oben änderbar)
-        if (!c.timeline && c.kind !== "video" && !(c.hold > 0)) { c.hold = 30; this.d.toast(t("Timeline mit 30 s Länge angelegt – oben in der Timeline änderbar.")); }
+        if (!c.timeline && c.kind !== "video" && !(c.hold > 0)) { c.hold = 30; this.d.toast(t("Timeline mit 30 s Länge angelegt. Die Länge kannst du oben in der Timeline ändern.")); }
         c.timeline = !c.timeline; this.update(true);
       });
     }
@@ -343,7 +343,7 @@ export class ShowTab {
     const marks = (c.marks ??= []);
     box.append(el("h4", "", t("Timeline: Szenen im Video")));
     const bar = el("div", "tl-bar");
-    bar.title = t("Klicken: hier einen Szenen-Marker setzen");
+    bar.title = t("Klicken, um hier einen Szenen-Marker zu setzen");
     const pct = (x: number) => `${(Math.max(0, Math.min(d, x)) / d) * 100}%`;
     this.playhead = el("i", "tl-play");
     bar.append(this.playhead);
@@ -366,7 +366,7 @@ export class ShowTab {
     box.append(bar);
     if (!marks.length) { box.append(el("p", "muted small", t("Auf die Leiste klicken, um an dieser Stelle eine Szene abzurufen. So wechseln z. B. die anderen Leinwände passend zum Video."))); return; }
     const m = marks[this.selMark];
-    if (!m) { box.append(el("p", "muted small", t("{n} Marker. Einen anklicken, um Zeit und Szene einzustellen.", { n: marks.length }))); return; }
+    if (!m) { box.append(el("p", "muted small", t("{n} Marker. Klick auf einen, um Zeit und Szene einzustellen.", { n: marks.length }))); return; }
     const r1 = el("div", "cd-row"); r1.append(el("span", "", t("Marker")));
     const w = el("span", "inline wrap");
     const tIn = el("input", "tc-in"); tIn.value = m.t.toFixed(1); tIn.setAttribute("aria-label", t("Zeit im Video in Sekunden"));

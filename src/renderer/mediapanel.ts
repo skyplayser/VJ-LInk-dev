@@ -77,7 +77,7 @@ export class MediaPanel {
     });
     root.append(this.del);
     const hint = document.createElement("p"); hint.className = "muted small";
-    hint.textContent = t("Doppelklick auf einen Regler setzt ihn zurück. Effekte wie Farbüberlagerung, Leuchten oder Beat-Zoom unten im Effekt-Stapel.");
+    hint.textContent = t("Doppelklick auf einen Regler setzt ihn zurück. Effekte wie Farbüberlagerung, Leuchten oder Beat-Zoom findest du unten im Effekt-Stapel.");
     root.append(hint);
   }
 

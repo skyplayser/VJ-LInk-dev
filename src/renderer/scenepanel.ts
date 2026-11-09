@@ -47,7 +47,7 @@ export class ScenePanel {
       this.root.append(row);
       if (this.edit === i) this.root.append(this.editor(sc, i));
     });
-    if (!c.scenes.length) this.root.append(el("p", "muted small", t("Noch keine Szene. „+ Szene speichern“ legt das aktuelle Bild als Szene ab.")));
+    if (!c.scenes.length) this.root.append(el("p", "muted small", t("Noch keine Szenen. Mit „+ Szene speichern“ legst du das aktuelle Bild als Szene ab.")));
   }
 
   private editor(sc: Scene, i: number): HTMLElement {

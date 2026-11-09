@@ -145,7 +145,7 @@ async function saveTo(json: string, askPath: boolean): Promise<{ ok: boolean; na
     if (res.missing?.length) void dialog.showMessageBox(control, { type: "warning", message: t("Projekt gespeichert, aber Videos fehlen"), detail: `${t("Nicht in der Bibliothek gefunden:")}\n${res.missing.join("\n")}` });
     return { ok: true, name: res.name };
   } catch (e) {
-    void dialog.showMessageBox(control, { type: "error", message: t("Speichern hat nicht geklappt"), detail: (e as Error).message });
+    void dialog.showMessageBox(control, { type: "error", message: t("Speichern fehlgeschlagen"), detail: (e as Error).message });
     return { ok: false, message: (e as Error).message };
   }
 }

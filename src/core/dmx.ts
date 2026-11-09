@@ -129,7 +129,7 @@ export class DmxDecoder {
 export function channelListCsv(startAddress = 1): string {
   const rows: [number, string][] = [
     [CH.master, t("Master-Dimmer")], [CH.strobe, t("Strobe Geschwindigkeit (0-7 aus)")], [CH.scene, t("Szene")], [CH.transition, t("Übergang")],
-    [CH.tempoFactor, t("Tempo-Faktor")], [CH.fxMaster, t("Effekt-Intensität gesamt")], [CH.autoVj, "Auto-VJ"], [CH.blackout, "Blackout (250-255)"],
+    [CH.tempoFactor, t("Tempo-Faktor")], [CH.fxMaster, t("Effekt-Intensität (gesamt)")], [CH.autoVj, "Auto-VJ"], [CH.blackout, "Blackout (250-255)"],
   ];
   ["A", "B", "C", "D", "E"].forEach((n, i) => {
     ["Dimmer", t("Rot"), t("Grün"), t("Blau")].forEach((c, j) => rows.push([CH.slotBase + i * 4 + j, `Slot ${n} ${c}`]));

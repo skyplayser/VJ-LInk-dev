@@ -45,7 +45,7 @@
   </div>
   <button class="pill tc-pill" id="tc-btn" title="Timecode (Einstellungen)" data-i18n-title>TC <span id="tc-val">--:--:--:--</span></button>
   <div class="tempo">
-    <button class="bpm" id="bpm" data-ctl="tempo.bpm" title="Anklicken, Zahl eingeben, Enter" data-i18n-title>120.00</button>
+    <button class="bpm" id="bpm" data-ctl="tempo.bpm" title="Klicken, Zahl eingeben, mit Enter bestätigen" data-i18n-title>120.00</button>
     <input class="bpm bpm-input" id="bpm-input" type="number" min="20" max="300" step="0.01" hidden aria-label="BPM eingeben" data-i18n-aria>
     <span class="beats" id="beats"><i></i><i></i><i></i><i></i></span>
     <div class="map-wrap">
@@ -90,7 +90,7 @@
         </div>
         <div class="canvas-pick" id="canvas-pick" hidden></div>
       </div>
-      <div class="h2row grid-head"><h2><span data-i18n>Clip-Raster</span> <span class="grid-canvas" id="grid-canvas" hidden></span> <span class="muted" data-i18n>· Ebene anklicken für ihre Effekte · Grafiken per „+ Grafik“ oder hierher ziehen</span></h2><span class="inline"><button class="btn small-btn" id="text-add" title="Text-Clip gestalten und auf die gewählte Ebene legen" data-i18n-title>+ Text</button><button class="btn small-btn" id="layer-add" data-i18n>+ Ebene</button></span></div>
+      <div class="h2row grid-head"><h2><span data-i18n>Clip-Raster</span> <span class="grid-canvas" id="grid-canvas" hidden></span> <span class="muted" data-i18n>· Klick auf eine Ebene zeigt ihre Effekte · Grafiken über „+ Grafik“ hinzufügen oder hierher ziehen</span></h2><span class="inline"><button class="btn small-btn" id="text-add" title="Text-Clip gestalten und auf die gewählte Ebene legen" data-i18n-title>+ Text</button><button class="btn small-btn" id="layer-add" data-i18n>+ Ebene</button></span></div>
       <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" multiple hidden>
       <div id="toast" class="toast" role="status" hidden></div>
       <div id="grid" class="clip-grid"></div>
@@ -98,7 +98,7 @@
     <aside class="right">
       <h2 data-i18n>Farbslots</h2>
       <div id="slots" class="slot-list"></div>
-      <div class="h2row"><h2 data-i18n>Szenen</h2><span><button class="btn small-btn" id="scene-add" data-i18n>+ Szene speichern</button> <button class="btn small-btn toggle" id="scene-auto" aria-pressed="false" title="Szenen laufen nach ihrer Einstellung „Danach“ automatisch weiter" data-i18n-title>Auto</button></span></div>
+      <div class="h2row"><h2 data-i18n>Szenen</h2><span><button class="btn small-btn" id="scene-add" data-i18n>+ Szene speichern</button> <button class="btn small-btn toggle" id="scene-auto" aria-pressed="false" title="Szenen wechseln automatisch, wie unter „Danach“ eingestellt" data-i18n-title>Auto</button></span></div>
       <div id="scenes" class="scene-list"></div>
       <section id="layer-panel" class="media-panel layer-panel" hidden></section>
       <section id="media-panel" class="media-panel" hidden></section>
@@ -118,7 +118,7 @@
         <span class="inline"><button class="btn small-btn" id="cue-add-media" data-i18n>+ Video / Bild</button><button class="btn small-btn" id="cue-add-cam" title="Webcam, Capture-Karte oder OBS Virtual Camera" data-i18n-title data-i18n>+ Kamera</button><button class="btn small-btn" id="cue-add-black" data-i18n>+ Schwarz</button><button class="btn small-btn" id="cue-add-scene" data-i18n>+ VJ-Szene</button><button class="btn small-btn" id="cue-add-tc" title="Timecode starten, stoppen oder springen (z. B. für eine MA)" data-i18n-title data-i18n>+ Timecode</button></span></div>
       <div id="cue-list" class="cue-list"></div>
       <section id="cue-timeline" class="cue-tl" hidden aria-label="Timeline" data-i18n-aria></section>
-      <div class="cue-drop" id="cue-drop" data-i18n>Videos oder Bilder hierher ziehen. Jede Datei wird ein Cue.</div>
+      <div class="cue-drop" id="cue-drop" data-i18n>Zieh Videos oder Bilder hierher – aus jeder Datei wird ein Cue.</div>
     </div>
     <aside class="sh-right">
       <div class="sh-mon"><div class="lbl"><b id="sh-now" data-i18n>● AUSGANG</b><span id="sh-now-time"></span></div><div class="sh-mon-slot" id="sh-mon-slot"></div></div>
@@ -151,7 +151,7 @@
     <div class="out-right">
       <h2 data-i18n>Anordnung</h2>
       <div class="seg2 out-mode" id="out-mode" role="radiogroup" aria-label="Anordnung" data-i18n-aria>
-        <button data-mode="mirror" role="radio" data-i18n>Gleiches Bild auf allen</button>
+        <button data-mode="mirror" role="radio" data-i18n>Überall dasselbe Bild</button>
         <button data-mode="canvas" role="radio" data-i18n>Leinwand: Bildschirme anordnen</button>
         <button data-mode="mapping" role="radio" data-i18n>Projektionsmapping</button>
       </div>
@@ -175,7 +175,7 @@
   <h2 data-i18n>Live-Werte (91 Kanäle)</h2>
   <div id="dmx-live" class="dmx-live"></div>
   <h2>LJ-Link</h2>
-  <p class="muted small" data-i18n>LJ-Link wird automatisch gefunden und verbunden, auf diesem Rechner und im Netz (Bonjour) – dort ist nichts einzustellen. Nur wenn es nicht gefunden wird (z. B. anderes Netz), hier Adresse oder „Adresse:Port“ eintragen.</p>
+  <p class="muted small" data-i18n>VJ-Link findet LJ-Link automatisch, auf diesem Rechner und im Netzwerk (Bonjour). Normalerweise musst du nichts einstellen. Nur wenn LJ-Link nicht gefunden wird (z. B. in einem anderen Netz), trag hier die Adresse oder „Adresse:Port“ ein.</p>
   <div class="inline wrap lj-host">
     <label class="inline"><span data-i18n>LJ-Link PRO auf</span> <input id="cfg-ljhost" type="text" placeholder="automatisch" spellcheck="false" autocomplete="off" maxlength="253" data-i18n-ph></label>
     <button class="btn small-btn" id="lj-open" title="Weboberfläche von LJ-Link im Browser öffnen" data-i18n-title data-i18n>LJ-Link öffnen</button>
@@ -184,7 +184,7 @@
     <label class="inline"><span data-i18n>Now-Playing-Bauchbinde zeigen</span>
       <select id="cfg-ljhold"><option value="8" data-i18n>8 s nach Trackwechsel</option><option value="15" data-i18n>15 s nach Trackwechsel</option><option value="30" data-i18n>30 s nach Trackwechsel</option><option value="0" data-i18n>immer</option></select></label>
     <button class="btn small-btn" id="lj-np-show" title="Bauchbinde jetzt noch einmal einblenden" data-i18n-title data-i18n>Jetzt einblenden</button>
-    <span class="muted small" data-i18n>Clip „Now Playing“ (Bibliothek → LJ-Link) auf eine Ebene legen. Im Privatsphäre-Modus von LJ-Link bleibt sie leer.</span>
+    <span class="muted small" data-i18n>Leg den Clip „Now Playing“ (Bibliothek → LJ-Link) auf eine Ebene. Im Privatsphäre-Modus von LJ-Link bleibt die Bauchbinde leer.</span>
   </div>
   <div id="lj-decks" class="cards"></div>
 </section>
@@ -215,7 +215,7 @@
       </div>
       <p class="am-hint" id="audio-hint"></p>
         <h3 data-i18n>Ausgang</h3>
-        <p class="am-hint" data-i18n>Wohin der Ton von Videos geht (Cues mit Ton, Video-Clips mit Ton an).</p>
+        <p class="am-hint" data-i18n>Hier kommt der Ton von Videos heraus (Cues und Video-Clips mit eingeschaltetem Ton).</p>
         <div id="audio-outs" class="am-list" role="radiogroup" aria-label="Audio-Ausgang" data-i18n-aria></div>
       </section>
       <section class="set-sec" data-sec="timecode" hidden><div id="set-tc"></div></section>

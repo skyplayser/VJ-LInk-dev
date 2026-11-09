@@ -163,8 +163,8 @@ export class TimelineView {
       blk.style.left = `${pctOf(Math.max(a, m.t))}%`;
       blk.style.width = `${Math.max(0.4, pctOf(Math.min(b, end)) - pctOf(Math.max(a, m.t)))}%`;
       blk.style.setProperty("--c", sceneColor(m.scene));
-      blk.append(el("b", "", `${m.scene} · ${sc?.name ?? "?"}`), el("small", "", `${fmt1(end - m.t)}${m.len === undefined ? t(" · bis zur nächsten") : ""}${multi ? (m.others ? t(" · andere Bilder") : t(" · alle Bilder")) : ""}${m.level !== undefined && m.level < 1 ? ` · ${Math.round(m.level * 100)} %` : ""}${multi && m.others && !Object.keys(sc?.stacks ?? {}).length ? t(" · ⚠ Szene kennt keine anderen Bilder") : ""}`));
-      blk.title = t("{t} · Szene {n}. Mitte ziehen verschiebt, Ränder ziehen ändert die Länge (⌥ ohne Einrasten), Entf löscht.", { t: fmt1(m.t - a), n: m.scene });
+      blk.append(el("b", "", `${m.scene} · ${sc?.name ?? "?"}`), el("small", "", `${fmt1(end - m.t)}${m.len === undefined ? t(" · bis zur nächsten") : ""}${multi ? (m.others ? t(" · andere Bilder") : t(" · alle Bilder")) : ""}${m.level !== undefined && m.level < 1 ? ` · ${Math.round(m.level * 100)} %` : ""}${multi && m.others && !Object.keys(sc?.stacks ?? {}).length ? t(" · ⚠ Szene enthält keine anderen Bilder") : ""}`));
+      blk.title = t("{t} · Szene {n}. In der Mitte ziehen verschiebt, an den Rändern ziehen ändert die Länge (⌥ ohne Einrasten), Entf löscht.", { t: fmt1(m.t - a), n: m.scene });
       const hl = el("span", "tlv-h l"), hr = el("span", "tlv-h r");
       hl.title = t("Anfang ziehen"); hr.title = t("Ende ziehen (Länge)");
       hl.addEventListener("pointerdown", e => this.dragMark(e, c, m, k, "l", blk));
@@ -190,7 +190,7 @@ export class TimelineView {
       blk.style.left = `${pctOf(Math.max(a, fb.t))}%`;
       blk.style.width = `${Math.max(0.4, pctOf(Math.min(b, fb.t + fb.len)) - pctOf(Math.max(a, fb.t)))}%`;
       blk.append(el("b", "", FX_LABEL[fb.kind]), el("small", "", fmt1(fb.len)));
-      blk.title = t("{fx} ab {t}, {len} lang. Mitte ziehen verschiebt, Ränder ändern die Länge, Entf löscht.", { fx: FX_LABEL[fb.kind], t: fmt1(fb.t - a), len: fmt1(fb.len) });
+      blk.title = t("{fx} ab {t}, {len} lang. In der Mitte ziehen verschiebt, an den Rändern ziehen ändert die Länge, Entf löscht.", { fx: FX_LABEL[fb.kind], t: fmt1(fb.t - a), len: fmt1(fb.len) });
       const hl = el("span", "tlv-h l"), hr = el("span", "tlv-h r");
       hl.addEventListener("pointerdown", e => this.dragFx(e, c, fb, "l", blk));
       hr.addEventListener("pointerdown", e => this.dragFx(e, c, fb, "r", blk));
@@ -211,7 +211,7 @@ export class TimelineView {
       const warn = el("div", "tlv-warn");
       warn.append(el("span", "", t("Der Cue liegt deckend über den Visuals („Visuals aus“) – die Szenenwechsel passieren unsichtbar dahinter.")));
       const fix = el("button", "btn small-btn", t("Cue darüber legen"));
-      fix.title = t("Das Bild bzw. Video liegt dann über den Visuals; dunkle oder durchsichtige Stellen zeigen die Szenen");
+      fix.title = t("Bild oder Video liegt dann über den Visuals; an dunklen oder durchsichtigen Stellen sieht man die Szenen");
       fix.addEventListener("click", () => { c.over = "over"; d.changed(); });
       warn.append(fix);
       r.append(warn);
@@ -223,7 +223,7 @@ export class TimelineView {
     d.ctx.scenes.forEach((sc, i) => {
       const bt = el("button", "tlv-scene", `${i + 1} · ${sc.name}`);
       bt.style.setProperty("--c", sceneColor(i + 1));
-      bt.title = t("Auf die Szenen-Spur ziehen (4 s, Länge danach an den Rändern ziehen) oder antippen (an Abspielposition bzw. Cursor)");
+      bt.title = t("Auf die Szenen-Spur ziehen (4 s, Länge danach an den Rändern anpassen) oder antippen (setzt an der Abspielposition bzw. am Cursor)");
       bt.addEventListener("pointerdown", e => this.dragScene(e, c, i + 1, bt));
       pal.append(bt);
     });
@@ -282,7 +282,7 @@ export class TimelineView {
       row.append(el("span", "muted small", t("Helligkeit")), lv, lvv, del);
       r.append(row);
     } else if (!marks.length) {
-      r.append(el("p", "muted small", t("Szenen aus der Palette auf die Spur ziehen und die Länge an den Rändern ziehen – wie im Schnittprogramm. Oder Video abspielen und Szenen antippen bzw. „Aufnehmen“. In Lücken gilt die Szene, die beim Start lief.")));
+      r.append(el("p", "muted small", t("Zieh Szenen aus der Palette auf die Spur und pass ihre Länge an den Rändern an – wie im Schnittprogramm. Oder spiel das Video ab und tipp Szenen an bzw. nutze „Aufnehmen“. In Lücken gilt die Szene, die beim Start lief.")));
     }
     this.tick(c);
   }
