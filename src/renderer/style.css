@@ -615,3 +615,11 @@ body.mapping .cell-edit,body.modding .cell-edit{display:none}
 .cp-nm{background:transparent;border:1px solid transparent;border-radius:3px;color:var(--text);font:700 12px system-ui,sans-serif;padding:1px 3px;margin-left:-4px;min-width:0}
 .cp-nm:hover{border-color:var(--line)}
 .cp-nm:focus{border-color:#22c8f0;background:var(--raise);outline:none}
+.img-pen{position:absolute;top:3px;left:3px;border:0;border-radius:4px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;padding:1px 5px;cursor:pointer;opacity:0;transition:opacity .12s}
+.img-tile:hover .img-pen{opacity:1}
+.img-pen:hover{background:#22c8f0;color:#000}
+.cp-top{display:flex;align-items:center;gap:2px;min-width:0}
+.cp-top .cp-nm{flex:1}
+.cp-pen{border:0;background:none;color:var(--dim);cursor:pointer;font-size:11px;padding:0 3px}
+.cp-pen:hover{color:#22c8f0}
+.cp-nm{border-color:var(--line)}

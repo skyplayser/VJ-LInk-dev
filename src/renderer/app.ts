@@ -1130,21 +1130,22 @@ function syncCanvases(): void {
     if (mappingOn()) {
       for (const im of images) {
         const t = el("div", `img-tile${s.canvas === im.id ? " on" : ""}`);
+        t.dataset.img = im.id;
         const c = el("canvas"); c.width = 384; c.height = 216; tileCanvases.set(im.id, c);
         const nm = el("span", "img-name", im.name);
-        nm.title = "Doppelklick: umbenennen";
-        nm.addEventListener("dblclick", ev => {
-          ev.stopPropagation();
-          const inp = el("input", "img-rename"); inp.value = im.name; inp.maxLength = 30;
-          const done = () => { const v = inp.value.trim(); if (v) { im.name = v; ctx.show.images = imageList(ctx.show).map(x => x.id === im.id ? { ...x, name: v } : x); } tilesSig = ""; canvasSig = ""; syncCanvases(); };
-          inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { inp.value = im.name; inp.blur(); } });
-          inp.addEventListener("blur", done);
-          inp.addEventListener("click", e => e.stopPropagation());
-          nm.replaceWith(inp); inp.focus(); inp.select();
-        });
-        t.append(c, nm);
+        nm.title = "Doppelklick oder ✎: umbenennen";
+        const pen = el("button", "img-pen", "✎"); pen.title = "Umbenennen";
+        pen.addEventListener("click", ev => { ev.stopPropagation(); renameImage(im.id); });
+        t.append(c, nm, pen);
         t.title = `${im.name} bearbeiten (Clips, Ebenen, Effekte)`;
-        t.addEventListener("click", ev => { if ((ev.target as HTMLElement).closest(".img-x")) return; editImage(im.id); });
+        t.addEventListener("click", ev => {
+          if ((ev.target as HTMLElement).closest(".img-x, .img-pen, .img-rename")) return;
+          // Doppelklick selbst erkennen (der erste Klick baut die Kacheln neu auf)
+          const now = performance.now();
+          if (lastTileClick.id === im.id && now - lastTileClick.at < 400) { lastTileClick = { id: "", at: 0 }; renameImage(im.id); return; }
+          lastTileClick = { id: im.id, at: now };
+          if (ctx.show.canvas !== im.id) editImage(im.id);
+        });
         if (im.id !== MAIN_STACK) {
           const x = el("button", `img-x${armedImageDelete === im.id ? " armed" : ""}`, armedImageDelete === im.id ? "löschen?" : "×");
           x.title = "Bild löschen";
@@ -1202,7 +1203,10 @@ function syncCanvases(): void {
     const nm = el("input", "cp-nm"); nm.value = sf.name; nm.maxLength = 40; nm.setAttribute("aria-label", "Name der Leinwand");
     nm.addEventListener("keydown", e => { if (e.key === "Enter") nm.blur(); if (e.key === "Escape") { nm.value = sf.name; nm.blur(); } });
     nm.addEventListener("change", () => { const v = nm.value.trim(); if (v) sf.name = v; canvasSig = ""; cueImgSig = ""; if ($("tab-output").classList.contains("on")) outputTab.render(); });
-    t.append(nm, el("small", "", scr));
+    const pen = el("button", "cp-pen", "✎"); pen.title = "Leinwand umbenennen";
+    pen.addEventListener("click", () => { nm.focus(); nm.select(); });
+    const top = el("span", "cp-top"); top.append(nm, pen);
+    t.append(top, el("small", "", scr));
     const sel = el("select"); sel.setAttribute("aria-label", `Bild für ${sf.name}`);
     for (const im of images) sel.append(new Option(im.name, im.id));
     sel.value = images.some(im => im.id === sf.image) ? sf.image! : MAIN_STACK;
@@ -1214,6 +1218,27 @@ function syncCanvases(): void {
 }
 
 $<HTMLSelectElement>("cue-image").addEventListener("change", e => { ctx.show.cueImage = (e.target as HTMLSelectElement).value; cueImgSig = ""; });
+
+let lastTileClick = { id: "", at: 0 };
+/** Bild umbenennen: Eingabefeld direkt in der Kachel. */
+function renameImage(id: string): void {
+  const nm = document.querySelector<HTMLElement>(`#img-tiles .img-tile[data-img="${id}"] .img-name`);
+  const im = imageList(ctx.show).find(x => x.id === id);
+  if (!nm || !im) return;
+  const inp = el("input", "img-rename"); inp.value = im.name; inp.maxLength = 30; inp.setAttribute("aria-label", "Name des Bildes");
+  let doneOnce = false;
+  const done = () => {
+    if (doneOnce) return; doneOnce = true;
+    const v = inp.value.trim();
+    if (v) ctx.show.images = imageList(ctx.show).map(x => x.id === id ? { ...x, name: v } : x);
+    tilesSig = ""; canvasSig = ""; cueImgSig = ""; syncCanvases();
+  };
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") done(); if (e.key === "Escape") { inp.value = im.name; done(); } });
+  inp.addEventListener("change", done);
+  inp.addEventListener("blur", done);
+  inp.addEventListener("click", e => e.stopPropagation());
+  nm.replaceWith(inp); inp.focus(); inp.select();
+}
 
 /** Bild zum Bearbeiten wählen (Clip-Raster, Ebenen, Effekte, Fader zeigen dann seine Ebenen). */
 function editImage(id: string): void {

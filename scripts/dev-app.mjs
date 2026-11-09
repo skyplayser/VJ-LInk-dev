@@ -1,33 +1,46 @@
-// Entwicklung auf dem Mac: `npm start` startet das mitgelieferte Electron-Programmpaket. macOS zeigt in Menüleiste,
-// Dock und App-Umschalter dessen Namen und Symbol („Electron“). Dieses Skript trägt VJ-Link und das eigene Symbol
-// ins Paket ein. Fertige Builds bekommen Name und Symbol ohnehin aus package.json (productName) und build/.
-import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, readFileSync, utimesSync } from "node:fs";
+// Entwicklung: VJ-Link starten (npm start). Auf dem Mac läuft die App als eigenes Programmpaket „VJ-Link.app“
+// (APFS-Klon des mitgelieferten Electron.app, kostet keinen Platz), mit eigenem Namen, Symbol und eigener Kennung.
+// So zeigen Dock, Menüleiste und App-Umschalter „VJ-Link“ statt „Electron“. Fertige Builds bekommen Name und Symbol
+// ohnehin aus package.json (productName) und build/.
+import { execFileSync, spawn } from "node:child_process";
+import { copyFileSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-if (process.platform !== "darwin") process.exit(0);
-
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const appDir = join(root, "node_modules", "electron", "dist", "Electron.app");
-const plist = join(appDir, "Contents", "Info.plist");
-if (!existsSync(plist)) process.exit(0);
-
+const run = process.argv.includes("--run");
 const name = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).productName ?? "VJ-Link";
-const get = key => { try { return execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, plist], { encoding: "utf8" }).trim(); } catch { return ""; } };
 
-let changed = false;
-for (const key of ["CFBundleName", "CFBundleDisplayName"]) {
-  if (get(key) !== name) { execFileSync("plutil", ["-replace", key, "-string", name, plist]); changed = true; }
+/** Pfad zum Electron-Programm, das gestartet wird. */
+function electronBinary() {
+  const electron = createRequire(import.meta.url)("electron");
+  if (process.platform !== "darwin") return electron;
+  const dist = join(root, "node_modules", "electron", "dist");
+  const src = join(dist, "Electron.app"), dst = join(dist, `${name}.app`);
+  const plist = (app) => join(app, "Contents", "Info.plist");
+  const get = (file, key) => { try { return execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, file], { encoding: "utf8" }).trim(); } catch { return ""; } };
+  if (!existsSync(src)) return electron;
+  // Neu anlegen, wenn es fehlt oder Electron aktualisiert wurde
+  const fresh = !existsSync(plist(dst)) || get(plist(dst), "CFBundleVersion") !== get(plist(src), "CFBundleVersion");
+  if (fresh) {
+    rmSync(dst, { recursive: true, force: true });
+    try { execFileSync("cp", ["-cR", src, dst]); } catch { execFileSync("cp", ["-R", src, dst]); }
+    const p = plist(dst);
+    for (const [key, val] of [["CFBundleName", name], ["CFBundleDisplayName", name], ["CFBundleIdentifier", "de.vjlink.app.dev"]]) {
+      execFileSync("plutil", ["-replace", key, "-string", val, p]);
+    }
+    const icon = join(root, "build", "icon.icns");
+    if (existsSync(icon)) copyFileSync(icon, join(dst, "Contents", "Resources", "electron.icns"));
+    try { execFileSync("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", ["-f", dst]); } catch { /* nicht schlimm */ }
+    console.log(`Entwicklungs-App „${name}.app“ angelegt.`);
+  }
+  return join(dst, "Contents", "MacOS", "Electron");
 }
-// Symbol: das Paket verweist auf electron.icns; dort liegt dann das VJ-Link-Symbol
-const icon = join(root, "build", "icon.icns"), target = join(appDir, "Contents", "Resources", "electron.icns");
-if (existsSync(icon) && (!existsSync(target) || !readFileSync(icon).equals(readFileSync(target)))) { copyFileSync(icon, target); changed = true; }
 
-if (changed) {
-  // macOS merkt sich Name und Symbol; Zeitstempel ändern, damit es neu liest
-  const now = new Date();
-  utimesSync(appDir, now, now);
-  try { execFileSync("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", ["-f", appDir]); } catch { /* nicht schlimm */ }
-  console.log(`Entwicklungs-App heißt jetzt „${name}“.`);
+const bin = electronBinary();
+if (run) {
+  const child = spawn(bin, [root, ...process.argv.slice(2).filter(a => a !== "--run")], { stdio: "inherit" });
+  child.on("exit", code => process.exit(code ?? 0));
+  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));
 }
