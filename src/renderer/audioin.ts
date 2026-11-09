@@ -1,6 +1,7 @@
 // Audio-Eingang (Mikrofon, Line-In, Audio-Interface): Spektrum und Wellenform für die Visuals.
 import { analyzeSpectrum, sampleWave } from "../core/audio";
 import type { MicData } from "../core/show";
+import { t } from "../core/i18n";
 
 export interface AudioDevice { id: string; label: string }
 
@@ -24,7 +25,7 @@ export class AudioIn {
     try {
       const all = await navigator.mediaDevices.enumerateDevices();
       return all.filter(d => d.kind === "audioinput" && d.deviceId !== "communications")
-        .map((d, i) => ({ id: d.deviceId, label: d.label || `Eingang ${i + 1}` }));
+        .map((d, i) => ({ id: d.deviceId, label: d.label || t("Eingang {n}", { n: i + 1 }) }));
     } catch { return []; }
   }
 
@@ -39,8 +40,8 @@ export class AudioIn {
       });
     } catch (e) {
       this.error = (e as Error).name === "NotAllowedError"
-        ? "Kein Zugriff auf das Mikrofon. macOS: Systemeinstellungen → Datenschutz → Mikrofon → VJ-Link erlauben."
-        : "Eingang lässt sich nicht öffnen.";
+        ? t("Kein Zugriff auf das Mikrofon. macOS: Systemeinstellungen → Datenschutz → Mikrofon → VJ-Link erlauben.")
+        : t("Eingang lässt sich nicht öffnen.");
       return false;
     }
     this.ac = new AudioContext();
@@ -53,9 +54,9 @@ export class AudioIn {
     this.freq = new Float32Array(this.an.frequencyBinCount);
     this.time = new Float32Array(this.an.fftSize);
     this.deviceId = deviceId;
-    this.label = this.stream.getAudioTracks()[0]?.label ?? "Audio-Eingang";
+    this.label = this.stream.getAudioTracks()[0]?.label ?? t("Audio-Eingang");
     // Gerät abgezogen: sauber beenden
-    this.stream.getAudioTracks()[0]?.addEventListener("ended", () => { this.stop(); this.error = "Eingang getrennt."; });
+    this.stream.getAudioTracks()[0]?.addEventListener("ended", () => { this.stop(); this.error = t("Eingang getrennt."); });
     return true;
   }
 

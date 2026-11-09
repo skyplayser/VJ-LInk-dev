@@ -1,6 +1,7 @@
 // Videos: als Clip in den Visuals (loopt, auch im Takt) und als Cue im SHOW-Ablauf.
 // Alles hier ist reine Rechnung, damit jedes Fenster (Vorschau, Ausgänge) dieselbe Stelle zeigt.
 import { parseTc, tcToFrames, type TcNow } from "./timecode";
+import { t } from "./i18n";
 
 export const VIDEO_EXTENSIONS = ["mp4", "m4v", "mov", "webm"] as const;
 export const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm", "video/x-m4v"] as const;
@@ -338,9 +339,9 @@ export function cueGo(s: CueState, nowMs: number, env: CueEnv): "released" | "st
 export function goLabel(s: CueState, nowMs: number, env: CueEnv): string {
   const cur = s.list[s.run.current], ac = currentActive(s);
   if (cur && ac && cur.loop === "untilGo" && ac.releasedMs === null && cueTime(cur, ac, nowMs, env.duration(cur.media)).looping)
-    return `beendet den Loop von „${cur.name}“`;
+    return t("beendet den Loop von „{name}“", { name: cur.name });
   const n = s.list[s.run.next];
-  return n ? `startet Cue ${s.run.next + 1} „${n.name}“` : "Ende des Ablaufs";
+  return n ? t("startet Cue {n} „{name}“", { n: s.run.next + 1, name: n.name }) : t("Ende des Ablaufs");
 }
 
 /** Zurück: der nächste Cue rückt eins nach oben (laufende Cues bleiben). */

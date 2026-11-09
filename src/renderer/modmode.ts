@@ -2,6 +2,7 @@
 // Modulierte Regler tragen immer einen türkisen Rand (auch außerhalb des Modus).
 import { CONTROL_BY_ID } from "../core/controls";
 import type { ControlContext } from "../core/control";
+import { t } from "../core/i18n";
 import {
   MAX_MODS, MOD_BEATS, MOD_LFO, MOD_SOURCES, MOD_SOURCE_LABEL, modSignal, modulatable, newModulation, type Modulation, type ModSource,
 } from "../core/modulation";
@@ -26,10 +27,10 @@ export class ModMode {
     // Im Modus wählt ein Klick den Regler, statt ihn zu bewegen
     const block = (e: Event) => {
       if (!this.on) return;
-      const t = e.target as HTMLElement;
-      if (t.closest(".mod-panel, .map-menu, #map-btn")) return;
-      const ctl = t.closest<HTMLElement>("[data-ctl]");
-      if (ctl || t.closest("main, .deck, .top")) { e.preventDefault(); e.stopPropagation(); }
+      const tg = e.target as HTMLElement;
+      if (tg.closest(".mod-panel, .map-menu, #map-btn")) return;
+      const ctl = tg.closest<HTMLElement>("[data-ctl]");
+      if (ctl || tg.closest("main, .deck, .top")) { e.preventDefault(); e.stopPropagation(); }
       if (ctl && e.type === "pointerdown") this.pick(ctl.dataset.ctl!);
     };
     for (const ev of ["pointerdown", "mousedown", "click", "dblclick", "input", "change"]) document.addEventListener(ev, block, true);
@@ -59,10 +60,10 @@ export class ModMode {
   }
 
   private pick(id: string): void {
-    if (!modulatable(id)) { this.toast(`„${label(id)}“ lässt sich nicht modulieren (nur Regler, kein Tempo, keine Auswahl).`); return; }
+    if (!modulatable(id)) { this.toast(t("„{name}“ lässt sich nicht modulieren (nur Regler, kein Tempo, keine Auswahl).", { name: label(id) })); return; }
     this.target = id;
     if (!this.mods.some(m => m.target === id)) {
-      if (this.mods.length >= MAX_MODS) { this.toast(`Höchstens ${MAX_MODS} Modulationen.`); return; }
+      if (this.mods.length >= MAX_MODS) { this.toast(t("Höchstens {n} Modulationen.", { n: MAX_MODS })); return; }
       this.mods.push(newModulation(id));
     }
     this.render(); this.mark();
@@ -88,14 +89,14 @@ export class ModMode {
     const box = this.panel;
     box.replaceChildren();
     const head = el("div", "map-head");
-    head.append(el("span", "grip", "∿"), el("b", "", "Modulation"));
-    const done = el("button", "btn small-btn", "Fertig"); done.title = "Beenden (Esc)";
+    head.append(el("span", "grip", "∿"), el("b", "", t("Modulation")));
+    const done = el("button", "btn small-btn", t("Fertig")); done.title = t("Beenden (Esc)");
     done.addEventListener("click", () => this.close());
     head.append(done);
     box.append(head);
     const m = this.mods.find(x => x.target === this.target);
     if (!m) {
-      box.append(el("p", "map-hint", "Einen Regler anklicken (türkis umrandet). Er schwingt dann um seine eingestellte Position, im Takt (LFO) oder mit dem Audio."));
+      box.append(el("p", "map-hint", t("Einen Regler anklicken (türkis umrandet). Er schwingt dann um seine eingestellte Position, im Takt (LFO) oder mit dem Audio.")));
     } else {
       const ed = el("div", "mod-edit");
       ed.append(el("b", "mod-target", label(m.target)));
@@ -109,26 +110,26 @@ export class ModMode {
       }
       ed.append(src);
       if (MOD_LFO.has(m.source)) {
-        const r = el("label", "mrow"); r.append(el("span", "", "Tempo"));
+        const r = el("label", "mrow"); r.append(el("span", "", t("Tempo")));
         const sel = el("select");
         for (const b of MOD_BEATS) sel.append(new Option(beatsLabel(b), String(b)));
         sel.value = String(m.beats);
         sel.addEventListener("change", () => { m.beats = Number(sel.value); });
         r.append(sel, el("span")); ed.append(r);
       } else {
-        ed.append(el("p", "map-hint", "Folgt dem Audio-Eingang (Einstellungen → Audio) oder LJ-Link. Ohne Audio bleibt der Regler auf seinem Grundwert minus der halben Stärke."));
+        ed.append(el("p", "map-hint", t("Folgt dem Audio-Eingang (Einstellungen → Audio) oder LJ-Link. Ohne Audio bleibt der Regler auf seinem Grundwert minus der halben Stärke.")));
       }
-      const r = el("label", "mrow"); r.append(el("span", "", "Stärke"));
+      const r = el("label", "mrow"); r.append(el("span", "", t("Stärke")));
       const depth = el("input"); depth.type = "range"; depth.min = "0"; depth.max = "100"; depth.value = String(Math.round(m.depth * 100));
       const val = el("span", "mval", `${Math.round(m.depth * 100)} %`);
       depth.addEventListener("input", () => { m.depth = Number(depth.value) / 100; val.textContent = `${depth.value} %`; });
       r.append(depth, val); ed.append(r);
-      this.meter = el("div", "mod-meter"); this.meter.title = "Signal jetzt";
+      this.meter = el("div", "mod-meter"); this.meter.title = t("Signal jetzt");
       ed.append(this.meter);
       const acts = el("div", "inline wrap");
-      const tog = el("button", `btn small-btn${m.on ? " on" : ""}`, m.on ? "An" : "Aus");
+      const tog = el("button", `btn small-btn${m.on ? " on" : ""}`, m.on ? t("An") : t("Aus"));
       tog.addEventListener("click", () => { m.on = !m.on; this.render(); this.mark(); });
-      const del = el("button", "btn small-btn", "Entfernen");
+      const del = el("button", "btn small-btn", t("Entfernen"));
       del.addEventListener("click", () => { this.mods.splice(this.mods.indexOf(m), 1); this.target = null; this.render(); this.mark(); });
       acts.append(tog, del); ed.append(acts);
       box.append(ed);
@@ -142,7 +143,7 @@ export class ModMode {
         row.addEventListener("click", () => { this.target = x.target; this.render(); this.mark(); });
         list.append(row);
       }
-      box.append(el("div", "map-sub", "Alle Modulationen"), list);
+      box.append(el("div", "map-sub", t("Alle Modulationen")), list);
     }
   }
 }

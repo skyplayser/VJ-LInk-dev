@@ -4,6 +4,7 @@
 import type { ControlContext } from "../core/control";
 import { showGo, showStop } from "../core/control";
 import { FX_KINDS, FX_LABEL, cueSeek, cueSetNext, cueTime, timelineSpan, type Cue, type CueEnv, type FxBlock, type FxKind, type SceneMark } from "../core/video";
+import { t } from "../core/i18n";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -104,17 +105,17 @@ export class TimelineView {
     const live = this.liveT(c) !== null;
     // Kopf: Name, Zeit, Abspielen/Stopp, Aufnehmen
     const head = el("div", "tlv-head");
-    head.append(el("b", "", `Timeline · ${c.name}`));
+    head.append(el("b", "", `${t("Timeline")} · ${c.name}`));
     this.timeEl = el("span", "tlv-time");
-    const playBtn = el("button", `btn small-btn${live ? " on" : ""}`, live ? "■ Stopp" : "▶ Abspielen");
+    const playBtn = el("button", `btn small-btn${live ? " on" : ""}`, live ? t("■ Stopp") : t("▶ Abspielen"));
     this.playBtn = playBtn;
     playBtn.addEventListener("click", () => {
       if (this.liveT(c) !== null) showStop(d.ctx);
       else { cueSetNext(d.ctx.cues, d.indexOf(c)); showGo(d.ctx); }
       d.changed();
     });
-    const rec = el("button", `btn small-btn tlv-rec${this.recording ? " on" : ""}`, this.recording ? "● Aufnahme läuft" : "● Aufnehmen");
-    rec.title = "Während das Video läuft: jede Szene, die du auslöst (Szenen-Tasten, Pads, Tastatur, MIDI, Pult), wird an dieser Stelle eingetragen";
+    const rec = el("button", `btn small-btn tlv-rec${this.recording ? " on" : ""}`, this.recording ? t("● Aufnahme läuft") : t("● Aufnehmen"));
+    rec.title = t("Während das Video läuft: jede Szene, die du auslöst (Szenen-Tasten, Pads, Tastatur, MIDI, Pult), wird an dieser Stelle eingetragen");
     rec.addEventListener("click", () => {
       this.recording = !this.recording;
       d.ctx.onSceneRecall = this.recording ? (i: number) => {
@@ -123,24 +124,24 @@ export class TimelineView {
         this.sel = this.place(this.cue, t, i + 1);
         d.changed();
       } : undefined;
-      if (this.recording && this.liveT(c) === null) d.toast("Aufnahme bereit: Video abspielen und Szenen auslösen.");
+      if (this.recording && this.liveT(c) === null) d.toast(t("Aufnahme bereit: Video abspielen und Szenen auslösen."));
       d.changed();
     });
-    const undo = el("button", "btn small-btn", "Alle Marker löschen");
+    const undo = el("button", "btn small-btn", t("Alle Marker löschen"));
     undo.addEventListener("click", () => {
-      if (undo.dataset.armed !== "1") { undo.dataset.armed = "1"; undo.textContent = "Wirklich alle löschen?"; return; }
+      if (undo.dataset.armed !== "1") { undo.dataset.armed = "1"; undo.textContent = t("Wirklich alle löschen?"); return; }
       c.marks = []; this.sel = -1; d.changed();
     });
     head.append(this.timeEl);
     if (c.kind !== "video") {
-      const dur = el("input", "tc-in"); dur.value = String(c.hold || 0); dur.setAttribute("aria-label", "Länge der Timeline in Sekunden");
+      const dur = el("input", "tc-in"); dur.value = String(c.hold || 0); dur.setAttribute("aria-label", t("Länge der Timeline in Sekunden"));
       dur.addEventListener("change", () => { const v = Number(dur.value.replace(",", ".")); if (Number.isFinite(v) && v >= 1) c.hold = Math.min(36000, v); d.changed(); });
-      const lab = el("label", "tlv-len", "Länge"); lab.append(dur, el("small", "muted", "s"));
+      const lab = el("label", "tlv-len", t("Länge")); lab.append(dur, el("small", "muted", "s"));
       head.append(lab);
     }
     head.append(el("span", "grow"), playBtn, rec, undo);
     r.append(head);
-    if (b <= a) { r.append(el("p", "muted small", c.kind === "video" ? "Länge wird noch gemessen …" : "Für eine Timeline braucht der Cue eine Dauer (Details → Dauer).")); return; }
+    if (b <= a) { r.append(el("p", "muted small", c.kind === "video" ? t("Länge wird noch gemessen …") : t("Für eine Timeline braucht der Cue eine Dauer (Details → Dauer)."))); return; }
 
     // Lineal
     const ruler = el("div", "tlv-ruler");
@@ -151,7 +152,7 @@ export class TimelineView {
     }
     // Spuren
     const tracks = el("div", "tlv-tracks");
-    const vid = el("div", "tlv-video", c.kind === "video" ? `▶ ${c.name}` : c.kind === "image" ? "Bild" : c.kind === "camera" ? "Kamera" : "Schwarz");
+    const vid = el("div", "tlv-video", c.kind === "video" ? `▶ ${c.name}` : c.kind === "image" ? t("Bild") : c.kind === "camera" ? t("Kamera") : t("Schwarz"));
     const lane = el("div", "tlv-lane"); this.lane = lane;
     const pctOf = (t: number) => ((t - a) / len) * 100;
     const multi = d.multiImage();
@@ -162,10 +163,10 @@ export class TimelineView {
       blk.style.left = `${pctOf(Math.max(a, m.t))}%`;
       blk.style.width = `${Math.max(0.4, pctOf(Math.min(b, end)) - pctOf(Math.max(a, m.t)))}%`;
       blk.style.setProperty("--c", sceneColor(m.scene));
-      blk.append(el("b", "", `${m.scene} · ${sc?.name ?? "?"}`), el("small", "", `${fmt1(end - m.t)}${m.len === undefined ? " · bis zur nächsten" : ""}${multi ? (m.others ? " · andere Bilder" : " · alle Bilder") : ""}${m.level !== undefined && m.level < 1 ? ` · ${Math.round(m.level * 100)} %` : ""}${multi && m.others && !Object.keys(sc?.stacks ?? {}).length ? " · ⚠ Szene kennt keine anderen Bilder" : ""}`));
-      blk.title = `${fmt1(m.t - a)} · Szene ${m.scene}. Mitte ziehen verschiebt, Ränder ziehen ändert die Länge (⌥ ohne Einrasten), Entf löscht.`;
+      blk.append(el("b", "", `${m.scene} · ${sc?.name ?? "?"}`), el("small", "", `${fmt1(end - m.t)}${m.len === undefined ? t(" · bis zur nächsten") : ""}${multi ? (m.others ? t(" · andere Bilder") : t(" · alle Bilder")) : ""}${m.level !== undefined && m.level < 1 ? ` · ${Math.round(m.level * 100)} %` : ""}${multi && m.others && !Object.keys(sc?.stacks ?? {}).length ? t(" · ⚠ Szene kennt keine anderen Bilder") : ""}`));
+      blk.title = t("{t} · Szene {n}. Mitte ziehen verschiebt, Ränder ziehen ändert die Länge (⌥ ohne Einrasten), Entf löscht.", { t: fmt1(m.t - a), n: m.scene });
       const hl = el("span", "tlv-h l"), hr = el("span", "tlv-h r");
-      hl.title = "Anfang ziehen"; hr.title = "Ende ziehen (Länge)";
+      hl.title = t("Anfang ziehen"); hr.title = t("Ende ziehen (Länge)");
       hl.addEventListener("pointerdown", e => this.dragMark(e, c, m, k, "l", blk));
       hr.addEventListener("pointerdown", e => this.dragMark(e, c, m, k, "r", blk));
       blk.addEventListener("pointerdown", e => { this.selFx = -1; this.dragMark(e, c, m, k, "move", blk); });
@@ -189,7 +190,7 @@ export class TimelineView {
       blk.style.left = `${pctOf(Math.max(a, fb.t))}%`;
       blk.style.width = `${Math.max(0.4, pctOf(Math.min(b, fb.t + fb.len)) - pctOf(Math.max(a, fb.t)))}%`;
       blk.append(el("b", "", FX_LABEL[fb.kind]), el("small", "", fmt1(fb.len)));
-      blk.title = `${FX_LABEL[fb.kind]} ab ${fmt1(fb.t - a)}, ${fmt1(fb.len)} lang. Mitte ziehen verschiebt, Ränder ändern die Länge, Entf löscht.`;
+      blk.title = t("{fx} ab {t}, {len} lang. Mitte ziehen verschiebt, Ränder ändern die Länge, Entf löscht.", { fx: FX_LABEL[fb.kind], t: fmt1(fb.t - a), len: fmt1(fb.len) });
       const hl = el("span", "tlv-h l"), hr = el("span", "tlv-h r");
       hl.addEventListener("pointerdown", e => this.dragFx(e, c, fb, "l", blk));
       hr.addEventListener("pointerdown", e => this.dragFx(e, c, fb, "r", blk));
@@ -208,9 +209,9 @@ export class TimelineView {
     // Ein Bild/Video „statt Visuals“ deckt alles ab: Szenenwechsel der Timeline wären dann unsichtbar
     if (marks.length && c.over === "replace" && !d.multiImage()) {
       const warn = el("div", "tlv-warn");
-      warn.append(el("span", "", `Der Cue liegt deckend über den Visuals („Visuals aus“) – die Szenenwechsel passieren unsichtbar dahinter.`));
-      const fix = el("button", "btn small-btn", "Cue darüber legen");
-      fix.title = "Das Bild bzw. Video liegt dann über den Visuals; dunkle oder durchsichtige Stellen zeigen die Szenen";
+      warn.append(el("span", "", t("Der Cue liegt deckend über den Visuals („Visuals aus“) – die Szenenwechsel passieren unsichtbar dahinter.")));
+      const fix = el("button", "btn small-btn", t("Cue darüber legen"));
+      fix.title = t("Das Bild bzw. Video liegt dann über den Visuals; dunkle oder durchsichtige Stellen zeigen die Szenen");
       fix.addEventListener("click", () => { c.over = "over"; d.changed(); });
       warn.append(fix);
       r.append(warn);
@@ -218,20 +219,20 @@ export class TimelineView {
 
     // Szenen-Palette
     const pal = el("div", "tlv-pal");
-    pal.append(el("span", "muted small", live ? "Szenen ziehen oder antippen (jetzt):" : "Szenen auf die Spur ziehen oder antippen (Cursor):"));
+    pal.append(el("span", "muted small", live ? t("Szenen ziehen oder antippen (jetzt):") : t("Szenen auf die Spur ziehen oder antippen (Cursor):")));
     d.ctx.scenes.forEach((sc, i) => {
       const bt = el("button", "tlv-scene", `${i + 1} · ${sc.name}`);
       bt.style.setProperty("--c", sceneColor(i + 1));
-      bt.title = "Auf die Szenen-Spur ziehen (4 s, Länge danach an den Rändern ziehen) oder antippen (an Abspielposition bzw. Cursor)";
+      bt.title = t("Auf die Szenen-Spur ziehen (4 s, Länge danach an den Rändern ziehen) oder antippen (an Abspielposition bzw. Cursor)");
       bt.addEventListener("pointerdown", e => this.dragScene(e, c, i + 1, bt));
       pal.append(bt);
     });
     r.append(pal);
     const fpal = el("div", "tlv-pal");
-    fpal.append(el("span", "muted small", "Effekte auf die Effekt-Spur ziehen oder antippen:"));
+    fpal.append(el("span", "muted small", t("Effekte auf die Effekt-Spur ziehen oder antippen:")));
     for (const k of FX_KINDS) {
       const bt = el("button", `tlv-scene tlv-fxchip k-${k}`, FX_LABEL[k]);
-      bt.title = k === "blinder" ? "Blinder: ganzes Bild statisch weiß" : k === "blackout" ? "Blackout: alles schwarz" : `${FX_LABEL[k]} wie in der Fader-Leiste`;
+      bt.title = k === "blinder" ? t("Blinder: ganzes Bild statisch weiß") : k === "blackout" ? t("Blackout: alles schwarz") : t("{fx} wie in der Fader-Leiste", { fx: FX_LABEL[k] });
       bt.addEventListener("pointerdown", e => this.dragFxChip(e, c, k, bt));
       fpal.append(bt);
     }
@@ -240,15 +241,15 @@ export class TimelineView {
     const fb = fxs[this.selFx];
     if (fb) {
       const row = el("div", "tlv-edit");
-      const tIn = el("input", "tc-in"); tIn.value = (fb.t - a).toFixed(2); tIn.setAttribute("aria-label", "Start in Sekunden");
+      const tIn = el("input", "tc-in"); tIn.value = (fb.t - a).toFixed(2); tIn.setAttribute("aria-label", t("Start in Sekunden"));
       tIn.addEventListener("change", () => { const v = Number(tIn.value.replace(",", ".")); if (Number.isFinite(v)) fb.t = Math.max(a, Math.min(b - 0.05, a + v)); d.changed(); });
-      const lIn = el("input", "tc-in"); lIn.value = fb.len.toFixed(2); lIn.setAttribute("aria-label", "Länge in Sekunden");
+      const lIn = el("input", "tc-in"); lIn.value = fb.len.toFixed(2); lIn.setAttribute("aria-label", t("Länge in Sekunden"));
       lIn.addEventListener("change", () => { const v = Number(lIn.value.replace(",", ".")); if (Number.isFinite(v) && v > 0) fb.len = Math.min(v, b - fb.t); d.changed(); });
       const kind = el("select"); for (const k of FX_KINDS) kind.append(new Option(FX_LABEL[k], k));
       kind.value = fb.kind; kind.addEventListener("change", () => { fb.kind = kind.value as FxKind; d.changed(); });
-      const del = el("button", "btn small-btn", "Löschen (Entf)");
+      const del = el("button", "btn small-btn", t("Löschen (Entf)"));
       del.addEventListener("click", () => { fxs.splice(fxs.indexOf(fb), 1); this.selFx = -1; d.changed(); });
-      row.append(el("span", "muted small", "Effekt:"), kind, tIn, el("small", "muted", "s ab"), lIn, el("small", "muted", "s lang"), del);
+      row.append(el("span", "muted small", t("Effekt:")), kind, tIn, el("small", "muted", t("s ab")), lIn, el("small", "muted", t("s lang")), del);
       r.append(row);
     }
 
@@ -256,32 +257,32 @@ export class TimelineView {
     const m = marks[this.sel];
     if (m) {
       const row = el("div", "tlv-edit");
-      const tIn = el("input", "tc-in"); tIn.value = (m.t - a).toFixed(2); tIn.setAttribute("aria-label", "Zeit in Sekunden");
+      const tIn = el("input", "tc-in"); tIn.value = (m.t - a).toFixed(2); tIn.setAttribute("aria-label", t("Zeit in Sekunden"));
       tIn.addEventListener("change", () => { const v = Number(tIn.value.replace(",", ".")); if (Number.isFinite(v)) { m.t = Math.max(a, Math.min(b, a + v)); marks.sort((x, y) => x.t - y.t); this.sel = marks.indexOf(m); } d.changed(); });
       const sc = el("select"); d.ctx.scenes.forEach((s, i) => sc.append(new Option(`${i + 1} · ${s.name}`, String(i + 1))));
       sc.value = String(m.scene); sc.addEventListener("change", () => { m.scene = Number(sc.value); d.changed(); });
-      const oth = el("button", `btn small-btn${m.others ? " on" : ""}`, m.others ? "nur andere Bilder" : "alle Bilder");
-      oth.title = "„nur andere Bilder“: das Bild, auf dem der SHOW-Ablauf läuft, bleibt unberührt";
+      const oth = el("button", `btn small-btn${m.others ? " on" : ""}`, m.others ? t("nur andere Bilder") : t("alle Bilder"));
+      oth.title = t("„nur andere Bilder“: das Bild, auf dem der SHOW-Ablauf läuft, bleibt unberührt");
       oth.addEventListener("click", () => { m.others = !m.others; d.changed(); });
-      const del = el("button", "btn small-btn", "Löschen (Entf)");
+      const del = el("button", "btn small-btn", t("Löschen (Entf)"));
       del.addEventListener("click", () => { marks.splice(marks.indexOf(m), 1); this.sel = -1; d.changed(); });
-      const lenIn = el("input", "tc-in"); lenIn.placeholder = "bis nächste";
-      lenIn.value = m.len !== undefined ? m.len.toFixed(2) : ""; lenIn.setAttribute("aria-label", "Länge in Sekunden (leer = bis zur nächsten Szene)");
+      const lenIn = el("input", "tc-in"); lenIn.placeholder = t("bis nächste");
+      lenIn.value = m.len !== undefined ? m.len.toFixed(2) : ""; lenIn.setAttribute("aria-label", t("Länge in Sekunden (leer = bis zur nächsten Szene)"));
       lenIn.addEventListener("change", () => { const v = Number(lenIn.value.replace(",", ".")); if (lenIn.value.trim() === "") delete m.len; else if (Number.isFinite(v) && v > 0) m.len = Math.min(v, b - m.t); d.changed(); });
-      const open = el("button", "btn small-btn", "bis zur nächsten");
-      open.title = "Keine eigene Länge: die Szene gilt bis zum nächsten Block";
+      const open = el("button", "btn small-btn", t("bis zur nächsten"));
+      open.title = t("Keine eigene Länge: die Szene gilt bis zum nächsten Block");
       open.addEventListener("click", () => { delete m.len; d.changed(); });
       const lv = el("input"); lv.type = "range"; lv.min = "0"; lv.max = "100"; lv.value = String(Math.round((m.level ?? 1) * 100));
-      lv.setAttribute("aria-label", "Helligkeit der Szene"); lv.className = "tlv-level";
+      lv.setAttribute("aria-label", t("Helligkeit der Szene")); lv.className = "tlv-level";
       const lvv = el("small", "muted", `${lv.value} %`);
       lv.addEventListener("input", () => { lvv.textContent = `${lv.value} %`; });
       lv.addEventListener("change", () => { const v = Number(lv.value) / 100; if (v >= 0.995) delete m.level; else m.level = v; d.changed(); });
-      row.append(el("span", "muted small", "Block:"), tIn, el("small", "muted", "s ab"), lenIn, el("small", "muted", "s lang"), open, sc);
+      row.append(el("span", "muted small", t("Block:")), tIn, el("small", "muted", t("s ab")), lenIn, el("small", "muted", t("s lang")), open, sc);
       if (d.multiImage()) row.append(oth);
-      row.append(el("span", "muted small", "Helligkeit"), lv, lvv, del);
+      row.append(el("span", "muted small", t("Helligkeit")), lv, lvv, del);
       r.append(row);
     } else if (!marks.length) {
-      r.append(el("p", "muted small", "Szenen aus der Palette auf die Spur ziehen und die Länge an den Rändern ziehen – wie im Schnittprogramm. Oder Video abspielen und Szenen antippen bzw. „Aufnehmen“. In Lücken gilt die Szene, die beim Start lief."));
+      r.append(el("p", "muted small", t("Szenen aus der Palette auf die Spur ziehen und die Länge an den Rändern ziehen – wie im Schnittprogramm. Oder Video abspielen und Szenen antippen bzw. „Aufnehmen“. In Lücken gilt die Szene, die beim Start lief.")));
     }
     this.tick(c);
   }

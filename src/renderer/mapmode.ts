@@ -6,6 +6,7 @@ import {
   DmxLearner, PROTOCOL_LABEL, describeInput, parseMappings, type MapExtra, type MapInput, type MapProtocol, type MappingTable,
 } from "../core/mapping";
 import { TEMPLATES, buildTemplate, exportMappings, templateFor } from "../core/templates";
+import { getLang, t } from "../core/i18n";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -29,7 +30,7 @@ export class MapMode {
   private timer = 0;
 
   constructor(private ctx: ControlContext, private table: MappingTable, private info: MapInfo, private onChanged: () => void) {
-    this.panel.setAttribute("aria-label", "Zuweisungen");
+    this.panel.setAttribute("aria-label", t("Zuweisungen"));
     this.panel.hidden = true;
     document.body.append(this.panel);
     this.restorePlace();
@@ -39,10 +40,10 @@ export class MapMode {
     // Im Mapping-Modus wählt ein Klick das Element aus, statt es zu bedienen.
     const block = (e: Event) => {
       if (!this.protocol) return;
-      const t = e.target as HTMLElement;
-      if (t.closest(".map-panel, .map-menu, #map-btn")) return;
-      const ctl = t.closest<HTMLElement>("[data-ctl]");
-      if (ctl || t.closest("main, .deck, .top")) { e.preventDefault(); e.stopPropagation(); }
+      const tg = e.target as HTMLElement;
+      if (tg.closest(".map-panel, .map-menu, #map-btn")) return;
+      const ctl = tg.closest<HTMLElement>("[data-ctl]");
+      if (ctl || tg.closest("main, .deck, .top")) { e.preventDefault(); e.stopPropagation(); }
       if (ctl && e.type === "pointerdown") this.select(ctl.dataset.ctl!);
     };
     for (const ev of ["pointerdown", "mousedown", "click", "dblclick"]) document.addEventListener(ev, block, true);
@@ -122,8 +123,8 @@ export class MapMode {
     const box = this.panel;
     box.replaceChildren();
     const head = el("div", "map-head");
-    head.title = "Zum Verschieben ziehen";
-    head.append(el("span", "grip", "⋮⋮"), el("b", "", "Zuweisungen"));
+    head.title = t("Zum Verschieben ziehen");
+    head.append(el("span", "grip", "⋮⋮"), el("b", "", t("Zuweisungen")));
     this.dragBy(head);
     const tabs = el("div", "map-tabs");
     for (const q of ["key", "midi", "dmx", "osc"] as MapProtocol[]) {
@@ -134,8 +135,8 @@ export class MapMode {
     const fold = el("button", "icon", this.panel.classList.contains("collapsed") ? "▢" : "–");
     fold.title = this.panel.classList.contains("collapsed") ? "Aufklappen" : "Einklappen (nur Kopfzeile)";
     fold.addEventListener("click", () => { this.panel.classList.toggle("collapsed"); this.render(); this.keepInside(); });
-    const done = el("button", "btn small-btn", "Fertig");
-    done.title = "Mapping beenden (Esc)";
+    const done = el("button", "btn small-btn", t("Fertig"));
+    done.title = t("Mapping beenden (Esc)");
     done.addEventListener("click", () => this.close());
     const right = el("span", "inline"); right.append(fold, done);
     head.append(right);
@@ -144,54 +145,54 @@ export class MapMode {
     const status = el("p", "map-status");
     if (p === "midi") {
       const devs = this.info.midiDevices();
-      status.textContent = this.info.midiError() || (devs.length ? `Geräte: ${devs.join(", ")}` : "Kein MIDI-Gerät gefunden. Controller anstecken, er erscheint sofort.");
+      status.textContent = this.info.midiError() || (devs.length ? t("Geräte: {list}", { list: devs.join(", ") }) : t("Kein MIDI-Gerät gefunden. Controller anstecken, er erscheint sofort."));
     } else if (p === "dmx") status.textContent = this.info.dmx();
     else if (p === "osc") status.textContent = this.info.osc();
-    else status.textContent = "Tasten wirken, solange kein Eingabefeld aktiv ist.";
+    else status.textContent = t("Tasten wirken, solange kein Eingabefeld aktiv ist.");
     box.append(status);
 
     const hint = el("div", this.target ? "map-hint waiting" : "map-hint");
     if (this.target) {
-      const what = p === "key" ? "eine Taste drücken" : p === "midi" ? "Regler, Taste oder Pad am Controller bewegen"
-        : p === "dmx" ? "den Kanal am Pult bewegen" : "die OSC-Nachricht senden";
+      const what = p === "key" ? t("eine Taste drücken") : p === "midi" ? t("Regler, Taste oder Pad am Controller bewegen")
+        : p === "dmx" ? t("den Kanal am Pult bewegen") : t("die OSC-Nachricht senden");
       const existing = this.table.forTarget(this.target).filter(m => m.input.p === p);
-      hint.append(el("b", "", label(this.target)), el("span", "", existing.length ? ` · belegt – weiteren Eingang bewegen zum Doppelt-Belegen …` : ` · jetzt ${what} …`));
-      const cancel = el("button", "icon", "×"); cancel.title = "Abbrechen";
+      hint.append(el("b", "", label(this.target)), el("span", "", existing.length ? t(" · belegt – weiteren Eingang bewegen zum Doppelt-Belegen …") : t(" · jetzt {what} …", { what })));
+      const cancel = el("button", "icon", "×"); cancel.title = t("Abbrechen");
       cancel.addEventListener("click", () => { this.target = null; this.render(); this.mark(); });
       hint.append(cancel);
       if (existing.length) {
         const ex = el("div", "map-existing");
         for (const m of existing) {
           const chip = el("span", "map-chip", describeInput(m.input));
-          const x = el("button", "icon", "×"); x.title = "Diese Zuweisung entfernen";
+          const x = el("button", "icon", "×"); x.title = t("Diese Zuweisung entfernen");
           x.addEventListener("click", () => { this.table.remove(m.id); this.onChanged(); this.render(); this.mark(); });
           chip.append(x); ex.append(chip);
         }
         hint.append(ex);
       }
     } else {
-      hint.textContent = this.lastAssigned ? `Zugewiesen: ${this.lastAssigned}` : "Element anklicken, dann Eingang bewegen. Grün = schon belegt: anklicken zeigt seine Zuweisungen (zum Entfernen oder Doppelt-Belegen).";
+      hint.textContent = this.lastAssigned ? t("Zugewiesen: {what}", { what: this.lastAssigned }) : t("Element anklicken, dann Eingang bewegen. Grün = schon belegt: anklicken zeigt seine Zuweisungen (zum Entfernen oder Doppelt-Belegen).");
     }
     box.append(hint);
 
     const list = this.table.ofProtocol(p);
     const uses = new Map<string, number>();
     for (const m of list) { const k = describeInput(m.input); uses.set(k, (uses.get(k) ?? 0) + 1); }
-    box.append(el("div", "map-sub", `Alle ${PROTOCOL_LABEL[p]}-Zuweisungen (${list.length})`));
+    box.append(el("div", "map-sub", t("Alle {p}-Zuweisungen ({n})", { p: PROTOCOL_LABEL[p], n: list.length })));
     const tbl = el("div", "map-list");
-    const hdr = el("div", "map-row hdr"); hdr.append(el("span", "", "Ziel"), el("span", "", "Eingang"), el("span", "", ""));
+    const hdr = el("div", "map-row hdr"); hdr.append(el("span", "", t("Ziel")), el("span", "", t("Eingang")), el("span", "", ""));
     tbl.append(hdr);
-    if (!list.length) tbl.append(el("p", "muted small", "Noch keine Zuweisung."));
-    for (const m of [...list].sort((a, b) => label(a.target).localeCompare(label(b.target), "de"))) {
+    if (!list.length) tbl.append(el("p", "muted small", t("Noch keine Zuweisung.")));
+    for (const m of [...list].sort((a, b) => label(a.target).localeCompare(label(b.target), getLang()))) {
       const row = el("div", m.target === this.target ? "map-row sel" : "map-row");
-      const t = el("button", "map-target", label(m.target)); t.title = m.target;
-      t.addEventListener("click", () => this.select(m.target));
-      const del = el("button", "icon", "×"); del.title = "Zuweisung entfernen";
+      const tb = el("button", "map-target", label(m.target)); tb.title = m.target;
+      tb.addEventListener("click", () => this.select(m.target));
+      const del = el("button", "icon", "×"); del.title = t("Zuweisung entfernen");
       del.addEventListener("click", () => { this.table.remove(m.id); this.onChanged(); this.render(); this.mark(); });
       const inp = describeInput(m.input), n = uses.get(inp) ?? 1;
       const inEl = el("span", "map-in", inp);
-      if (n > 1) { inEl.append(el("small", "map-dup", ` · ${n} Ziele`)); inEl.title = "Dieser Eingang steuert mehrere Ziele"; }
-      row.append(t, inEl, del);
+      if (n > 1) { inEl.append(el("small", "map-dup", t(" · {n} Ziele", { n }))); inEl.title = t("Dieser Eingang steuert mehrere Ziele"); }
+      row.append(tb, inEl, del);
       tbl.append(row);
     }
     box.append(tbl);
@@ -201,14 +202,14 @@ export class MapMode {
     if (p === "midi") box.append(this.templateBox());
 
     const foot = el("div", "map-foot");
-    const exp = el("button", "btn small-btn", "Exportieren");
-    exp.title = "Alle Zuweisungen (Tastatur, MIDI, DMX, OSC) als Datei speichern";
+    const exp = el("button", "btn small-btn", t("Exportieren"));
+    exp.title = t("Alle Zuweisungen (Tastatur, MIDI, DMX, OSC) als Datei speichern");
     exp.addEventListener("click", () => {
       const url = URL.createObjectURL(new Blob([exportMappings(this.table.list)], { type: "application/json" }));
-      const a = el("a"); a.href = url; a.download = "vj-link-zuweisungen.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const a = el("a"); a.href = url; a.download = t("vj-link-zuweisungen.json"); a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
-    const imp = el("button", "btn small-btn", "Importieren");
-    imp.title = "Zuweisungen aus Datei laden (ersetzt die Arten, die in der Datei vorkommen)";
+    const imp = el("button", "btn small-btn", t("Importieren"));
+    imp.title = t("Zuweisungen aus Datei laden (ersetzt die Arten, die in der Datei vorkommen)");
     const file = el("input"); file.type = "file"; file.accept = "application/json,.json"; file.hidden = true;
     imp.addEventListener("click", () => file.click());
     file.addEventListener("change", async () => {
@@ -216,15 +217,15 @@ export class MapMode {
       try {
         const data = JSON.parse(await f.text()) as { kind?: unknown; mappings?: unknown };
         const list = data.kind === "mappings" ? parseMappings(data.mappings) : null;
-        if (!list) { this.info.toast("Diese Datei enthält keine VJ-Link-Zuweisungen."); return; }
+        if (!list) { this.info.toast(t("Diese Datei enthält keine VJ-Link-Zuweisungen.")); return; }
         const kinds = new Set(list.map(m => m.input.p));
         this.table.replace([...this.table.list.filter(m => !kinds.has(m.input.p)), ...list]);
         this.onChanged(); this.render(); this.mark();
-        this.info.toast(`${list.length} Zuweisungen geladen.`);
-      } catch { this.info.toast("Datei lässt sich nicht lesen."); }
+        this.info.toast(t("{n} Zuweisungen geladen.", { n: list.length }));
+      } catch { this.info.toast(t("Datei lässt sich nicht lesen.")); }
     });
     foot.append(exp, imp, file);
-    const clr = el("button", "btn small-btn danger", this.confirmClear ? "Wirklich alle löschen?" : `Alle ${PROTOCOL_LABEL[p]}-Zuweisungen löschen`);
+    const clr = el("button", "btn small-btn danger", this.confirmClear ? t("Wirklich alle löschen?") : t("Alle {p}-Zuweisungen löschen", { p: PROTOCOL_LABEL[p] }));
     clr.disabled = !list.length;
     clr.addEventListener("click", () => {
       if (!this.confirmClear) { this.confirmClear = true; this.render(); return; }
@@ -283,35 +284,35 @@ export class MapMode {
   /** Vorlage für einen Controller laden (ersetzt die MIDI-Zuweisungen). */
   private templateBox(): HTMLElement {
     const box = el("div", "tpl-box");
-    box.append(el("b", "", "Controller-Vorlage"));
+    box.append(el("b", "", t("Controller-Vorlage")));
     const devs = this.info.midiDevices();
     if (!this.tplDevice || !devs.includes(this.tplDevice)) this.tplDevice = devs[0] ?? "";
     const auto = this.tplDevice ? templateFor(this.tplDevice) : undefined;
-    if (!this.tplId || !TEMPLATES.some(t => t.id === this.tplId)) this.tplId = auto?.id ?? TEMPLATES[0]!.id;
-    const tplSel = el("select"); tplSel.setAttribute("aria-label", "Vorlage");
-    for (const t of TEMPLATES) tplSel.append(new Option(t.name + (auto?.id === t.id ? " (erkannt)" : ""), t.id));
+    if (!this.tplId || !TEMPLATES.some(x => x.id === this.tplId)) this.tplId = auto?.id ?? TEMPLATES[0]!.id;
+    const tplSel = el("select"); tplSel.setAttribute("aria-label", t("Vorlage"));
+    for (const x of TEMPLATES) tplSel.append(new Option(x.name + (auto?.id === x.id ? t(" (erkannt)") : ""), x.id));
     tplSel.value = this.tplId;
     tplSel.addEventListener("change", () => { this.tplId = tplSel.value; this.confirmTemplate = false; this.render(); });
-    const devSel = el("select"); devSel.setAttribute("aria-label", "Gerät für die Vorlage");
-    if (!devs.length) devSel.append(new Option("Kein Gerät angeschlossen", ""));
+    const devSel = el("select"); devSel.setAttribute("aria-label", t("Gerät für die Vorlage"));
+    if (!devs.length) devSel.append(new Option(t("Kein Gerät angeschlossen"), ""));
     for (const d of devs) devSel.append(new Option(d, d));
     devSel.value = this.tplDevice;
     devSel.addEventListener("change", () => { this.tplDevice = devSel.value; this.tplId = templateFor(devSel.value)?.id ?? this.tplId; this.render(); });
-    const t = TEMPLATES.find(x => x.id === this.tplId)!;
+    const tpl = TEMPLATES.find(x => x.id === this.tplId)!;
     const hasMidi = this.table.ofProtocol("midi").length > 0;
-    const load = el("button", "btn small-btn", this.confirmTemplate ? "Ersetzt alle MIDI-Zuweisungen. Laden?" : "Vorlage laden");
+    const load = el("button", "btn small-btn", this.confirmTemplate ? t("Ersetzt alle MIDI-Zuweisungen. Laden?") : t("Vorlage laden"));
     load.disabled = !this.tplDevice;
     load.addEventListener("click", () => {
       if (hasMidi && !this.confirmTemplate) { this.confirmTemplate = true; this.render(); return; }
       const keep = this.table.list.filter(m => m.input.p !== "midi");
       this.table.replace(keep);
-      for (const e of buildTemplate(t, this.tplDevice)) this.table.add(e.target, e.input, undefined, e);
+      for (const e of buildTemplate(tpl, this.tplDevice)) this.table.add(e.target, e.input, undefined, e);
       this.confirmTemplate = false;
       this.onChanged(); this.render(); this.mark();
-      this.info.toast(`Vorlage „${t.name}“ geladen.`);
+      this.info.toast(t("Vorlage „{name}“ geladen.", { name: tpl.name }));
     });
     const row = el("div", "inline wrap"); row.append(tplSel, devSel, load);
-    box.append(row, el("p", "muted small", t.info), el("p", "muted small", "Noch nicht an echten Geräten geprüft. Einzelne Tasten lassen sich danach wie gewohnt umbelegen."));
+    box.append(row, el("p", "muted small", tpl.info), el("p", "muted small", t("Noch nicht an echten Geräten geprüft. Einzelne Tasten lassen sich danach wie gewohnt umbelegen.")));
     return box;
   }
 }
@@ -320,6 +321,6 @@ export class MapMode {
 export function label(id: string): string {
   const d = resolveControl(id);
   if (!d) return id;
-  const name = id.startsWith("scene.") && /^\d+$/.test(id.slice(6)) ? `Szene ${id.slice(6)}` : d.label;
-  return `${d.group} · ${name}`;
+  const name = id.startsWith("scene.") && /^\d+$/.test(id.slice(6)) ? t("Szene {n}", { n: id.slice(6) }) : d.label;
+  return `${t(d.group)} · ${name}`;
 }

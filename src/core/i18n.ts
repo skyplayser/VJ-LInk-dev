@@ -1,5 +1,8 @@
 // Sprache der Oberfläche: Deutsch oder Englisch. Beim ersten Start aus der Systemsprache gewählt,
 // im Startbildschirm umschaltbar. Texte stehen hier mit Schlüssel; fehlt eine Übersetzung, gilt Deutsch.
+// Die meisten Texte der Oberfläche stehen als deutscher Text im Code: t("Speichern") sucht die englische
+// Fassung in EN (i18n-en.ts, deutscher Text → Englisch). Katalognamen (Visuals, Effekte) stehen in i18n-catalog.ts.
+import { EN } from "./i18n-en";
 
 export type Lang = "de" | "en";
 export const LANGS: readonly { id: Lang; label: string }[] = [
@@ -73,25 +76,52 @@ const D: Record<string, Entry> = {
   "set.ui": { de: "Oberfläche", en: "Interface" },
   "set.update": { de: "Update", en: "Update" },
   "set.close": { de: "Schließen (Esc)", en: "Close (Esc)" },
+  // Kamera: Regler mit Personen-Erkennung („Kontur“ heißt hier: wie eng an der Person)
+  "cam.tight": { de: "Kontur", en: "Tightness" },
   // Hauptreiter
   "tab.visuals": { de: "VISUALS", en: "VISUALS" },
   "tab.show": { de: "SHOW", en: "SHOW" },
   "tab.build": { de: "GALERIE", en: "GALLERY" },
   "tab.output": { de: "AUSGABE", en: "OUTPUT" },
   "tab.connect": { de: "VERBINDEN", en: "CONNECT" },
+  // Menü (gleiches deutsches Wort, andere Bedeutung als in der Oberfläche)
+  "menu.view": { de: "Darstellung", en: "View" },
 };
 
-let current: Lang = "de";
+/** Gespeicherte Wahl (localStorage „vjlink.lang“), sonst Systemsprache. Nur im Browser/Renderer, sonst Deutsch. */
+export const LANG_KEY = "vjlink.lang";
+function initialLang(): Lang {
+  if (typeof window === "undefined" || typeof document === "undefined") return "de";
+  try { const s = window.localStorage.getItem(LANG_KEY); if (s === "de" || s === "en") return s; } catch { /* egal */ }
+  try { return detectLang(navigator.languages?.length ? navigator.languages : [navigator.language ?? "en"]); } catch { return "de"; }
+}
+
+// Schon beim Laden festlegen: Module, die Texte beim Import bauen, sehen so gleich die richtige Sprache.
+let current: Lang = initialLang();
 export const getLang = (): Lang => current;
 export function setLang(l: Lang): void { current = LANGS.some(x => x.id === l) ? l : "de"; }
 
 /** Text zum Schlüssel in der aktuellen Sprache; {name} wird durch vars ersetzt. */
 export function t(key: string, vars: Record<string, string | number> = {}): string {
   const e = D[key];
-  const s = e ? e[current] || e.de : key;
+  let s: string;
+  if (e) s = e[current] || e.de;
+  else if (current === "de") s = key;
+  else { const en = EN[key]; if (en === undefined) noteMissing(key); s = en ?? key; }
   return s.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? `{${k}}`));
 }
 
+/** Fehlende englische Texte (Entwicklung: in der Konsole und unter globalThis.__i18nMissing). */
+const missing = new Set<string>();
+function noteMissing(key: string): void {
+  if (missing.has(key)) return;
+  missing.add(key);
+  (globalThis as { __i18nMissing?: string[] }).__i18nMissing = [...missing];
+  if (typeof console !== "undefined") console.warn("[i18n] ohne Englisch:", key);
+}
+
 /** Alle Schlüssel (für Tests: jede Übersetzung vorhanden). */
-export const I18N_KEYS = (): string[] => Object.keys(D);
-export const entry = (key: string): Entry | undefined => D[key];
+export const I18N_KEYS = (): string[] => [...Object.keys(D), ...Object.keys(EN)];
+export const entry = (key: string): Entry | undefined => D[key] ?? (key in EN ? { de: key, en: EN[key]! } : undefined);
+/** Gibt es zum Schlüssel (oder deutschen Text) einen Eintrag? */
+export const hasText = (key: string): boolean => key in D || key in EN;

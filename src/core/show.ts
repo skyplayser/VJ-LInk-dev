@@ -2,6 +2,7 @@
 import { defaultCam, type CamSettings, type CameraSource } from "./camera";
 import { STARTER_CLIP_IDS } from "./effects";
 import { defaultVideo, type CueRender, type PlayStart, type VideoSettings } from "./video";
+import { t } from "./i18n";
 export type BlendMode = "normal" | "add" | "screen" | "multiply";
 export const BLEND_MODES: readonly BlendMode[] = ["normal", "add", "screen", "multiply"];
 export type ColorSource = "original" | "A" | "B" | "C" | "D" | "E" | "gradient" | "rainbow" | "multi";
@@ -390,15 +391,15 @@ export function removeLayer(state: ShowState, i: number): boolean {
 
 /** Testbilder zum Ausrichten von Beamern, LED-Wänden und mehreren Bildschirmen. */
 export const TEST_PATTERNS = [
-  { id: "bars", label: "Farbbalken", hint: "Farben, Graustufen, Kreis und die Auflösung jedes Ausgangs." },
-  { id: "grid", label: "Raster", hint: "Linien, Kreise und Diagonalen auf jedem Ausgang: Schärfe, Trapez und Ränder einstellen." },
-  { id: "span", label: "Raster über alle", hint: "Ein Raster über die ganze Leinwand. An den Übergängen müssen Linien und Kreis nahtlos weiterlaufen." },
-  { id: "ident", label: "Nummern", hint: "Jeder Ausgang zeigt groß seine Nummer, seinen Namen und seine Lage auf der Leinwand." },
-  { id: "ramp", label: "Graustufen", hint: "Verlauf und Stufen von Schwarz bis Weiß: Helligkeit, Kontrast und Gamma angleichen." },
-  { id: "white", label: "Weiß", hint: "Volle Fläche Weiß: Helligkeit und Farbtemperatur mehrerer Beamer angleichen." },
-  { id: "red", label: "Rot", hint: "Volle Fläche Rot: tote Pixel und LED-Module prüfen." },
-  { id: "green", label: "Grün", hint: "Volle Fläche Grün: tote Pixel und LED-Module prüfen." },
-  { id: "blue", label: "Blau", hint: "Volle Fläche Blau: tote Pixel und LED-Module prüfen." },
+  { id: "bars", label: t("Farbbalken"), hint: t("Farben, Graustufen, Kreis und die Auflösung jedes Ausgangs.") },
+  { id: "grid", label: t("Raster"), hint: t("Linien, Kreise und Diagonalen auf jedem Ausgang: Schärfe, Trapez und Ränder einstellen.") },
+  { id: "span", label: t("Raster über alle"), hint: t("Ein Raster über die ganze Leinwand. An den Übergängen müssen Linien und Kreis nahtlos weiterlaufen.") },
+  { id: "ident", label: t("Nummern"), hint: t("Jeder Ausgang zeigt groß seine Nummer, seinen Namen und seine Lage auf der Leinwand.") },
+  { id: "ramp", label: t("Graustufen"), hint: t("Verlauf und Stufen von Schwarz bis Weiß: Helligkeit, Kontrast und Gamma angleichen.") },
+  { id: "white", label: t("Weiß"), hint: t("Volle Fläche Weiß: Helligkeit und Farbtemperatur mehrerer Beamer angleichen.") },
+  { id: "red", label: t("Rot"), hint: t("Volle Fläche Rot: tote Pixel und LED-Module prüfen.") },
+  { id: "green", label: t("Grün"), hint: t("Volle Fläche Grün: tote Pixel und LED-Module prüfen.") },
+  { id: "blue", label: t("Blau"), hint: t("Volle Fläche Blau: tote Pixel und LED-Module prüfen.") },
 ] as const;
 export type TestPattern = typeof TEST_PATTERNS[number]["id"];
 export const TEST_IDS: readonly TestPattern[] = TEST_PATTERNS.map(p => p.id);
@@ -439,7 +440,7 @@ export function layerTimesAt(s: LayerClockSnap, nowMs: number, layers: readonly 
 
 /** Anzeigename einer Ebene. */
 export const layerName = (l: Pick<LayerState, "name"> | undefined, i: number): string =>
-  (l?.name?.trim() || (i === 0 ? "Basis" : "Overlay"));
+  (l?.name?.trim() || (i === 0 ? t("Basis") : t("Overlay")));
 
 // ---- Ebenen je Leinwand (Projektionsmapping) ------------------------------------------------
 
@@ -491,7 +492,7 @@ export const MAX_IMAGES = 5;
 /** Liste der Bilder, Bild 1 (Hauptbild) immer vorn. */
 export function imageList(s: ShowState): { id: string; name: string }[] {
   const list = (s.images ?? []).filter(i => i.id !== MAIN_STACK);
-  const main = s.images?.find(i => i.id === MAIN_STACK) ?? { id: MAIN_STACK, name: "Bild 1" };
+  const main = s.images?.find(i => i.id === MAIN_STACK) ?? { id: MAIN_STACK, name: t("Bild 1") };
   return [main, ...list];
 }
 
@@ -503,7 +504,7 @@ export function addImage(s: ShowState): string | null {
   let n = 2; while (list.some(i => i.id === `b${n}`)) n++;
   const id = `b${n}`;
   st[id] = cloneLayers(mainLayers(s));
-  s.images = [...list, { id, name: `Bild ${list.length + 1}` }];
+  s.images = [...list, { id, name: t("Bild {n}", { n: list.length + 1 }) }];
   return id;
 }
 

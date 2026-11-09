@@ -2,6 +2,7 @@
 import type { Engine } from "../engine/engine";
 import { MEDIA_MAX_BYTES, MEDIA_TYPES, type MediaItem, type MediaPayload } from "../core/media";
 import { bridge } from "./bridge";
+import { t } from "../core/i18n";
 
 const MAX_SIDE = 2048;
 
@@ -78,11 +79,11 @@ export class MediaLibrary {
 
   /** Datei vom Rechner. Gibt eine Fehlermeldung (Text) oder die neue Grafik zurück. */
   async importFile(file: File): Promise<MediaItem | string> {
-    if (!(MEDIA_TYPES as readonly string[]).includes(file.type)) return `„${file.name}“: nur PNG, JPG, WebP, GIF oder SVG.`;
-    if (file.size > MEDIA_MAX_BYTES) return `„${file.name}“ ist größer als 25 MB.`;
+    if (!(MEDIA_TYPES as readonly string[]).includes(file.type)) return t("„{name}“: nur PNG, JPG, WebP, GIF oder SVG.", { name: file.name });
+    if (file.size > MEDIA_MAX_BYTES) return t("„{name}“ ist größer als 25 MB.", { name: file.name });
     const p: MediaPayload = { id: newId(), name: file.name.replace(/\.[^.]+$/, "").slice(0, 80), dataUrl: await readDataUrl(file) };
     const item = await this.load(p);
-    if (!item) return `„${file.name}“ lässt sich nicht als Bild lesen.`;
+    if (!item) return t("„{name}“ lässt sich nicht als Bild lesen.", { name: file.name });
     bridge?.addMedia(p);
     return item;
   }

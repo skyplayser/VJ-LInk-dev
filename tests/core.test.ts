@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { TempoClock } from "../src/core/tempo";
 import { newCueState } from "../src/core/video";
 import { parseArtDmx } from "../src/core/artnet";
@@ -6,7 +8,8 @@ import { parseSacn } from "../src/core/sacn";
 import { buildOsc, parseOsc } from "../src/core/osc";
 import { CH, DmxDecoder, channelListCsv } from "../src/core/dmx";
 import { DEFAULT_SCENES, defaultScenes, defaultShow } from "../src/core/show";
-import { EFFECTS, READY_GENERATORS } from "../src/core/effects";
+import { CATEGORY_LABEL, EFFECTS, READY_GENERATORS } from "../src/core/effects";
+import { CATEGORY_EN, EFFECT_EN, POST_EN } from "../src/core/i18n-catalog";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage, type LjMessage } from "../src/core/ljlink";
 import { handleLj, handleOsc, type ControlContext } from "../src/core/control";
 
@@ -1664,5 +1667,29 @@ describe("Sprache", () => {
   });
   it("hat für jeden Text Deutsch und Englisch", () => {
     for (const k of I18N_KEYS()) { const e = entry(k)!; expect(e.de, k).toBeTruthy(); expect(e.en, k).toBeTruthy(); }
+  });
+  it("hat für jedes Visual und jeden Effekt einen englischen Namen", () => {
+    for (const e of EFFECTS) { const en = EFFECT_EN[e.id]; expect(en?.[0], e.id).toBeTruthy(); expect(en?.[1], e.id).toBeTruthy(); }
+    for (const p of POST_EFFECTS) { const en = POST_EN[p.id]; expect(en?.[0], p.id).toBeTruthy(); expect(en?.[1], p.id).toBeTruthy(); }
+    for (const c of Object.keys(CATEGORY_LABEL)) expect(CATEGORY_EN[c as keyof typeof CATEGORY_EN], c).toBeTruthy();
+  });
+  it("übersetzt jeden Text im Code und in index.html", () => {
+    const missing: string[] = [];
+    const need = (k: string, where: string) => { if (!entry(k)?.en) missing.push(`${where}: ${k}`); };
+    const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true })
+      .flatMap(x => x.isDirectory() ? walk(join(d, x.name)) : x.name.endsWith(".ts") ? [join(d, x.name)] : []);
+    for (const f of walk("src")) {
+      const src = readFileSync(f, "utf8");
+      for (const m of src.matchAll(/(?<![\w.$])t\(\s*("(?:[^"\\\n]|\\.)*")/g)) need(JSON.parse(m[1]!) as string, f);
+    }
+    const html = readFileSync("src/renderer/index.html", "utf8").replace(/&amp;/g, "&");
+    for (const m of html.matchAll(/<[a-z0-9]+([^>]*)>([^<]*)/g)) {
+      const attrs = m[1]!, at = (n: string) => new RegExp(`\\s${n}="([^"]*)"`).exec(attrs)?.[1];
+      if (/\sdata-i18n(?=[\s=>]|$)/.test(attrs)) need(at("data-i18n") || m[2]!.trim(), "index.html");
+      if (/\sdata-i18n-title/.test(attrs)) need(at("title")!, "index.html title");
+      if (/\sdata-i18n-aria/.test(attrs)) need(at("aria-label")!, "index.html aria-label");
+      if (/\sdata-i18n-ph/.test(attrs)) need(at("placeholder")!, "index.html placeholder");
+    }
+    expect(missing).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 // Text-Editor: Text-Rahmen mit Formatierung gestalten (Schrift, Größe, Farbe, Kontur, Leuchten, Kasten …),
 // Live-Vorschau, Übernehmen. Ergebnis: Angaben plus PNG (1920 × 1080, durchsichtig).
 import { TEXT_FONTS, TEXT_H, TEXT_W, defaultText, fontCss, type TextSpec } from "../core/text";
+import { t } from "../core/i18n";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -87,8 +88,8 @@ export class TextEditor {
     d.replaceChildren();
     const box = el("div", "text-box");
     const head = el("div", "text-head"); head.append(el("b", "", title));
-    const x = el("button", "btn small-btn", "Abbrechen (Esc)"); x.addEventListener("click", () => this.close());
-    const ok = el("button", "btn small-btn on", "Übernehmen");
+    const x = el("button", "btn small-btn", t("Abbrechen (Esc)")); x.addEventListener("click", () => this.close());
+    const ok = el("button", "btn small-btn on", t("Übernehmen"));
     ok.addEventListener("click", () => {
       if (!s.text.trim()) { this.dlg.querySelector("textarea")?.focus(); return; }
       this.redraw();
@@ -98,14 +99,14 @@ export class TextEditor {
     head.append(el("span", "grow"), x, ok);
     const body = el("div", "text-body");
     const left = el("div", "text-form"), right = el("div", "text-view");
-    right.append(this.preview, el("p", "muted small", "Vorschau des Rahmens (1920 × 1080). Schwarz = durchsichtig. Lage, Größe und Animation danach rechts unter „Grafik“."));
+    right.append(this.preview, el("p", "muted small", t("Vorschau des Rahmens (1920 × 1080). Schwarz = durchsichtig. Lage, Größe und Animation danach rechts unter „Grafik“.")));
     body.append(left, right);
     box.append(head, body);
     d.append(box);
 
     const change = () => this.redraw();
     const row = (label: string, ...kids: HTMLElement[]) => { const r = el("label", "tf-row"); r.append(el("span", "", label)); const w = el("span", "tf-ctl"); w.append(...kids); r.append(w); left.append(r); };
-    const sub = (t: string) => left.append(el("h4", "tf-sub", t));
+    const sub = (title: string) => left.append(el("h4", "tf-sub", title));
     const range = (min: number, max: number, step: number, get: () => number, set: (v: number) => void, unit = "") => {
       const i = el("input"); i.type = "range"; i.min = String(min); i.max = String(max); i.step = String(step); i.value = String(get());
       const v = el("small", "tf-val", `${get()}${unit}`);
@@ -118,41 +119,41 @@ export class TextEditor {
     };
     const toggle = (label: string, get: () => boolean, set: (v: boolean) => void) => {
       // „an“-Schalter zeigen ihren Zustand (an/aus), Stil-Schalter ihren Namen
-      const txt = () => (label === "an" ? (get() ? "an" : "aus") : label);
+      const txt = () => (label === "an" ? (get() ? t("an") : t("aus")) : label);
       const b = el("button", `tf-tog${get() ? " on" : ""}`, txt()); b.type = "button";
       b.addEventListener("click", e => { e.preventDefault(); set(!get()); b.classList.toggle("on", get()); b.textContent = txt(); change(); }); return b;
     };
     const seg = <T extends string>(opts: [T, string][], get: () => T, set: (v: T) => void) => {
       const w = el("span", "seg2");
-      for (const [k, t] of opts) {
-        const b = el("button", get() === k ? "on" : "", t); b.type = "button";
+      for (const [k, lbl] of opts) {
+        const b = el("button", get() === k ? "on" : "", lbl); b.type = "button";
         b.addEventListener("click", e => { e.preventDefault(); set(k); w.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); change(); });
         w.append(b);
       }
       return w;
     };
 
-    const ta = el("textarea", "tf-text"); ta.value = s.text; ta.rows = 3; ta.placeholder = "Text (Enter = neue Zeile)";
+    const ta = el("textarea", "tf-text"); ta.value = s.text; ta.rows = 3; ta.placeholder = t("Text (Enter = neue Zeile)");
     ta.addEventListener("input", () => { s.text = ta.value; change(); });
     left.append(ta);
-    sub("Schrift");
+    sub(t("Schrift"));
     const font = el("select");
     for (const f of TEXT_FONTS) { const o = new Option(f.label, f.id); o.style.fontFamily = f.css; font.append(o); }
     font.value = s.font; font.addEventListener("change", () => { s.font = font.value; change(); });
-    row("Schrift", font);
-    row("Größe", range(20, 600, 2, () => s.size, v => { s.size = v; }, " px"));
-    row("Stil", toggle("Fett", () => s.bold, v => { s.bold = v; }), toggle("Kursiv", () => s.italic, v => { s.italic = v; }), toggle("GROSS", () => s.upper, v => { s.upper = v; }));
-    row("Farbe", color(() => s.color, v => { s.color = v; }), el("small", "muted", "Weiß lässt sich über die Farbquelle der Ebene einfärben"));
-    sub("Anordnung");
-    row("Waagerecht", seg([["left", "Links"], ["center", "Mitte"], ["right", "Rechts"]], () => s.align, v => { s.align = v; }));
-    row("Senkrecht", seg([["top", "Oben"], ["middle", "Mitte"], ["bottom", "Unten"]], () => s.valign, v => { s.valign = v; }));
-    row("Zeilenabstand", range(0.6, 2.5, 0.05, () => s.lineHeight, v => { s.lineHeight = v; }));
-    row("Buchstaben", range(-10, 60, 1, () => s.letterSpacing, v => { s.letterSpacing = v; }, " px"));
-    sub("Wirkung");
-    row("Leuchten", toggle("an", () => s.glow.on, v => { s.glow.on = v; }), color(() => s.glow.color, v => { s.glow.color = v; }), range(2, 120, 1, () => s.glow.blur, v => { s.glow.blur = v; }));
-    row("Kontur", toggle("an", () => s.outline.on, v => { s.outline.on = v; }), color(() => s.outline.color, v => { s.outline.color = v; }), range(1, 40, 1, () => s.outline.width, v => { s.outline.width = v; }, " px"));
-    row("Kasten", toggle("an", () => s.box.on, v => { s.box.on = v; }), color(() => s.box.color, v => { s.box.color = v; }), range(0, 1, 0.05, () => s.box.opacity, v => { s.box.opacity = v; }));
-    row("Kasten-Rand", range(0, 200, 2, () => s.box.padding, v => { s.box.padding = v; }, " px"), range(0, 120, 2, () => s.box.radius, v => { s.box.radius = v; }, " r"));
+    row(t("Schrift"), font);
+    row(t("Größe"), range(20, 600, 2, () => s.size, v => { s.size = v; }, " px"));
+    row(t("Stil"), toggle(t("Fett"), () => s.bold, v => { s.bold = v; }), toggle(t("Kursiv"), () => s.italic, v => { s.italic = v; }), toggle(t("GROSS"), () => s.upper, v => { s.upper = v; }));
+    row(t("Farbe"), color(() => s.color, v => { s.color = v; }), el("small", "muted", t("Weiß lässt sich über die Farbquelle der Ebene einfärben")));
+    sub(t("Anordnung"));
+    row(t("Waagerecht"), seg([["left", t("Links")], ["center", t("Mitte")], ["right", t("Rechts")]], () => s.align, v => { s.align = v; }));
+    row(t("Senkrecht"), seg([["top", t("Oben")], ["middle", t("Mitte")], ["bottom", t("Unten")]], () => s.valign, v => { s.valign = v; }));
+    row(t("Zeilenabstand"), range(0.6, 2.5, 0.05, () => s.lineHeight, v => { s.lineHeight = v; }));
+    row(t("Buchstaben"), range(-10, 60, 1, () => s.letterSpacing, v => { s.letterSpacing = v; }, " px"));
+    sub(t("Wirkung"));
+    row(t("Leuchten"), toggle("an", () => s.glow.on, v => { s.glow.on = v; }), color(() => s.glow.color, v => { s.glow.color = v; }), range(2, 120, 1, () => s.glow.blur, v => { s.glow.blur = v; }));
+    row(t("Kontur"), toggle("an", () => s.outline.on, v => { s.outline.on = v; }), color(() => s.outline.color, v => { s.outline.color = v; }), range(1, 40, 1, () => s.outline.width, v => { s.outline.width = v; }, " px"));
+    row(t("Kasten"), toggle("an", () => s.box.on, v => { s.box.on = v; }), color(() => s.box.color, v => { s.box.color = v; }), range(0, 1, 0.05, () => s.box.opacity, v => { s.box.opacity = v; }));
+    row(t("Kasten-Rand"), range(0, 200, 2, () => s.box.padding, v => { s.box.padding = v; }, " px"), range(0, 120, 2, () => s.box.radius, v => { s.box.radius = v; }, " r"));
     this.redraw();
   }
 }

@@ -7,6 +7,7 @@ import { EFFECTS } from "./effects";
 import { newModulation, type Modulation } from "./modulation";
 import { addLayer, applyScene, defaultLayer, MAX_LAYERS, type EffectSlot, type LayerState, type Rgb, type Scene } from "./show";
 import { newCue, type Cue } from "./video";
+import { t } from "./i18n";
 
 export interface DemoMedia {
   /** Großer Titel „VJ-LINK“ (Text-Clip). */
@@ -28,10 +29,10 @@ const laserClips = (): string[] => EFFECTS.filter(e => e.category === "laser" &&
 function demoLayers(m: DemoMedia): Partial<LayerState>[] {
   const own = (...ids: (string | null)[]) => ids.filter((x): x is string => !!x);
   return [
-    { name: "Basis", blend: "normal", drive: "auto", colorSource: "original",
+    { name: t("Basis"), blend: "normal", drive: "auto", colorSource: "original",
       clips: ["tunnel", "mandel-zoom", "domain-warp", "sphere-field", "wormhole", "outrun-sun", "gyroid", "aurora", "nebula", "caustics", "hyperspace", "cube-tunnel"],
       effects: [fx("kaleidoscope"), fx("rgb-shift"), fx("feedback"), fx("bloom", 0.35)] },
-    { name: "Geometrie", blend: "add", drive: "auto", colorSource: "B", opacity: 0.8,
+    { name: t("Geometrie"), blend: "add", drive: "auto", colorSource: "B", opacity: 0.8,
       clips: ["flower-of-life", "metatron", "kifs", "neon-triangles", "ring-stack", "hex-pulse", "particle-ring", "kaleido-burst", "spirograph", "star-polygons"],
       effects: [fx("glow", 0.4), fx("rgb-shift"), fx("zoom-feedback")] },
     { name: "Audio", blend: "screen", drive: "auto", colorSource: "gradient", opacity: 0.85,
@@ -42,10 +43,10 @@ function demoLayers(m: DemoMedia): Partial<LayerState>[] {
     { name: "Beat", blend: "add", drive: "bpm", colorSource: "original", opacity: 0.7,
       clips: ["strobe-grid", "mono-bars", "split-flash", "dot-pulse", "frame-zoom", "line-scan", "bars-3", "pulse-square"],
       effects: [fx("rgb-shift", 0.3), fx("slices"), fx("beat-invert")] },
-    { name: "Partikel", blend: "add", drive: "auto", colorSource: "original", opacity: 0.9,
+    { name: t("Partikel"), blend: "add", drive: "auto", colorSource: "original", opacity: 0.9,
       clips: ["fireflies", "confetti", "galaxy", "vortex", "fireworks", "bokeh", "starfield", "dust-storm"],
       effects: [fx("bloom", 0.3), fx("twirl"), fx("color-strobe")] },
-    { name: "Text", blend: "normal", drive: "static", colorSource: "original",
+    { name: t("Text"), blend: "normal", drive: "static", colorSource: "original",
       clips: [...own(m.title), "now-playing", "dj-waveform"], effects: [fx("glow", 0.3), fx("rgb-shift"), fx("glitch")],
       media: { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", animAmount: 0, animBeats: 1, keyMode: "none", keyTol: 0.25 } },
     { name: "Logo", blend: "normal", drive: "static", colorSource: "original",
@@ -77,11 +78,11 @@ function demoScenes(m: DemoMedia): Scene[] {
       { clip: "laser-fans", colorSource: "C", opacity: 1 },
       { clip: "strobe-grid", opacity: 0.6 },
       off, off, null] },
-    { name: "Fraktal-Trip", transition: beats(8), next: bars(8), layers: [
+    { name: t("Fraktal-Trip"), transition: beats(8), next: bars(8), layers: [
       { clip: "mandel-zoom", colorSource: "original", effects: [fx("kaleidoscope", 0.55), fx("rgb-shift"), fx("feedback"), fx("bloom", 0.3)] },
       { clip: "kifs", colorSource: "D", opacity: 0.6 },
       off, off, off, off, off, null] },
-    { name: "Laser-Show", transition: beats(2, "black"), next: bars(8), layers: [
+    { name: t("Laser-Show"), transition: beats(2, "black"), next: bars(8), layers: [
       { clip: "sphere-field", colorSource: "D", opacity: 0.35, effects: [fx("kaleidoscope"), fx("rgb-shift"), fx("feedback"), fx("vignette", 0.6)] },
       off, off,
       { clip: "laser-sky", colorSource: "C", opacity: 1 },
@@ -93,7 +94,7 @@ function demoScenes(m: DemoMedia): Scene[] {
       off,
       { clip: "eq-tower", opacity: 0.6 },
       off, off, off, off, null] },
-    { name: "Organisch", transition: beats(8), next: bars(8), layers: [
+    { name: t("Organisch"), transition: beats(8), next: bars(8), layers: [
       { clip: "domain-warp", colorSource: "original", effects: [fx("kaleidoscope"), fx("liquid", 0.4), fx("feedback"), fx("bloom", 0.3)] },
       { clip: "seed-of-life", colorSource: "B", opacity: 0.6 },
       off, off, off,
@@ -129,8 +130,8 @@ function demoMods(): Modulation[] {
 
 /** SHOW-Ablauf: Szenen-Cue, Timeline-Show (48 s), Logo groß, Schwarz. */
 function demoCues(m: DemoMedia): Cue[] {
-  const intro = newCue("scene", "Intro abrufen"); intro.scene = 1;
-  const show = newCue("image", "Demo-Show (Timeline)", m.label);
+  const intro = newCue("scene", t("Intro abrufen")); intro.scene = 1;
+  const show = newCue("image", t("Demo-Show (Timeline)"), m.label);
   Object.assign(show, { hold: 48, over: "over", fit: "fill", fadeIn: 0.5, fadeOut: 1, timeline: true, end: "fade",
     marks: [
       { t: 0, scene: 2, others: false, len: 8 },
@@ -147,9 +148,9 @@ function demoCues(m: DemoMedia): Cue[] {
       { t: 39, len: 1, kind: "strobe" },
       { t: 47, len: 1, kind: "blackout" },
     ] } satisfies Partial<Cue>);
-  const logo = newCue("image", "Logo groß", m.logo);
+  const logo = newCue("image", t("Logo groß"), m.logo);
   Object.assign(logo, { hold: 6, over: "over", fit: "fit", fadeIn: 1, fadeOut: 1, end: "fade" } satisfies Partial<Cue>);
-  const black = newCue("black", "Schwarz");
+  const black = newCue("black", t("Schwarz"));
   Object.assign(black, { fadeIn: 2, hold: 0 } satisfies Partial<Cue>);
   return [intro, show, logo, black];
 }

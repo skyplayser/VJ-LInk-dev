@@ -11,6 +11,7 @@ import { mediaTransform } from "../core/media";
 import type { Mask, View, Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
 import { HISTORY_FX, COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG, DJWAVE_FRAG } from "./shaders";
+import { t } from "../core/i18n";
 
 const COLOR_MODE: Record<ColorSource, number> = {
   original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3, multi: 4,
@@ -85,7 +86,7 @@ export class Engine {
     const gl = canvas.getContext("webgl2", {
       antialias: false, alpha: !!opts.transparent, premultipliedAlpha: true, powerPreference: "high-performance",
     });
-    if (!gl) throw new Error("WebGL2 wird von dieser Grafikkarte nicht unterstützt.");
+    if (!gl) throw new Error(t("WebGL2 wird von dieser Grafikkarte nicht unterstützt."));
     this.gl = gl;
     this.gen = this.program(FRAG);
     this.post = this.program(POST_FRAG);
@@ -112,7 +113,7 @@ export class Engine {
   private compile(type: number, src: string): WebGLShader {
     const gl = this.gl, sh = gl.createShader(type)!;
     gl.shaderSource(sh, src); gl.compileShader(sh);
-    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error("Shader-Fehler: " + gl.getShaderInfoLog(sh));
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(t("Shader-Fehler: ") + gl.getShaderInfoLog(sh));
     return sh;
   }
   private program(frag: string, vert = VERT): Program {
@@ -120,7 +121,7 @@ export class Engine {
     gl.attachShader(p, this.compile(gl.VERTEX_SHADER, vert));
     gl.attachShader(p, this.compile(gl.FRAGMENT_SHADER, frag));
     gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error("Link-Fehler: " + gl.getProgramInfoLog(p));
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(t("Link-Fehler: ") + gl.getProgramInfoLog(p));
     return { p, u: new Map() };
   }
   private loc(pr: Program, name: string): WebGLUniformLocation | null {

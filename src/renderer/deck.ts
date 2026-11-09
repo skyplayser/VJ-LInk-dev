@@ -5,6 +5,7 @@ import { CONTROLS, setControl, type ControlDef } from "../core/controls";
 import { recallScene, stepScene } from "../core/control";
 import { strobeHz } from "../core/audio";
 import type { ControlContext } from "../core/control";
+import { t } from "../core/i18n";
 
 const GROUPS = ["Master", "Ebenen", "Effekt", "Strobe", "Tempo", "Szenen"] as const;
 
@@ -24,7 +25,7 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
     const items = defs.filter(d => d.group === group);
     if (!items.length) continue;
     const box = el("section", `dg dg-${group.toLowerCase()}`);
-    box.append(el("h3", "", group));
+    box.append(el("h3", "", t(group)));
     const faders = el("div", "faders"), pads = el("div", "pads");
     for (const d of items) {
       if (d.kind === "fader") faders.append(fader(d, ctx, updaters));
@@ -37,7 +38,7 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
       const info = el("div", "info"); box.append(info);
       updaters.push(() => {
         const s = ctx.show.strobe;
-        info.textContent = `${strobeHz(s, ctx.tempo.bpm).toFixed(1)} Hz · ${s.sync ? "im Takt" : "frei"}`;
+        info.textContent = `${strobeHz(s, ctx.tempo.bpm).toFixed(1)} Hz · ${s.sync ? t("im Takt") : t("frei")}`;
       });
     }
     mount.append(box);
@@ -94,7 +95,7 @@ function sceneButtons(ctx: ControlContext, updaters: (() => void)[]): HTMLElemen
       b.addEventListener("pointerdown", () => { recallScene(ctx, i); });
       wrap.append(b);
     });
-    const next = el("button", "pad pad-alt", "Weiter ›"); next.dataset.ctl = "scene.next";
+    const next = el("button", "pad pad-alt", t("Weiter ›")); next.dataset.ctl = "scene.next";
     next.addEventListener("pointerdown", () => { stepScene(ctx, 1); });
     const auto = el("button", "pad pad-alt pad-auto", "Auto"); auto.dataset.ctl = "scene.auto";
     auto.addEventListener("click", () => { ctx.show.autoVj = !ctx.show.autoVj; });

@@ -8,6 +8,7 @@ import { FITS, newCue, type Cue, type VideoItem, type VideoSettings } from "./vi
 import { defaultLayout, type OutputLayout } from "./layout";
 import { parseMods, type Modulation } from "./modulation";
 import { parseTextSpec } from "./text";
+import { t } from "./i18n";
 import {
   BLEND_MODES, COLOR_SOURCES_ALL, mainLayers, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
@@ -145,7 +146,7 @@ function cue(v: unknown): Cue | null {
 function layout(v: unknown): OutputLayout {
   if (!isObj(v)) return defaultLayout();
   const screens = (Array.isArray(v.screens) ? v.screens : []).filter(isObj).slice(0, 16).map(s => ({
-    id: num(s.id, 0, -1e12, 1e12), label: str(s.label, "Bildschirm", 60),
+    id: num(s.id, 0, -1e12, 1e12), label: str(s.label, t("Bildschirm"), 60),
     x: num(s.x, 0, -32768, 32768), y: num(s.y, 0, -32768, 32768), w: num(s.w, 1920, 16, 16384), h: num(s.h, 1080, 16, 16384),
   }));
   const cl = (x: unknown, d: number) => num(x, d, -0.5, 1.5);
@@ -153,7 +154,7 @@ function layout(v: unknown): OutputLayout {
     const cs = Array.isArray(s.corners) && s.corners.length === 4 ? s.corners : [[0, 0], [1, 0], [1, 1], [0, 1]];
     const src = isObj(s.src) ? s.src : {};
     return {
-      id: str(s.id, `s${i}`, 40) || `s${i}`, screen: num(s.screen, 0, -1e12, 1e12), name: str(s.name, `Leinwand ${i + 1}`, 40),
+      id: str(s.id, `s${i}`, 40) || `s${i}`, screen: num(s.screen, 0, -1e12, 1e12), name: str(s.name, t("Leinwand {n}", { n: i + 1 }), 40),
       corners: cs.map((c: unknown) => Array.isArray(c) ? [cl(c[0], 0), cl(c[1], 0)] as [number, number] : [0, 0] as [number, number]),
       src: { x: num(src.x, 0, 0, 1), y: num(src.y, 0, 0, 1), w: num(src.w, 1, 0.01, 1), h: num(src.h, 1, 0.01, 1) },
       on: s.on !== false,
@@ -164,7 +165,7 @@ function layout(v: unknown): OutputLayout {
     };
   });
   const masks = (Array.isArray(v.masks) ? v.masks : []).filter(isObj).slice(0, 64).map((m, i) => ({
-    id: str(m.id, `m${i}`, 40) || `m${i}`, screen: num(m.screen, 0, -1e12, 1e12), name: str(m.name, `Maske ${i + 1}`, 40),
+    id: str(m.id, `m${i}`, 40) || `m${i}`, screen: num(m.screen, 0, -1e12, 1e12), name: str(m.name, t("Maske {n}", { n: i + 1 }), 40),
     pts: (Array.isArray(m.pts) ? m.pts : []).slice(0, 32).map((c: unknown) => Array.isArray(c) ? [cl(c[0], 0.5), cl(c[1], 0.5)] as [number, number] : [0.5, 0.5] as [number, number]),
     invert: m.invert === true, feather: num(m.feather, 0, 0, 400), on: m.on !== false,
   })).filter(m => m.pts.length >= 3);
@@ -246,7 +247,7 @@ export function parseProject(json: string): ProjectFile | null {
     if (!isObj(r) || !Array.isArray(r.clips)) l.clips = [...l.clips, ...oldMedia];
   });
   const scenes: Scene[] = (Array.isArray(raw.scenes) ? raw.scenes : []).filter(isObj).slice(0, 128).map((sc, i) => ({
-    name: str(sc.name, `Szene ${i + 1}`, 40) || `Szene ${i + 1}`,
+    name: str(sc.name, t("Szene {n}", { n: i + 1 }), 40) || t("Szene {n}", { n: i + 1 }),
     layers: Array.from({ length: Math.min(MAX_LAYERS, Array.isArray(sc.layers) ? sc.layers.length : 0) }, (_, k) => partialLayer((sc.layers as unknown[])[k])),
     ...(isObj(sc.stacks) ? { stacks: Object.fromEntries(Object.entries(sc.stacks).filter(([id, v]) => okStackId(id) && Array.isArray(v)).slice(0, 64)
       .map(([id, v]) => [id, (v as unknown[]).slice(0, MAX_LAYERS).map(partialLayer)])) } : {}),
@@ -257,7 +258,7 @@ export function parseProject(json: string): ProjectFile | null {
   const st = isObj(raw.strobe) ? raw.strobe : {};
   const mediaList: MediaItem[] = (Array.isArray(raw.media) ? raw.media : []).filter(isObj)
     .filter(m => isValidMediaId(m.id)).map(m => ({
-      id: m.id as string, name: str(m.name, "Grafik", 80), width: num(m.width, 512, 1, 16384), height: num(m.height, 512, 1, 16384),
+      id: m.id as string, name: str(m.name, t("Grafik"), 80), width: num(m.width, 512, 1, 16384), height: num(m.height, 512, 1, 16384),
       ...(parseTextSpec(m.text) ? { text: parseTextSpec(m.text)! } : {}),
     }));
   return {
@@ -275,7 +276,7 @@ export function parseProject(json: string): ProjectFile | null {
       .slice(0, 16).map(m => ({ id: m.id as string, deviceId: (m.deviceId as string).slice(0, 200), label: str(m.label, "", 120) })),
     outputs: layout(raw.outputs),
     ...(Array.isArray(raw.images) ? { images: raw.images.filter(isObj).filter(i => typeof i.id === "string" && (i.id === "main" || okStackId(i.id))).slice(0, 5)
-      .map(i => ({ id: i.id as string, name: str(i.name, "Bild", 30) || "Bild" })) } : {}),
+      .map(i => ({ id: i.id as string, name: str(i.name, t("Bild"), 30) || t("Bild") })) } : {}),
     ...(isObj(raw.stacks) ? { stacks: Object.fromEntries(Object.entries(raw.stacks).filter(([id, v]) => okStackId(id) && Array.isArray(v) && v.length).slice(0, 64)
       .map(([id, v]) => [id, (v as unknown[]).slice(0, MAX_LAYERS).map(fullLayer)])) } : {}),
     mods: parseMods(raw.mods),
@@ -293,8 +294,8 @@ export function applyProject(c: ControlContext, p: ProjectFile): void {
   s.stacks = { main: p.layers, ...(p.stacks ?? {}) };
   // Bilder: gespeicherte Liste; ältere Projekte: jeder Leinwand-Stapel wird ein Bild
   const names = new Map((p.images ?? []).map(i => [i.id, i.name]));
-  s.images = [{ id: "main", name: names.get("main") ?? "Bild 1" },
-    ...Object.keys(p.stacks ?? {}).slice(0, 4).map((id, k) => ({ id, name: names.get(id) ?? p.outputs.surfaces?.find(sf => sf.id === id)?.name ?? `Bild ${k + 2}` }))];
+  s.images = [{ id: "main", name: names.get("main") ?? t("Bild 1") },
+    ...Object.keys(p.stacks ?? {}).slice(0, 4).map((id, k) => ({ id, name: names.get(id) ?? p.outputs.surfaces?.find(sf => sf.id === id)?.name ?? t("Bild {n}", { n: k + 2 }) }))];
   c.scenes.splice(0, c.scenes.length, ...p.scenes);
   s.slots = p.slots;
   s.transitionBeats = p.transitionBeats;

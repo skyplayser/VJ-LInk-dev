@@ -4,12 +4,13 @@
 import { CONTROL_BY_ID } from "./controls";
 import type { ControlContext } from "./control";
 import { clamp01, type ShowState } from "./show";
+import { t } from "./i18n";
 
 export type ModSource = "sine" | "triangle" | "saw" | "square" | "random" | "bass" | "mid" | "high";
 export const MOD_SOURCES: readonly ModSource[] = ["sine", "triangle", "saw", "square", "random", "bass", "mid", "high"];
 export const MOD_LFO: ReadonlySet<ModSource> = new Set(["sine", "triangle", "saw", "square", "random"]);
 export const MOD_SOURCE_LABEL: Record<ModSource, string> = {
-  sine: "Sinus", triangle: "Dreieck", saw: "Sägezahn", square: "Rechteck", random: "Zufall", bass: "Bass", mid: "Mitten", high: "Höhen",
+  sine: t("Sinus"), triangle: t("Dreieck"), saw: t("Sägezahn"), square: t("Rechteck"), random: t("Zufall"), bass: t("Bass"), mid: t("Mitten"), high: t("Höhen"),
 };
 /** Beats pro Durchlauf. */
 export const MOD_BEATS = [0.25, 0.5, 1, 2, 4, 8, 16, 32] as const;

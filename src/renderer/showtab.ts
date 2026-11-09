@@ -11,6 +11,7 @@ import type { MediaLibrary } from "./medialib";
 import { formatFrames, formatTc, parseTc, type TcFps, type TcNow } from "../core/timecode";
 import type { VideoLibrary } from "./videolib";
 import { TimelineView } from "./timelineview";
+import { t } from "../core/i18n";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -18,11 +19,11 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const fmt1 = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
 
-const START_LABEL: Record<CueStart, string> = { manual: "von Hand", after: "nach vorigem", with: "mit vorigem", timecode: "Timecode" };
-const END_LABEL: Record<CueEnd, string> = { hold: "stehen bleiben", fade: "ausblenden", next: "weiter" };
-const LOOP_LABEL: Record<CueLoop, string> = { off: "aus", count: "x-mal", untilGo: "bis WEITER", forever: "endlos" };
-const FIT_LABEL: Record<Fit, string> = { fill: "füllen", fit: "einpassen", original: "original" };
-const OVER_LABEL: Record<CueOver, string> = { replace: "Visuals aus", over: "darüber legen" };
+const START_LABEL: Record<CueStart, string> = { manual: t("von Hand"), after: t("nach vorigem"), with: t("mit vorigem"), timecode: t("Timecode") };
+const END_LABEL: Record<CueEnd, string> = { hold: t("stehen bleiben"), fade: t("ausblenden"), next: t("weiter") };
+const LOOP_LABEL: Record<CueLoop, string> = { off: t("aus"), count: t("x-mal"), untilGo: t("bis WEITER"), forever: t("endlos") };
+const FIT_LABEL: Record<Fit, string> = { fill: t("füllen"), fit: t("einpassen"), original: t("original") };
+const OVER_LABEL: Record<CueOver, string> = { replace: t("Visuals aus"), over: t("darüber legen") };
 
 export interface ShowDeps {
   ctx: ControlContext;
@@ -58,21 +59,21 @@ export class ShowTab {
     const file = $("cue-file") as HTMLInputElement;
     $("cue-add-media").addEventListener("click", () => file.click());
     file.addEventListener("change", () => { if (file.files?.length) void this.addFiles(Array.from(file.files)); file.value = ""; });
-    $("cue-add-black").addEventListener("click", () => this.insert(newCue("black", "Schwarz")));
+    $("cue-add-black").addEventListener("click", () => this.insert(newCue("black", t("Schwarz"))));
     $("cue-add-cam").addEventListener("click", async () => {
       const dev = await pickCamera($("cue-add-cam"), await cameraDevices());
       if (!dev) return;
       const cam = ensureCamera(d.ctx.show.cameras, dev.deviceId, dev.label);
-      const c = newCue("camera", dev.label || "Kamera", camClip(cam.id));
+      const c = newCue("camera", dev.label || t("Kamera"), camClip(cam.id));
       c.end = "hold"; c.hold = 0;
       this.insert(c);
     });
     $("cue-add-scene").addEventListener("click", () => {
-      const c = newCue("scene", `VJ-Szene: ${d.ctx.scenes[0]?.name ?? "1"}`);
+      const c = newCue("scene", t("VJ-Szene: {name}", { name: d.ctx.scenes[0]?.name ?? "1" }));
       this.insert(c);
     });
     $("cue-add-tc").addEventListener("click", () => {
-      const c = newCue("tcsignal", "Timecode starten"); c.start = this.list.length ? "with" : "manual";
+      const c = newCue("tcsignal", t("Timecode starten")); c.start = this.list.length ? "with" : "manual";
       this.insert(c);
     });
     const drop = $("tab-show");
@@ -105,7 +106,7 @@ export class ShowTab {
       if (kind === "image") { c.end = "hold"; c.hold = 0; }
       this.insert(c);
     }
-    if (added.length) this.d.toast(`${added.length} Cue${added.length === 1 ? "" : "s"} angelegt.`);
+    if (added.length) this.d.toast(added.length === 1 ? t("1 Cue angelegt.") : t("{n} Cues angelegt.", { n: added.length }));
   }
 
   /** Vorschaubild eines Cues (Video-Poster oder Grafik). */
@@ -115,7 +116,7 @@ export class ShowTab {
       const p = this.d.videos.posters.get(videoIdOf(c.media));
       if (p) { const cv = el("canvas"); cv.width = p.width; cv.height = p.height; cv.getContext("2d")!.drawImage(p, 0, 0); box.append(cv); }
     } else if (c.media?.startsWith("img:")) {
-      box.textContent = "BILD";
+      box.textContent = t("BILD");
     } else if (c.kind === "camera") {
       box.textContent = "CAM";
     } else box.textContent = c.kind === "scene" ? "VJ" : c.kind === "tcsignal" ? "TC" : "";
@@ -134,12 +135,12 @@ export class ShowTab {
   }
 
   private endChip(c: Cue): string {
-    if (c.kind === "scene" || c.kind === "tcsignal") return "sofort";
-    if (c.kind === "video" && c.loop === "untilGo") return "Loop bis WEITER";
+    if (c.kind === "scene" || c.kind === "tcsignal") return t("sofort");
+    if (c.kind === "video" && c.loop === "untilGo") return t("Loop bis WEITER");
     if (c.kind === "video" && c.loop === "forever") return "Loop ∞";
     if (c.kind === "video" && c.loop === "count") return `${c.loopCount}× · ${END_LABEL[c.end]}`;
-    if ((c.kind === "image" || c.kind === "camera" || c.kind === "black") && c.hold === 0) return "bis WEITER";
-    return c.end === "fade" ? `ausblenden ${c.fadeOut} s` : END_LABEL[c.end];
+    if ((c.kind === "image" || c.kind === "camera" || c.kind === "black") && c.hold === 0) return t("bis WEITER");
+    return c.end === "fade" ? t("ausblenden {s} s", { s: c.fadeOut }) : END_LABEL[c.end];
   }
 
   private buildList(): void {
@@ -147,18 +148,18 @@ export class ShowTab {
     box.replaceChildren();
     this.rows = [];
     if (!this.list.length) {
-      box.append(el("p", "muted small", "Noch kein Cue. Videos oder Bilder hierher ziehen oder oben „+ Video / Bild“."));
+      box.append(el("p", "muted small", t("Noch kein Cue. Videos oder Bilder hierher ziehen oder oben „+ Video / Bild“.")));
     }
     this.list.forEach((c, i) => {
       const row = el("div", `crow${c.start === "with" ? " sub" : ""}${i === this.selected ? " sel" : ""}`);
       row.append(el("span", "cno", String(i + 1)), this.thumb(c));
       const nm = el("span", "cname"); nm.append(el("b", "", c.name));
-      const sub = c.kind === "video" ? (this.d.videos.find(videoIdOf(c.media ?? "vid:"))?.name ?? "Datei fehlt")
-        : c.kind === "image" ? (this.d.images.items.find(m => `img:${m.id}` === c.media)?.name ?? "Datei fehlt")
-        : c.kind === "camera" ? (this.d.ctx.show.cameras.find(k => `cam:${k.id}` === c.media)?.label || "Kamera")
-        : c.kind === "scene" ? `Szene ${c.scene} „${this.d.ctx.scenes[c.scene - 1]?.name ?? "?"}“`
-        : c.kind === "tcsignal" ? (c.tcAction === "stop" ? "Timecode anhalten" : `Timecode ${c.tcAction === "start" ? "starten ab" : "springen auf"} ${c.tcTarget}`) : "Bild aus";
-      nm.append(el("small", (sub === "Datei fehlt" ? "missing" : ""), sub + (c.kind === "video" && c.volume > 0 ? " · Ton" : "")));
+      const sub = c.kind === "video" ? (this.d.videos.find(videoIdOf(c.media ?? "vid:"))?.name ?? t("Datei fehlt"))
+        : c.kind === "image" ? (this.d.images.items.find(m => `img:${m.id}` === c.media)?.name ?? t("Datei fehlt"))
+        : c.kind === "camera" ? (this.d.ctx.show.cameras.find(k => `cam:${k.id}` === c.media)?.label || t("Kamera"))
+        : c.kind === "scene" ? t("Szene {n} „{name}“", { n: c.scene, name: this.d.ctx.scenes[c.scene - 1]?.name ?? "?" })
+        : c.kind === "tcsignal" ? (c.tcAction === "stop" ? t("Timecode anhalten") : c.tcAction === "start" ? t("Timecode starten ab {tc}", { tc: c.tcTarget }) : t("Timecode springen auf {tc}", { tc: c.tcTarget })) : t("Bild aus");
+      nm.append(el("small", (sub === t("Datei fehlt") ? "missing" : ""), sub + (c.kind === "video" && c.volume > 0 ? t(" · Ton") : "")));
       const start = el("span", `chip${c.start === "with" ? " with" : c.start === "timecode" ? " tc" : ""}`,
         c.start === "timecode" ? `TC ${c.tc}` : START_LABEL[c.start] + (c.wait > 0 ? ` +${c.wait} s` : ""));
       const du = this.dur(c);
@@ -166,7 +167,7 @@ export class ShowTab {
       row.append(el("span", "cstate"), el("i", "cprog"));
       row.addEventListener("click", () => { this.selected = i; this.armedDelete = false; this.update(true); });
       row.addEventListener("dblclick", () => { cueSetNext(this.d.ctx.cues, i); });
-      row.title = "Klick: Details · Doppelklick: als Nächstes";
+      row.title = t("Klick: Details · Doppelklick: als Nächstes");
       box.append(row);
       this.rows.push(row);
     });
@@ -177,9 +178,9 @@ export class ShowTab {
     const box = document.getElementById("cue-details")!;
     box.replaceChildren();
     const c = this.list[this.selected];
-    if (!c) { box.append(el("p", "muted small", "Einen Cue anklicken, um ihn einzustellen.")); return; }
+    if (!c) { box.append(el("p", "muted small", t("Einen Cue anklicken, um ihn einzustellen."))); return; }
     const head = el("div", "cd-head");
-    const name = el("input"); name.value = c.name; name.maxLength = 60; name.setAttribute("aria-label", "Name des Cues");
+    const name = el("input"); name.value = c.name; name.maxLength = 60; name.setAttribute("aria-label", t("Name des Cues"));
     name.addEventListener("change", () => { c.name = name.value.trim() || c.name; this.update(true); });
     head.append(el("span", "cno", String(this.selected + 1)), name);
     box.append(head);
@@ -208,34 +209,34 @@ export class ShowTab {
       const w = el("span", "cd-range"); w.append(i, v); r.append(w); box.append(r);
     };
 
-    seg("Start", START_LABEL, () => c.start, v => { c.start = v; });
+    seg(t("Start"), START_LABEL, () => c.start, v => { c.start = v; });
     if (c.start === "timecode") {
-      const r = el("div", "cd-row"); r.append(el("span", "", "Timecode"));
+      const r = el("div", "cd-row"); r.append(el("span", "", t("Timecode")));
       const w = el("span", "inline");
-      const i = el("input", "tc-in"); i.value = c.tc; i.setAttribute("aria-label", "Timecode für den Start"); i.placeholder = "hh:mm:ss:ff";
+      const i = el("input", "tc-in"); i.value = c.tc; i.setAttribute("aria-label", t("Timecode für den Start")); i.placeholder = "hh:mm:ss:ff";
       i.addEventListener("change", () => {
         const fps = this.d.tcFps();
-        const t = parseTc(i.value, fps);
-        if (t) c.tc = formatTc(t, 25).replace(";", ":"); else this.d.toast("Timecode als hh:mm:ss:ff eingeben, z. B. 00:20:00:00.");
+        const tc = parseTc(i.value, fps);
+        if (tc) c.tc = formatTc(tc, 25).replace(";", ":"); else this.d.toast(t("Timecode als hh:mm:ss:ff eingeben, z. B. 00:20:00:00."));
         this.update(true);
       });
-      const learn = el("button", "btn small-btn", "Hier lernen");
-      learn.title = "Übernimmt den gerade laufenden Timecode";
+      const learn = el("button", "btn small-btn", t("Hier lernen"));
+      learn.title = t("Übernimmt den gerade laufenden Timecode");
       learn.addEventListener("click", () => {
         const now = this.d.tcNow();
-        if (!now) { this.d.toast("Kein Timecode aktiv. In den Einstellungen unter Timecode einschalten."); return; }
+        if (!now) { this.d.toast(t("Kein Timecode aktiv. In den Einstellungen unter Timecode einschalten.")); return; }
         c.tc = formatFrames(Math.round(now.frames), now.fps).replace(";", ":");
         this.update(true);
       });
       w.append(i, learn); r.append(w); box.append(r);
-    } else num("Wartezeit", () => c.wait, v => { c.wait = v; }, "s");
+    } else num(t("Wartezeit"), () => c.wait, v => { c.wait = v; }, "s");
 
     if (c.kind === "scene") {
-      const r = el("label", "cd-row"); r.append(el("span", "", "Szene"));
+      const r = el("label", "cd-row"); r.append(el("span", "", t("Szene")));
       const s = el("select");
       this.d.ctx.scenes.forEach((sc, i) => s.append(new Option(`${i + 1} · ${sc.name}`, String(i + 1))));
       s.value = String(c.scene);
-      s.addEventListener("change", () => { c.scene = Number(s.value); c.name = `VJ-Szene: ${this.d.ctx.scenes[c.scene - 1]?.name ?? c.scene}`; this.update(true); });
+      s.addEventListener("change", () => { c.scene = Number(s.value); c.name = t("VJ-Szene: {name}", { name: this.d.ctx.scenes[c.scene - 1]?.name ?? c.scene }); this.update(true); });
       r.append(s); box.append(r);
     }
 
@@ -249,46 +250,46 @@ export class ShowTab {
         bar.append(Object.assign(el("i", "keep"), { style: `left:${pct(a)};width:calc(${pct(b)} - ${pct(a)})` }));
         if (c.loopRange) bar.append(Object.assign(el("i", "loopr"), { style: `left:${pct(c.loopIn || a)};width:calc(${pct(c.loopOut || b)} - ${pct(c.loopIn || a)})` }));
         box.append(bar);
-        range("Start", () => c.trimIn, v => { c.trimIn = Math.min(v, (c.trimOut || d) - 0.2); }, d);
-        range("Ende", () => c.trimOut || d, v => { c.trimOut = v >= d - 0.05 ? 0 : Math.max(v, c.trimIn + 0.2); }, d);
-      } else box.append(el("p", "muted small", "Länge wird noch gemessen …"));
-      seg("Wiederholen", LOOP_LABEL, () => c.loop, v => { c.loop = v; });
-      if (c.loop === "count") num("Anzahl", () => c.loopCount, v => { c.loopCount = Math.max(1, Math.round(v)); }, "×", 1, 999);
+        range(t("Start"), () => c.trimIn, v => { c.trimIn = Math.min(v, (c.trimOut || d) - 0.2); }, d);
+        range(t("Ende"), () => c.trimOut || d, v => { c.trimOut = v >= d - 0.05 ? 0 : Math.max(v, c.trimIn + 0.2); }, d);
+      } else box.append(el("p", "muted small", t("Länge wird noch gemessen …")));
+      seg(t("Wiederholen"), LOOP_LABEL, () => c.loop, v => { c.loop = v; });
+      if (c.loop === "count") num(t("Anzahl"), () => c.loopCount, v => { c.loopCount = Math.max(1, Math.round(v)); }, "×", 1, 999);
       if (c.loop !== "off") {
-        seg("Was loopt", { all: "ganzes Video", range: "nur Bereich" } as Record<"all" | "range", string>, () => (c.loopRange ? "range" : "all"), v => { c.loopRange = v === "range"; });
+        seg(t("Was loopt"), { all: t("ganzes Video"), range: t("nur Bereich") } as Record<"all" | "range", string>, () => (c.loopRange ? "range" : "all"), v => { c.loopRange = v === "range"; });
         if (c.loopRange && d > 0) {
-          range("Loop von", () => c.loopIn || c.trimIn, v => { c.loopIn = v; }, d);
-          range("Loop bis", () => c.loopOut || c.trimOut || d, v => { c.loopOut = v; }, d);
+          range(t("Loop von"), () => c.loopIn || c.trimIn, v => { c.loopIn = v; }, d);
+          range(t("Loop bis"), () => c.loopOut || c.trimOut || d, v => { c.loopOut = v; }, d);
         }
       }
       // Kleine Timeline in den Details; als Timeline umgewandelte Cues haben den großen Editor unter der Liste
       if (d > 0 && !c.timeline) this.timeline(box, c, d);
-      if (c.timeline) box.append(el("p", "muted small", "Timeline: Szenen im großen Editor unter der Cue-Liste setzen."));
+      if (c.timeline) box.append(el("p", "muted small", t("Timeline: Szenen im großen Editor unter der Cue-Liste setzen.")));
     }
     if (c.kind === "tcsignal") {
-      seg("Befehl", { start: "Start ab", stop: "Stopp", locate: "Springen auf" } as Record<"start" | "stop" | "locate", string>, () => c.tcAction, v => {
-        c.tcAction = v; c.name = v === "start" ? "Timecode starten" : v === "stop" ? "Timecode anhalten" : "Timecode springen";
+      seg(t("Befehl"), { start: t("Start ab"), stop: t("Stopp"), locate: t("Springen auf") } as Record<"start" | "stop" | "locate", string>, () => c.tcAction, v => {
+        c.tcAction = v; c.name = v === "start" ? t("Timecode starten") : v === "stop" ? t("Timecode anhalten") : t("Timecode springen");
       });
       if (c.tcAction !== "stop") {
-        const r = el("div", "cd-row"); r.append(el("span", "", "Zeit"));
-        const i = el("input", "tc-in"); i.value = c.tcTarget; i.setAttribute("aria-label", "Timecode-Zeit");
-        i.addEventListener("change", () => { const t = parseTc(i.value, 30); if (t) c.tcTarget = formatTc(t, 25); else this.d.toast("Zeit als hh:mm:ss:ff eingeben."); this.update(true); });
+        const r = el("div", "cd-row"); r.append(el("span", "", t("Zeit")));
+        const i = el("input", "tc-in"); i.value = c.tcTarget; i.setAttribute("aria-label", t("Timecode-Zeit"));
+        i.addEventListener("change", () => { const tc = parseTc(i.value, 30); if (tc) c.tcTarget = formatTc(tc, 25); else this.d.toast(t("Zeit als hh:mm:ss:ff eingeben.")); this.update(true); });
         r.append(i); box.append(r);
       }
-      box.append(el("p", "muted small", "Steuert die eigene Timecode-Uhr von VJ-Link. Ist unter Einstellungen → Timecode „Senden“ an, bekommt z. B. eine MA den Timecode und ihre Timecode-Show löst Befehle aus."));
+      box.append(el("p", "muted small", t("Steuert die eigene Timecode-Uhr von VJ-Link. Ist unter Einstellungen → Timecode „Senden“ an, bekommt z. B. eine MA den Timecode und ihre Timecode-Show löst Befehle aus.")));
     }
-    if (c.kind === "image" || c.kind === "camera" || c.kind === "black") num("Dauer", () => c.hold, v => { c.hold = v; }, "s · 0 = bis WEITER");
+    if (c.kind === "image" || c.kind === "camera" || c.kind === "black") num(t("Dauer"), () => c.hold, v => { c.hold = v; }, t("s · 0 = bis WEITER"));
     if (c.kind !== "scene" && c.kind !== "tcsignal") {
-      box.append(el("h4", "", "Ende und Blenden"));
-      seg("Am Ende", END_LABEL, () => c.end, v => { c.end = v; });
-      num("Einblenden", () => c.fadeIn, v => { c.fadeIn = v; }, "s", 0.1, 60);
-      num("Ausblenden", () => c.fadeOut, v => { c.fadeOut = v; }, "s", 0.1, 60);
-      box.append(el("h4", "", "Bild"));
-      if (c.kind !== "black") seg("Größe", FIT_LABEL, () => c.fit, v => { c.fit = v; });
+      box.append(el("h4", "", t("Ende und Blenden")));
+      seg(t("Am Ende"), END_LABEL, () => c.end, v => { c.end = v; });
+      num(t("Einblenden"), () => c.fadeIn, v => { c.fadeIn = v; }, "s", 0.1, 60);
+      num(t("Ausblenden"), () => c.fadeOut, v => { c.fadeOut = v; }, "s", 0.1, 60);
+      box.append(el("h4", "", t("Bild")));
+      if (c.kind !== "black") seg(t("Größe"), FIT_LABEL, () => c.fit, v => { c.fit = v; });
       seg("Visuals", OVER_LABEL, () => c.over, v => { c.over = v; });
     }
     if (c.kind === "video") {
-      const r = el("label", "cd-row"); r.append(el("span", "", "Lautstärke"));
+      const r = el("label", "cd-row"); r.append(el("span", "", t("Lautstärke")));
       const i = el("input"); i.type = "range"; i.min = "0"; i.max = "100"; i.value = String(Math.round(c.volume * 100));
       const v = el("span", "mval", `${Math.round(c.volume * 100)} %`);
       i.addEventListener("input", () => { c.volume = Number(i.value) / 100; v.textContent = `${i.value} %`; });
@@ -296,19 +297,19 @@ export class ShowTab {
     }
 
     const act = el("div", "cd-actions");
-    const mk = (t: string, fn: () => void, cls = "btn small-btn") => { const b = el("button", cls, t); b.addEventListener("click", fn); act.append(b); return b; };
-    mk("Als Nächstes", () => { cueSetNext(this.d.ctx.cues, this.selected); });
+    const mk = (label: string, fn: () => void, cls = "btn small-btn") => { const b = el("button", cls, label); b.addEventListener("click", fn); act.append(b); return b; };
+    mk(t("Als Nächstes"), () => { cueSetNext(this.d.ctx.cues, this.selected); });
     mk("↑", () => this.move(-1)); mk("↓", () => this.move(1));
     // Timeline: Cue als Zeitleiste bearbeiten (großer Editor unter der Liste)
     if (c.kind === "video" || c.kind === "image" || c.kind === "camera" || c.kind === "black") {
-      mk(c.timeline ? "Timeline schließen" : "In Timeline umwandeln", () => {
+      mk(c.timeline ? t("Timeline schließen") : t("In Timeline umwandeln"), () => {
         // Bild/Schwarz ohne Dauer: 30 s vorgeben (in der Timeline oben änderbar)
-        if (!c.timeline && c.kind !== "video" && !(c.hold > 0)) { c.hold = 30; this.d.toast("Timeline mit 30 s Länge angelegt – oben in der Timeline änderbar."); }
+        if (!c.timeline && c.kind !== "video" && !(c.hold > 0)) { c.hold = 30; this.d.toast(t("Timeline mit 30 s Länge angelegt – oben in der Timeline änderbar.")); }
         c.timeline = !c.timeline; this.update(true);
       });
     }
-    mk("Kopieren", () => { const cp = { ...c, id: newCueId(), name: `${c.name} (Kopie)` }; this.list.splice(this.selected + 1, 0, cp); this.selected++; this.update(true); });
-    const del = mk(this.armedDelete ? "Wirklich löschen?" : "Löschen", () => {
+    mk(t("Kopieren"), () => { const cp = { ...c, id: newCueId(), name: t("{name} (Kopie)", { name: c.name }) }; this.list.splice(this.selected + 1, 0, cp); this.selected++; this.update(true); });
+    const del = mk(this.armedDelete ? t("Wirklich löschen?") : t("Löschen"), () => {
       if (!this.armedDelete) { this.armedDelete = true; this.update(true); return; }
       this.list.splice(this.selected, 1);
       const run = this.d.ctx.cues.run;
@@ -319,7 +320,7 @@ export class ShowTab {
       this.armedDelete = false;
       this.update(true);
     }, "btn small-btn danger");
-    del.title = "Cue entfernen (die Datei bleibt in der Bibliothek)";
+    del.title = t("Cue entfernen (die Datei bleibt in der Bibliothek)");
     box.append(act);
   }
 
@@ -340,16 +341,16 @@ export class ShowTab {
    */
   private timeline(box: HTMLElement, c: Cue, d: number): void {
     const marks = (c.marks ??= []);
-    box.append(el("h4", "", "Timeline: Szenen im Video"));
+    box.append(el("h4", "", t("Timeline: Szenen im Video")));
     const bar = el("div", "tl-bar");
-    bar.title = "Klicken: hier einen Szenen-Marker setzen";
+    bar.title = t("Klicken: hier einen Szenen-Marker setzen");
     const pct = (x: number) => `${(Math.max(0, Math.min(d, x)) / d) * 100}%`;
     this.playhead = el("i", "tl-play");
     bar.append(this.playhead);
     marks.forEach((m, k) => {
       const pin = el("button", `tl-mark${k === this.selMark ? " sel" : ""}`, String(m.scene));
       pin.style.left = pct(m.t);
-      pin.title = `${fmt1(m.t)} · Szene ${m.scene} „${this.d.ctx.scenes[m.scene - 1]?.name ?? "?"}“`;
+      pin.title = `${fmt1(m.t)} · ${t("Szene {n} „{name}“", { n: m.scene, name: this.d.ctx.scenes[m.scene - 1]?.name ?? "?" })}`;
       pin.addEventListener("click", e => { e.stopPropagation(); this.selMark = k; this.update(true); });
       bar.append(pin);
     });
@@ -363,21 +364,21 @@ export class ShowTab {
       this.update(true);
     });
     box.append(bar);
-    if (!marks.length) { box.append(el("p", "muted small", "Auf die Leiste klicken, um an dieser Stelle eine Szene abzurufen. So wechseln z. B. die anderen Leinwände passend zum Video.")); return; }
+    if (!marks.length) { box.append(el("p", "muted small", t("Auf die Leiste klicken, um an dieser Stelle eine Szene abzurufen. So wechseln z. B. die anderen Leinwände passend zum Video."))); return; }
     const m = marks[this.selMark];
-    if (!m) { box.append(el("p", "muted small", `${marks.length} Marker. Einen anklicken, um Zeit und Szene einzustellen.`)); return; }
-    const r1 = el("div", "cd-row"); r1.append(el("span", "", "Marker"));
+    if (!m) { box.append(el("p", "muted small", t("{n} Marker. Einen anklicken, um Zeit und Szene einzustellen.", { n: marks.length }))); return; }
+    const r1 = el("div", "cd-row"); r1.append(el("span", "", t("Marker")));
     const w = el("span", "inline wrap");
-    const tIn = el("input", "tc-in"); tIn.value = m.t.toFixed(1); tIn.setAttribute("aria-label", "Zeit im Video in Sekunden");
+    const tIn = el("input", "tc-in"); tIn.value = m.t.toFixed(1); tIn.setAttribute("aria-label", t("Zeit im Video in Sekunden"));
     tIn.addEventListener("change", () => { const v = Number(tIn.value.replace(",", ".")); if (Number.isFinite(v)) { m.t = Math.max(0, Math.min(d, v)); marks.sort((a, b) => a.t - b.t); this.selMark = marks.indexOf(m); } this.update(true); });
-    const sc = el("select"); sc.setAttribute("aria-label", "Szene");
+    const sc = el("select"); sc.setAttribute("aria-label", t("Szene"));
     this.d.ctx.scenes.forEach((s, i) => sc.append(new Option(`${i + 1} · ${s.name}`, String(i + 1))));
     sc.value = String(m.scene);
     sc.addEventListener("change", () => { m.scene = Number(sc.value); this.update(true); });
-    const oth = el("button", `btn small-btn${m.others ? " on" : ""}`, m.others ? "nur andere Bilder" : "alle Bilder");
-    oth.title = "„nur andere Bilder“: das Bild, auf dem der SHOW-Ablauf läuft, bleibt unberührt";
+    const oth = el("button", `btn small-btn${m.others ? " on" : ""}`, m.others ? t("nur andere Bilder") : t("alle Bilder"));
+    oth.title = t("„nur andere Bilder“: das Bild, auf dem der SHOW-Ablauf läuft, bleibt unberührt");
     oth.addEventListener("click", () => { m.others = !m.others; this.update(true); });
-    const del = el("button", "btn small-btn", "Löschen");
+    const del = el("button", "btn small-btn", t("Löschen"));
     del.addEventListener("click", () => { marks.splice(marks.indexOf(m), 1); this.selMark = -1; this.update(true); });
     w.append(tIn, el("small", "muted", "s"), sc);
     if (this.d.multiImage?.()) w.append(oth);
@@ -417,18 +418,18 @@ export class ShowTab {
       row.classList.toggle("live", st.live);
       row.classList.toggle("next", i === s.run.next);
       const lab = row.querySelector<HTMLElement>(".cstate")!;
-      lab.textContent = st.live ? (st.remaining !== null ? `LÄUFT · ${fmt(st.remaining)} übrig` : "LÄUFT") : i === s.run.next ? "ALS NÄCHSTES" : "";
+      lab.textContent = st.live ? (st.remaining !== null ? t("LÄUFT · {t} übrig", { t: fmt(st.remaining) }) : t("LÄUFT")) : i === s.run.next ? t("ALS NÄCHSTES") : "";
       row.querySelector<HTMLElement>(".cprog")!.style.width = st.live ? `${Math.round(st.progress * 100)}%` : "0";
-      if (st.live && i === s.run.current) { liveName = c.name; liveTime = st.remaining !== null ? `${fmt(st.remaining)} übrig` : ""; }
+      if (st.live && i === s.run.current) { liveName = c.name; liveTime = st.remaining !== null ? t("{t} übrig", { t: fmt(st.remaining) }) : ""; }
     });
-    document.getElementById("sh-now")!.textContent = liveName ? `● JETZT · ${liveName.toUpperCase()}` : "● AUSGANG";
+    document.getElementById("sh-now")!.textContent = liveName ? `${t("● JETZT")} · ${liveName.toUpperCase()}` : t("● AUSGANG");
     document.getElementById("sh-now-time")!.textContent = liveTime;
     const n = s.list[s.run.next];
-    document.getElementById("sh-next-name")!.textContent = n ? `${s.run.next + 1} · ${n.name}` : "Ende des Ablaufs";
+    document.getElementById("sh-next-name")!.textContent = n ? `${s.run.next + 1} · ${n.name}` : t("Ende des Ablaufs");
     const nt = document.getElementById("sh-next-thumb")!;
     const ntSig = n ? n.id + this.d.videos.posters.size : "";
     if (nt.dataset.sig !== ntSig) { nt.dataset.sig = ntSig; nt.replaceChildren(...(n ? [this.thumb(n)] : [])); }
-    document.getElementById("cue-go-sub")!.textContent = `${goLabel(s, now, this.d.env)} · Leertaste`;
+    document.getElementById("cue-go-sub")!.textContent = `${goLabel(s, now, this.d.env)} · ${t("Leertaste")}`;
     const total = s.list.reduce((a, c) => a + (this.dur(c) ?? 0), 0);
     document.getElementById("cue-sum")!.textContent = s.list.length ? `· ${s.list.length} Cues · ${fmt(total)}` : "";
   }

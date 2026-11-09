@@ -65,8 +65,9 @@ import { KickDetector, liveBands } from "../core/audio";
 const kickDet = new KickDetector();
 import { LayerClock, TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
 
-// Sprache zuerst, damit alle Texte gleich in der richtigen Sprache entstehen
-initLang();
+// Sprache zuerst, damit alle Texte gleich in der richtigen Sprache entstehen; Menü und Dialoge des Hauptprozesses folgen
+const uiLang = initLang();
+bridge?.setLang(uiLang);
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] => {
@@ -138,8 +139,8 @@ const midi = new MidiIn((data, device, tMs) => {
 const mapMode = new MapMode(ctx, mappings, {
   midiDevices: () => midi.devices,
   midiError: () => midi.error,
-  dmx: () => `Art-Net Universe ${settings.universe} · sACN Universe ${settings.sacn}. Kanal am Pult deutlich bewegen. Zusätzlich zum festen Pult-Profil (Adresse ${settings.address}–${settings.address + DMX_MODE_STANDARD_CHANNELS - 1}).`,
-  osc: () => "Port 8000. Werte 0–1, 0–127 oder 0–255. Für BPM die Zahl direkt senden (z. B. 128). Adressen /vjlink/… sind fest belegt.",
+  dmx: () => t("Art-Net Universe {u} · sACN Universe {s}. Kanal am Pult deutlich bewegen. Zusätzlich zum festen Pult-Profil (Adresse {a}–{b}).", { u: settings.universe, s: settings.sacn, a: settings.address, b: settings.address + DMX_MODE_STANDARD_CHANNELS - 1 }),
+  osc: () => t("Port 8000. Werte 0–1, 0–127 oder 0–255. Für BPM die Zahl direkt senden (z. B. 128). Adressen /vjlink/… sind fest belegt."),
   toast: msg => toast(msg),
 }, () => { leds.reset(); });
 void midi.start();
@@ -217,7 +218,7 @@ function layerClips(l: number): { id: string; name: string }[] {
   for (const id of ctx.show.layers[l]?.clips ?? []) {
     if (id.startsWith("img:")) { const m = library.items.find(i => mediaClip(i.id) === id); if (m) out.push({ id, name: m.name }); }
     else if (isVideoClip(id)) { const v = videoLib.find(videoIdOf(id)); if (v) out.push({ id, name: v.name }); }
-    else if (isCamClip(id)) { const c = ctx.show.cameras.find(k => k.id === camIdOf(id)); if (c) out.push({ id, name: c.label || "Kamera" }); }
+    else if (isCamClip(id)) { const c = ctx.show.cameras.find(k => k.id === camIdOf(id)); if (c) out.push({ id, name: c.label || t("Kamera") }); }
     else { const g = READY_GENERATORS.find(x => x.id === id); if (g) out.push({ id, name: g.name }); }
   }
   return out;
@@ -239,10 +240,10 @@ const cueEnv: CueEnv = {
   timecode: () => tcClock.now(Date.now()),
   currentScene: () => ctx.show.scene,
   tcCommand: (action, target) => {
-    const now = Date.now(), t = parseTc(target, tcClock.sendFps);
-    if (!tcClock.sendOn) toast("Timecode-Cue: Senden ist aus (Einstellungen → Timecode).");
+    const now = Date.now(), tc = parseTc(target, tcClock.sendFps);
+    if (!tcClock.sendOn) toast(t("Timecode-Cue: Senden ist aus (Einstellungen → Timecode)."));
     if (action === "stop") tcClock.stop(now);
-    else { if (t) tcClock.locate(tcToFrames(t, tcClock.sendFps), now); if (action === "start") tcClock.start(now); }
+    else { if (tc) tcClock.locate(tcToFrames(tc, tcClock.sendFps), now); if (action === "start") tcClock.start(now); }
   },
   get chase() { return tcClock.chase; },
 };
@@ -255,10 +256,10 @@ const textEditor = new TextEditor();
 function newMediaId(): string { const b = new Uint8Array(8); crypto.getRandomValues(b); return Array.from(b, x => x.toString(16).padStart(2, "0")).join(""); }
 /** Neuen Text gestalten und auf die Ebene legen. */
 function addText(layer: number): void {
-  textEditor.show(null, "Text hinzufügen", async (spec, dataUrl) => {
+  textEditor.show(null, t("Text hinzufügen"), async (spec, dataUrl) => {
     const p = { id: newMediaId(), name: textName(spec), dataUrl };
     const item = await library.load(p);
-    if (!item) { toast("Text ließ sich nicht anlegen."); return; }
+    if (!item) { toast(t("Text ließ sich nicht anlegen.")); return; }
     item.text = spec; item.name = p.name;
     bridge?.addMedia(p);
     const l = ctx.show.layers[layer]!;
@@ -269,20 +270,20 @@ function addText(layer: number): void {
     Object.assign(l.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
     if (layer > 0 && l.opacity < 0.05) l.opacity = 1;
     rebuildGrid(); libraryPanel.render(); fxPanel.select(layer);
-    toast(`Text „${p.name}“ liegt auf Ebene ${layer + 1}. Bearbeiten: Bleistift am Clip.`);
+    toast(t("Text „{name}“ liegt auf Ebene {n}. Bearbeiten: Bleistift am Clip.", { name: p.name, n: layer + 1 }));
   });
 }
 /** Vorhandenen Text-Clip bearbeiten (gleiche ID: alle Ebenen, Szenen und Cues zeigen die neue Fassung). */
 function editText(mediaId: string): void {
   const item = library.items.find(i => i.id === mediaId);
   if (!item?.text) return;
-  textEditor.show(item.text, "Text bearbeiten", async (spec, dataUrl) => {
+  textEditor.show(item.text, t("Text bearbeiten"), async (spec, dataUrl) => {
     const p = { id: mediaId, name: textName(spec), dataUrl };
     await library.load(p);
     item.text = spec; item.name = p.name;
     bridge?.addMedia(p);
     rebuildGrid(); libraryPanel.render();
-    toast("Text aktualisiert.");
+    toast(t("Text aktualisiert."));
   });
 }
 $("text-add").addEventListener("click", () => addText(fxPanel.layer));
@@ -299,18 +300,18 @@ function rebuildGrid(): void {
   for (let l = n - 1; l >= 0; l--) {
     const row = el("div", "lrow");
     const name = el("div", "lname");
-    name.title = "Anklicken: Effekte und Grafik dieser Ebene bearbeiten";
+    name.title = t("Anklicken: Effekte und Grafik dieser Ebene bearbeiten");
     name.addEventListener("click", e => {
       if ((e.target as HTMLElement).closest("input,select")) return;
       fxPanel.select(l);
     });
-    const title = el("b", "", `E${l + 1} · ${layerName(ctx.show.layers[l], l)}`);
+    const title = el("b", "", `${t("E{n}", { n: l + 1 })} · ${layerName(ctx.show.layers[l], l)}`);
     if (n > 1) {
       const del = el("button", "layer-del", "×");
-      del.title = "Ebene entfernen"; del.setAttribute("aria-label", `Ebene ${l + 1} entfernen`);
+      del.title = t("Ebene entfernen"); del.setAttribute("aria-label", t("Ebene {n} entfernen", { n: l + 1 }));
       del.addEventListener("click", ev => {
         ev.stopPropagation();
-        if (del.dataset.armed !== "1") { del.dataset.armed = "1"; del.textContent = "entfernen?"; setTimeout(() => { del.dataset.armed = ""; del.textContent = "×"; }, 2500); return; }
+        if (del.dataset.armed !== "1") { del.dataset.armed = "1"; del.textContent = t("entfernen?"); setTimeout(() => { del.dataset.armed = ""; del.textContent = "×"; }, 2500); return; }
         removeLayer(ctx.show, l);
         if (fxPanel.layer >= ctx.show.layers.length) fxPanel.select(ctx.show.layers.length - 1);
         rebuildGrid(); rebuildDeck();
@@ -318,12 +319,12 @@ function rebuildGrid(): void {
       title.append(del);
     }
     name.append(title);
-    const op = el("input"); op.type = "range"; op.min = "0"; op.max = "100"; op.ariaLabel = `Deckkraft Ebene ${l + 1}`;
+    const op = el("input"); op.type = "range"; op.min = "0"; op.max = "100"; op.ariaLabel = t("Deckkraft Ebene {n}", { n: l + 1 });
     op.dataset.ctl = `layer.${l + 1}.opacity`;
     op.addEventListener("input", () => { ctx.show.layers[l]!.opacity = Number(op.value) / 100; });
     opSliders[l] = op;
-    const color = el("select"); color.ariaLabel = `Farbe Ebene ${l + 1}`;
-    for (const c of COLOR_SOURCES_ALL) color.append(new Option(c === "original" ? "Original" : c === "gradient" ? "Verlauf" : c === "rainbow" ? "Regenbogen" : c === "multi" ? "Mehrere Slots" : `Slot ${c}`, c));
+    const color = el("select"); color.ariaLabel = t("Farbe Ebene {n}", { n: l + 1 });
+    for (const c of COLOR_SOURCES_ALL) color.append(new Option(c === "original" ? t("Original") : c === "gradient" ? t("Verlauf") : c === "rainbow" ? t("Regenbogen") : c === "multi" ? t("Mehrere Slots") : `Slot ${c}`, c));
     color.addEventListener("change", () => {
       const layer = ctx.show.layers[l]!;
       layer.colorSource = color.value as ColorSource;
@@ -331,14 +332,14 @@ function rebuildGrid(): void {
       fxPanel.select(l);
     });
     color.dataset.ctl = `layer.${l + 1}.color`;
-    const blend = el("select"); blend.ariaLabel = `Mischmodus Ebene ${l + 1}`;
-    for (const b of BLEND_MODES) blend.append(new Option(({ normal: "Normal", add: "Addieren", screen: "Bildschirm", multiply: "Multiplizieren" } as Record<BlendMode, string>)[b], b));
+    const blend = el("select"); blend.ariaLabel = t("Mischmodus Ebene {n}", { n: l + 1 });
+    for (const b of BLEND_MODES) blend.append(new Option(t(({ normal: "Normal", add: "Addieren", screen: "Bildschirm", multiply: "Multiplizieren" } as Record<BlendMode, string>)[b]), b));
     blend.addEventListener("change", () => { ctx.show.layers[l]!.blend = blend.value as BlendMode; });
     blend.dataset.ctl = `layer.${l + 1}.blend`;
     // Antrieb: woher Pulsieren und Reaktion kommen
-    const drive = el("select", "drive-sel"); drive.ariaLabel = `Antrieb Ebene ${l + 1}`;
+    const drive = el("select", "drive-sel"); drive.ariaLabel = t("Antrieb Ebene {n}", { n: l + 1 });
     for (const d of DRIVES) drive.append(new Option(`${DRIVE_ICON[d]} ${DRIVE_LABEL[d]}`, d));
-    drive.title = "Antrieb: Auto (Audio wenn vorhanden, sonst Takt), Takt (BPM), Audio, Statisch (kein Pulsieren)";
+    drive.title = t("Antrieb: Auto (Audio wenn vorhanden, sonst Takt), Takt (BPM), Audio, Statisch (kein Pulsieren)");
     drive.addEventListener("change", () => { ctx.show.layers[l]!.drive = drive.value as Drive; });
     drive.dataset.ctl = `layer.${l + 1}.drive`;
     name.append(op, color, blend, drive);
@@ -350,9 +351,9 @@ function rebuildGrid(): void {
       const b = el("button", clip.id.startsWith("img:") || isVideoClip(clip.id) ? "cell media" : "cell");
       b.append(el("span", "cell-name", clip.name));
       if (isVideoClip(clip.id)) b.append(el("span", "vbadge", "VIDEO"));
-      if (isCamClip(clip.id)) b.append(el("span", "vbadge cam", "LIVE-KAMERA"));
+      if (isCamClip(clip.id)) b.append(el("span", "vbadge cam", t("LIVE-KAMERA")));
       b.dataset.ctl = `clip.${l + 1}.${clip.id}`;
-      b.title = `${clip.name} · Klick startet/stoppt`;
+      b.title = t("{name} · Klick startet/stoppt", { name: clip.name });
       b.addEventListener("click", ev => {
         if ((ev.target as HTMLElement).closest(".cell-x, .cell-edit")) return;
         const layer = ctx.show.layers[l]!;
@@ -364,19 +365,19 @@ function rebuildGrid(): void {
       if (textItem) {
         b.classList.add("text-cell");
         const pen = el("span", "cell-edit", "✎");
-        pen.setAttribute("role", "button"); pen.title = "Text bearbeiten";
+        pen.setAttribute("role", "button"); pen.title = t("Text bearbeiten");
         pen.addEventListener("click", ev => { ev.stopPropagation(); editText(textItem.id); });
         b.append(pen);
       }
       // × entfernt den Clip nur aus dieser Zeile (die Grafik bleibt in der Bibliothek)
       const x = el("span", "cell-x", "×");
-      x.setAttribute("role", "button"); x.title = "Aus dieser Ebene entfernen";
+      x.setAttribute("role", "button"); x.title = t("Aus dieser Ebene entfernen");
       x.addEventListener("click", ev => { ev.stopPropagation(); removeClip(ctx.show.layers[l]!, clip.id); rebuildGrid(); });
       b.append(x);
       row.append(b); clipCells[l]![c] = b;
     });
-    const add = el("button", "cell add", "+ Clips");
-    add.title = "Bibliothek: Visuals und Grafiken für diese Ebene auswählen";
+    const add = el("button", "cell add", t("+ Clips"));
+    add.title = t("Bibliothek: Visuals und Grafiken für diese Ebene auswählen");
     add.addEventListener("click", () => {
       if (libraryPanel.open && libraryPanel.layer === l) { libraryPanel.close(); return; }
       libraryPanel.show(l, add);
@@ -403,7 +404,7 @@ async function importToLibrary(files: FileList | File[]): Promise<{ id: string; 
   const out: { id: string; name: string }[] = [];
   for (const f of Array.from(files)) {
     if (isVideoFile(f)) {
-      toast(`„${f.name}“ wird übernommen …`);
+      toast(t("„{name}“ wird übernommen …", { name: f.name }));
       const r = await videoLib.importFile(f);
       if (typeof r === "string") { toast(r); continue; }
       out.push({ id: videoClip(r.id), name: r.name });
@@ -427,10 +428,10 @@ async function importFiles(files: FileList | File[], layer: number): Promise<voi
     libraryPanel.render();
     l.clip = first;
     const bg = first.startsWith("img:") ? library.background.get(first.slice(4)) : undefined;
-    if (bg) { l.media.keyMode = bg; toast(`Logo auf ${bg === "white" ? "weißem" : "schwarzem"} Grund erkannt: Hintergrund wird ausgeblendet (Grafik → Freistellen).`); }
+    if (bg) { l.media.keyMode = bg; toast(bg === "white" ? t("Logo auf weißem Grund erkannt: Hintergrund wird ausgeblendet (Grafik → Freistellen).") : t("Logo auf schwarzem Grund erkannt: Hintergrund wird ausgeblendet (Grafik → Freistellen).")); }
     if (layer > 0 && l.opacity < 0.05) l.opacity = 1;
     fxPanel.select(layer);
-    toast(isVideoClip(first) ? "Video geladen. Loop und Takt rechts unter „Video“." : "Grafik geladen. Lage und Animation rechts unter „Grafik“.");
+    toast(isVideoClip(first) ? t("Video geladen. Loop und Takt rechts unter „Video“.") : t("Grafik geladen. Lage und Animation rechts unter „Grafik“."));
   }
 }
 $<HTMLInputElement>("file-input").addEventListener("change", e => {
@@ -454,7 +455,7 @@ window.addEventListener("keydown", e => {
   if (e.shiftKey && (e.metaKey || e.ctrlKey) && MAP_KEYS[e.code]) { e.preventDefault(); if (showLock.locked) showLock.hint(); else mapMode.open(MAP_KEYS[e.code]!); return; }
   if (e.key === "Escape" && mapMode.active) { mapMode.close(); return; }
   if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
-  const input = { p: "key" as const, code: e.code, label: e.key.length === 1 ? e.key.toUpperCase() : e.key.replace("Arrow", "Pfeil ") };
+  const input = { p: "key" as const, code: e.code, label: e.key.length === 1 ? e.key.toUpperCase() : e.key.replace("Arrow", t("Pfeil ")) };
   if (mapMode.active) { if (mapMode.protocol === "key") { mapMode.input(input); e.preventDefault(); } return; }
   if (mappings.dispatch(ctx, input, 1)) e.preventDefault();
 });
@@ -496,10 +497,10 @@ bpmIn.addEventListener("keydown", e => {
   if (Number.isFinite(v) && v >= 20 && v <= 300) {
     const src = ctx.tempo.source;
     // Eine Quelle mit höherem Rang würde die Eingabe sofort überschreiben: dann auf Manuell festlegen.
-    if (src !== "manual" && src !== "tap") { ctx.tempo.lock = "manual"; toast(`Tempo-Quelle auf Manuell gestellt (vorher ${SOURCE_LABEL[src] ?? src}).`); }
+    if (src !== "manual" && src !== "tap") { ctx.tempo.lock = "manual"; toast(t("Tempo-Quelle auf Manuell gestellt (vorher {src}).", { src: SOURCE_LABEL[src] ?? src })); }
     ctx.tempo.setManual(v / ctx.tempo.factor, Date.now());
     closeBpm();
-  } else toast("BPM zwischen 20 und 300 eingeben.");
+  } else toast(t("BPM zwischen 20 und 300 eingeben."));
 });
 bpmIn.addEventListener("blur", closeBpm);
 // Tempo-Quelle: eigenes Menü statt nativem Auswahlfeld (das native Menü hing, weil die Anzeige ständig aktualisiert wird)
@@ -534,14 +535,14 @@ async function fillAudioDevices(): Promise<void> {
     b.addEventListener("click", () => { void chooseAudio(id); });
     box.append(b);
   };
-  item("", "Aus (EQ im Takt)");
+  item("", t("Aus (EQ im Takt)"));
   for (const d of list) item(d.id, d.label);
-  if (!list.length) box.append(el("p", "am-hint", "Kein Eingang gefunden."));
+  if (!list.length) box.append(el("p", "am-hint", t("Kein Eingang gefunden.")));
 }
 
 async function chooseAudio(id: string): Promise<void> {
   if (!id) { audioIn.stop(); settings.audioDevice = ""; saveSettings(); void fillAudioDevices(); return; }
-  if (bridge && !(await bridge.askMicrophone())) { toast("Kein Zugriff auf das Mikrofon. macOS: Systemeinstellungen → Datenschutz → Mikrofon."); return; }
+  if (bridge && !(await bridge.askMicrophone())) { toast(t("Kein Zugriff auf das Mikrofon. macOS: Systemeinstellungen → Datenschutz → Mikrofon.")); return; }
   const ok = await audioIn.start(id);
   if (!ok) { toast(audioIn.error); }
   else { settings.audioDevice = id; saveSettings(); }
@@ -563,8 +564,8 @@ async function fillAudioOuts(): Promise<void> {
     b.addEventListener("click", () => { settings.audioOut = id; saveSettings(); previewPool.setSink(id); void fillAudioOuts(); });
     box.append(b);
   };
-  item("", "Standard des Systems");
-  for (const d of outs) if (d.deviceId && d.deviceId !== "default") item(d.deviceId, d.label || "Ausgang");
+  item("", t("Standard des Systems"));
+  for (const d of outs) if (d.deviceId && d.deviceId !== "default") item(d.deviceId, d.label || t("Ausgang"));
 }
 const gainIn = $<HTMLInputElement>("audio-gain");
 gainIn.value = String(Math.round(audioIn.gain * 100));
@@ -588,8 +589,8 @@ function updateAudioUi(): void {
     const on = b.dataset.scope === audioIn.scope; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on));
   });
   $("audio-hint").textContent = audioIn.scope === "audio"
-    ? `Nur ${AUDIO_NAMES}. Alle anderen Visuals laufen weiter im Takt.`
-    : "Alle Visuals reagieren auf den Eingang (Bass, Mitten, Höhen).";
+    ? t("Nur {names}. Alle anderen Visuals laufen weiter im Takt.", { names: AUDIO_NAMES })
+    : t("Alle Visuals reagieren auf den Eingang (Bass, Mitten, Höhen).");
   // Zellen im Clip-Raster markieren, die gerade vom Eingang gesteuert werden
   clipCells.forEach(row => row.forEach((cell, c) => {
     const on = !!mic && micDrives(ctx.show.audio, rowClips[clipCells.indexOf(row)]?.[c] ?? null);
@@ -600,15 +601,15 @@ if (settings.audioDevice) void chooseAudio(settings.audioDevice);
 
 // ---- Einstellungen ---------------------------------------------------------------------
 function updateTcUi(): void {
-  const t = Date.now();
-  const i = tcClock.incoming(t), o = tcClock.outgoing(t);
+  const nowMs = Date.now();
+  const i = tcClock.incoming(nowMs), o = tcClock.outgoing(nowMs);
   const b = $("tc-btn");
   b.hidden = !tcClock.receiveOn && !tcClock.sendOn;
   const f = (x: typeof i) => (x ? formatFrames(Math.floor(x.frames), x.fps) : "--:--:--:--");
   $("tc-val").textContent = tcClock.receiveOn && tcClock.sendOn ? `▼ ${f(i)}  ▲ ${f(o)}` : tcClock.receiveOn ? f(i) : f(o);
   b.classList.toggle("ok", !!o?.running && !tcClock.receiveOn);
   b.classList.toggle("warn", !!i?.running);
-  b.title = [tcClock.receiveOn ? `Empfang (${tcClock.source === "artnet" ? "Art-Net" : "MIDI"})` : "", tcClock.sendOn ? "Senden" : ""].filter(Boolean).join(" · ");
+  b.title = [tcClock.receiveOn ? t("Empfang ({src})", { src: tcClock.source === "artnet" ? "Art-Net" : "MIDI" }) : "", tcClock.sendOn ? t("Senden") : ""].filter(Boolean).join(" · ");
   if (!setBox.hidden) tcPanel.update();
 }
 const tcPanel = new TcPanel(tcClock, settings.tc, saveSettings, {
@@ -643,25 +644,25 @@ function buildMidiSection(): void {
   const list = (title: string, items: string[]) => {
     box.append(el("h3", "", title));
     const l = el("div", "am-list");
-    if (!items.length) l.append(el("p", "am-hint", "Keines gefunden. Gerät anstecken, es erscheint sofort."));
+    if (!items.length) l.append(el("p", "am-hint", t("Keines gefunden. Gerät anstecken, es erscheint sofort.")));
     for (const i of items) l.append(el("div", "am-item static", i));
     box.append(l);
   };
-  list("Eingänge", midi.devices);
-  list("Ausgänge (LEDs, MIDI-Timecode)", midi.outputs);
-  const p = el("p", "am-hint", "Tasten, Regler und Pads zuweisen: oben MAPPING → MIDI. Dort gibt es auch fertige Vorlagen für Controller.");
+  list(t("Eingänge"), midi.devices);
+  list(t("Ausgänge (LEDs, MIDI-Timecode)"), midi.outputs);
+  const p = el("p", "am-hint", t("Tasten, Regler und Pads zuweisen: oben MAPPING → MIDI. Dort gibt es auch fertige Vorlagen für Controller."));
   box.append(p);
   if (midi.error) box.append(el("p", "am-hint", midi.error));
 }
 
 // DMX-Felder und Oberflächen-Größe wohnen jetzt in den Einstellungen
 $("set-dmx").append(...Array.from(document.querySelectorAll("#tab-connect .form")));
-$("set-dmx").append(el("p", "am-hint", "Live-Werte und Status der Eingänge: Tab VERBINDEN."));
-document.querySelectorAll("#tab-connect h2").forEach(h => { if (h.textContent === "DMX-Einstellungen") h.remove(); });
+$("set-dmx").append(el("p", "am-hint", t("Live-Werte und Status der Eingänge: Tab VERBINDEN.")));
+document.querySelectorAll("#tab-connect h2").forEach(h => { if (h.textContent === t("DMX-Einstellungen")) h.remove(); });
 // Ebenen hinzufügen
 $("layer-add").addEventListener("click", () => {
   const i = addLayer(ctx.show);
-  if (i < 0) { toast(`Höchstens ${MAX_LAYERS} Ebenen.`); return; }
+  if (i < 0) { toast(t("Höchstens {n} Ebenen.", { n: MAX_LAYERS })); return; }
   rebuildGrid(); rebuildDeck(); fxPanel.select(i);
 });
 
@@ -673,13 +674,13 @@ function buildSidebar(): void {
   SLOT_NAMES.forEach((n, i) => {
     const row = el("div", "slot");
     const sw = el("div", "sw");
-    const inp = el("input"); inp.type = "color"; inp.ariaLabel = `Farbe Slot ${n}`;
+    const inp = el("input"); inp.type = "color"; inp.ariaLabel = t("Farbe Slot {n}", { n });
     inp.addEventListener("input", () => {
       const v = inp.value; ctx.show.slots[i] = [parseInt(v.slice(1, 3), 16) / 255, parseInt(v.slice(3, 5), 16) / 255, parseInt(v.slice(5, 7), 16) / 255];
     });
     slotInputs[i] = inp;
     inp.dataset.ctl = `slot.${n}.hue`;
-    inp.title = "Farbe wählen (im Mapping: Farbton)";
+    inp.title = t("Farbe wählen (im Mapping: Farbton)");
     // Kleine Regler für Rot, Grün und Blau: bedienbar und im Mapping zuweisbar
     const mini = el("div", "slot-mini");
     for (const [key, lbl] of [["r", "R"], ["g", "G"], ["b", "B"]] as const) {
@@ -708,8 +709,8 @@ function buildSidebar(): void {
 
 // ---- Bauen: Katalog -------------------------------------------------------------------
 const CAT_LABEL: Record<EffectCategory, string> = CATEGORY_LABEL;
-const KIND_LABEL = { generator: "Generator", post: "Effekt", master: "Master" } as const;
-const REACT_LABEL = { beat: "Beat", bass: "Bass", mid: "Mitten", high: "Höhen", wave: "Wellenform" } as const;
+const KIND_LABEL = { generator: t("Generator"), post: t("Effekt"), master: t("Master") } as const;
+const REACT_LABEL = { beat: t("Beat"), bass: t("Bass"), mid: t("Mitten"), high: t("Höhen"), wave: t("Wellenform") } as const;
 function buildCatalog(): void {
   const tbody = document.querySelector<HTMLTableSectionElement>("#catalog tbody")!;
   const filters = $("cat-filters");
@@ -719,7 +720,7 @@ function buildCatalog(): void {
     for (const e of EFFECTS) {
       if (active !== "all" && e.category !== active) continue;
       const tr = el("tr");
-      const status = el("span", `tag ${e.status}`, e.status === "ready" ? "BEREIT" : "GEPLANT");
+      const status = el("span", `tag ${e.status}`, e.status === "ready" ? t("BEREIT") : t("GEPLANT"));
       const tdS = el("td"); tdS.append(status);
       tr.append(el("td", "n", String(e.no)), el("td", "", e.name), el("td", "", CAT_LABEL[e.category]), el("td", "", KIND_LABEL[e.kind]),
         el("td", "", e.reactsTo.map(r => REACT_LABEL[r]).join(", ") || "–"), tdS);
@@ -731,7 +732,7 @@ function buildCatalog(): void {
   const mk = (cat: EffectCategory | "all", label: string) => {
     const b = el("button", "", label); b.dataset.cat = cat; b.addEventListener("click", () => { active = cat; draw(); }); filters.append(b);
   };
-  mk("all", "Alle");
+  mk("all", t("Alle"));
   (Object.keys(CAT_LABEL) as EffectCategory[]).forEach(c => mk(c, CAT_LABEL[c]));
   draw();
 }
@@ -746,7 +747,7 @@ const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => 
 async function refreshDisplays(): Promise<void> {
   const list = $("displays");
   if (!bridge) {
-    $("output-note").textContent = "Mehrere Ausgänge gibt es nur in der Desktop-App. Im Browser läuft die Vorschau.";
+    $("output-note").textContent = t("Mehrere Ausgänge gibt es nur in der Desktop-App. Im Browser läuft die Vorschau.");
     list.replaceChildren(); return;
   }
   displays = await bridge.listDisplays();
@@ -759,18 +760,18 @@ function renderDisplays(): void {
   list.replaceChildren();
   for (const d of displays) {
     const row = el("div", d.open ? "display open" : "display");
-    const info = el("div"); info.append(el("b", "", `${d.label}${d.primary ? " (Hauptbildschirm)" : ""}`));
-    info.append(el("small", "", `${Math.round(d.width * d.scaleFactor)} × ${Math.round(d.height * d.scaleFactor)} Pixel`));
-    const b = el("button", "btn", d.open ? "SCHLIESSEN" : d.window ? "FENSTER ÖFFNEN" : "ALS AUSGANG ÖFFNEN");
+    const info = el("div"); info.append(el("b", "", `${d.window ? t("Fenster-Ausgang") : d.label.replace(/^Bildschirm (\d+)$/, (_, n: string) => t("Bildschirm {n}", { n }))}${d.primary ? t(" (Hauptbildschirm)") : ""}`));
+    info.append(el("small", "", t("{w} × {h} Pixel", { w: Math.round(d.width * d.scaleFactor), h: Math.round(d.height * d.scaleFactor) })));
+    const b = el("button", "btn", d.open ? t("SCHLIESSEN") : d.window ? t("FENSTER ÖFFNEN") : t("ALS AUSGANG ÖFFNEN"));
     b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); outputTab.render(); fitPreview(); });
     if (d.window) {
       // Fenster-Ausgang: Größe wählen; zum Abgreifen mit OBS, Resolume, Syphon-/NDI-Werkzeugen (Fensteraufnahme)
-      info.querySelector("b")!.title = "Normales Fenster statt Vollbild – zum Abgreifen per Fensteraufnahme (OBS, Syphon Recorder, NDI-Werkzeuge)";
-      info.append(el("small", "muted", "für OBS, NDI, Syphon (Fensteraufnahme)"));
-      const size = el("select"); size.title = "Bildgröße des Fensters";
+      info.querySelector("b")!.title = t("Normales Fenster statt Vollbild – zum Abgreifen per Fensteraufnahme (OBS, Syphon Recorder, NDI-Werkzeuge)");
+      info.append(el("small", "muted", t("für OBS, NDI, Syphon (Fensteraufnahme)")));
+      const size = el("select"); size.title = t("Bildgröße des Fensters");
       const cur = `${Math.round(d.width * d.scaleFactor)}x${Math.round(d.height * d.scaleFactor)}`;
-      for (const [w, h] of WINDOW_SIZES) size.append(new Option(`${w} × ${h}${h > w ? " (hoch)" : ""}`, `${w}x${h}`));
-      if (!Array.from(size.options).some(o => o.value === cur)) size.append(new Option(`${cur.replace("x", " × ")} (gezogen)`, cur));
+      for (const [w, h] of WINDOW_SIZES) size.append(new Option(`${w} × ${h}${h > w ? t(" (hoch)") : ""}`, `${w}x${h}`));
+      if (!Array.from(size.options).some(o => o.value === cur)) size.append(new Option(t("{size} (gezogen)", { size: cur.replace("x", " × ") }), cur));
       size.value = cur;
       size.addEventListener("change", async () => { const [w, h] = size.value.split("x").map(Number); displays = await bridge!.windowOutputSize(w!, h!); renderDisplays(); outputTab.render(); fitPreview(); });
       size.className = "win-size"; info.append(size);
@@ -778,7 +779,7 @@ function renderDisplays(): void {
     } else row.append(info, b);
     list.append(row);
   }
-  $("output-note").textContent = displays.filter(d => !d.window).length > 1 ? "" : "Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darüber verdeckt diese Oberfläche; Taste Esc oder Schließen im Hauptfenster beendet ihn.";
+  $("output-note").textContent = displays.filter(d => !d.window).length > 1 ? "" : t("Es ist nur ein Bildschirm angeschlossen. Ein Ausgang darüber verdeckt diese Oberfläche; Taste Esc oder Schließen im Hauptfenster beendet ihn.");
 }
 $<HTMLInputElement>("testpattern").addEventListener("change", e => { ctx.show.testCard = (e.target as HTMLInputElement).checked; syncTestUi(); });
 /** Testbild-Knöpfe und Häkchen auf den aktuellen Stand bringen. */
@@ -807,7 +808,7 @@ function syncTestUi(): void {
   testUiKey = `${on}|${cur}`;
   $<HTMLInputElement>("testpattern").checked = on;
   $("test-quick").classList.toggle("on-test", on);
-  $("test-quick").textContent = on ? "Testbild aus" : "Testbild auf allen Ausgängen";
+  $("test-quick").textContent = on ? t("Testbild aus") : t("Testbild auf allen Ausgängen");
   $("test-quick").setAttribute("aria-pressed", String(on));
 }
 $("test-quick").addEventListener("click", () => { ctx.show.testCard = !ctx.show.testCard; syncTestUi(); });
@@ -825,17 +826,17 @@ function card(title: string, state: "ok" | "off" | "err", lines: string[], live 
 }
 function drawConnect(now: number): void {
   const s = netStatus; const cards = $("cards"); cards.replaceChildren();
-  if (!bridge || !s) { cards.append(card("Netzwerk", "off", ["Nur in der Desktop-App verfügbar"])); }
+  if (!bridge || !s) { cards.append(card(t("Netzwerk"), "off", [t("Nur in der Desktop-App verfügbar")])); }
   else {
     const dmxLive = now - lastDmxAt < 1500;
     cards.append(
-      card("Art-Net", s.artnet.error ? "err" : s.artnet.listening ? "ok" : "off", [`UDP 6454 · Universe ${settings.universe}`, `${s.artnet.packets} Pakete`, s.artnet.lastFrom ? `von ${s.artnet.lastFrom}` : (s.artnet.error ?? "wartet")]),
-      card("sACN", s.sacn.error ? "err" : s.sacn.listening ? "ok" : "off", [`UDP 5568 · Universe ${settings.sacn}`, `${s.sacn.packets} Pakete`, s.sacn.error ?? "wartet"]),
-      card("OSC", s.osc.error ? "err" : s.osc.listening ? "ok" : "off", [`UDP ${s.osc.port}`, `${s.osc.packets} Pakete`, s.osc.error ?? "/vjlink/…"]),
+      card("Art-Net", s.artnet.error ? "err" : s.artnet.listening ? "ok" : "off", [`UDP 6454 · Universe ${settings.universe}`, t("{n} Pakete", { n: s.artnet.packets }), s.artnet.lastFrom ? t("von {host}", { host: s.artnet.lastFrom }) : (s.artnet.error ?? t("wartet"))]),
+      card("sACN", s.sacn.error ? "err" : s.sacn.listening ? "ok" : "off", [`UDP 5568 · Universe ${settings.sacn}`, t("{n} Pakete", { n: s.sacn.packets }), s.sacn.error ?? t("wartet")]),
+      card("OSC", s.osc.error ? "err" : s.osc.listening ? "ok" : "off", [`UDP ${s.osc.port}`, t("{n} Pakete", { n: s.osc.packets }), s.osc.error ?? "/vjlink/…"]),
       card("LJ-Link", s.lj.clients > 0 || s.lj.pro?.connected ? "ok" : s.lj.error ? "err" : "off", [
-        s.lj.pro?.connected ? `LJ-Link verbunden: ${proWhere(s.lj.pro.host)}${s.lj.pro.native ? " (direkt)" : " (über Weboberfläche)"}` : `sucht LJ-Link (${proWhere(s.lj.pro?.host ?? "auto")})`,
-        s.lj.pro?.auto ? (s.lj.pro.found?.length ? `im Netz gefunden: ${s.lj.pro.found.join(", ")}` : "im Netz noch keins gefunden (Bonjour)") : "feste Adresse",
-        s.lj.clients > 0 ? `WebSocket ${s.lj.port}: ${s.lj.clients} verbunden` : `WebSocket ${s.lj.port} offen`, s.lj.error ?? ""].filter(Boolean)),
+        s.lj.pro?.connected ? t("LJ-Link verbunden: {host}", { host: proWhere(s.lj.pro.host) }) + (s.lj.pro.native ? t(" (direkt)") : t(" (über Weboberfläche)")) : t("sucht LJ-Link ({host})", { host: proWhere(s.lj.pro?.host ?? "auto") }),
+        s.lj.pro?.auto ? (s.lj.pro.found?.length ? t("im Netz gefunden: {list}", { list: s.lj.pro.found.join(", ") }) : t("im Netz noch keins gefunden (Bonjour)")) : t("feste Adresse"),
+        s.lj.clients > 0 ? t("WebSocket {port}: {n} verbunden", { port: s.lj.port, n: s.lj.clients }) : t("WebSocket {port} offen", { port: s.lj.port }), s.lj.error ?? ""].filter(Boolean)),
     );
     void dmxLive;
   }
@@ -848,15 +849,15 @@ function drawConnect(now: number): void {
     bar.classList.toggle("slotc", i + 1 >= CH.slotBase && i + 1 < CH.layerBase);
   }
   const decks = $("lj-decks"); decks.replaceChildren();
-  if (!ctx.lj.decks.size) decks.append(card("Keine Decks", "off", ["Sobald LJ-Link sendet, erscheinen die Decks hier."]));
+  if (!ctx.lj.decks.size) decks.append(card(t("Keine Decks"), "off", [t("Sobald LJ-Link sendet, erscheinen die Decks hier.")]));
   for (const d of ctx.lj.decks.values()) {
     decks.append(card(`Deck ${d.deck}${d.model ? ` · ${d.model}` : ""}`, d.playing ? "ok" : "off",
-      [`${d.bpm.toFixed(2)} BPM${d.key ? ` · ${d.key}` : ""}`, d.title ? `${d.title}${d.artist ? ` – ${d.artist}` : ""}` : (ctx.lj.privacy ? "Privatsphäre-Modus" : "–"),
+      [`${d.bpm.toFixed(2)} BPM${d.key ? ` · ${d.key}` : ""}`, d.title ? `${d.title}${d.artist ? ` – ${d.artist}` : ""}` : (ctx.lj.privacy ? t("Privatsphäre-Modus") : "–"),
         `${d.onAir ? "ON AIR " : ""}${d.master ? "MASTER " : ""}${d.phrase ? d.phrase.toUpperCase() : ""}`.trim() || "–"], d.onAir));
   }
 }
 /** „dieser Mac“ statt 127.0.0.1. */
-const proWhere = (h: string): string => !h || /^(127\.0\.0\.1|localhost)(:8080)?$/.test(h) ? (bridge?.platform === "darwin" ? "dieser Mac" : "dieser Rechner") : h === "auto" ? "automatisch" : h;
+const proWhere = (h: string): string => !h || /^(127\.0\.0\.1|localhost)(:8080)?$/.test(h) ? (bridge?.platform === "darwin" ? t("dieser Mac") : t("dieser Rechner")) : h === "auto" ? t("automatisch") : h;
 function bindSettings(): void {
   const u = $<HTMLInputElement>("cfg-universe"), s = $<HTMLInputElement>("cfg-sacn"), a = $<HTMLInputElement>("cfg-address");
   u.value = String(settings.universe); s.value = String(settings.sacn); a.value = String(settings.address);
@@ -868,18 +869,18 @@ function bindSettings(): void {
   djLink.hold = Number(hold.value);
   hold.addEventListener("change", () => { settings.ljHold = Number(hold.value); djLink.hold = settings.ljHold; saveSettings(); if (ctx.show.nowPlaying) ctx.show.nowPlaying.since = Date.now(); });
   $("lj-open").addEventListener("click", () => bridge?.openLj());
-  $("lj-np-show").addEventListener("click", () => { if (ctx.show.nowPlaying) ctx.show.nowPlaying.since = Date.now(); else toast("Noch keine Titel-Daten von LJ-Link."); });
+  $("lj-np-show").addEventListener("click", () => { if (ctx.show.nowPlaying) ctx.show.nowPlaying.since = Date.now(); else toast(t("Noch keine Titel-Daten von LJ-Link.")); });
   const lh = $<HTMLInputElement>("cfg-ljhost");
   lh.value = settings.ljHost;
   lh.addEventListener("change", () => {
     const v = lh.value.trim();
-    if (v && !/^[A-Za-z0-9.:\[\]-]{1,253}$/.test(v)) { lh.value = settings.ljHost; toast("Bitte nur IP-Adresse oder Rechnername eingeben."); return; }
+    if (v && !/^[A-Za-z0-9.:\[\]-]{1,253}$/.test(v)) { lh.value = settings.ljHost; toast(t("Bitte nur IP-Adresse oder Rechnername eingeben.")); return; }
     settings.ljHost = v; saveSettings(); bridge?.configure({ sacnUniverse: settings.sacn, ljHost: v });
   });
   a.addEventListener("change", () => { settings.address = clamp(Number(a.value), 1, 512 - DMX_MODE_STANDARD_CHANNELS + 1); decoder.startAddress = settings.address; saveSettings(); });
   $("dl-channels").addEventListener("click", () => {
     const url = URL.createObjectURL(new Blob([channelListCsv(settings.address)], { type: "text/csv" }));
-    const link = el("a"); link.href = url; link.download = "vj-link-kanalliste.csv"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const link = el("a"); link.href = url; link.download = t("vj-link-kanalliste.csv"); link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   bridge?.configure({ sacnUniverse: settings.sacn, ljHost: settings.ljHost });
   const sc = $<HTMLSelectElement>("ui-scale");
@@ -942,7 +943,7 @@ try {
 } catch (e) {
   $("mon-info").textContent = (e as Error).message;
 }
-const SOURCE_LABEL: Record<string, string> = { ljlink: "LJ-LINK", link: "ABLETON LINK", osc: "OSC", midi: "MIDI-CLOCK", audio: "AUDIO", tap: "TAP", manual: "MANUELL" };
+const SOURCE_LABEL: Record<string, string> = { ljlink: "LJ-LINK", link: "ABLETON LINK", osc: "OSC", midi: "MIDI-CLOCK", audio: "AUDIO", tap: "TAP", manual: t("MANUELL") };
 let lastUi = 0, lastPublish = 0;
 /** Animationszeit der Ebenen: hier gezählt, an alle Ausgänge geschickt. */
 const layerClock = new LayerClock();
@@ -1020,20 +1021,20 @@ function updateUi(now: number, beat: number): void {
   $("beats").querySelectorAll("i").forEach((b, i) => b.classList.toggle("on", i === ((bi % 4) + 4) % 4));
   const src = ctx.tempo.source;
   lockBtn.classList.toggle("ok", src !== "manual");
-  const lockText = ctx.tempo.lock ? `FEST · ${SOURCE_LABEL[ctx.tempo.lock] ?? ctx.tempo.lock}` : `AUTO · ${SOURCE_LABEL[src] ?? src}`;
+  const lockText = ctx.tempo.lock ? `${t("FEST")} · ${SOURCE_LABEL[ctx.tempo.lock] ?? ctx.tempo.lock}` : `AUTO · ${SOURCE_LABEL[src] ?? src}`;
   if (lockBtn.textContent !== lockText) lockBtn.textContent = lockText;
   setPill("st-link", linkState.connected ? "ok" : "off", linkState.connected ? `LINK · ${linkState.peers}` : "LINK");
-  $("st-link").title = linkState.connected ? "Ableton Link über Carabiner verbunden" : "Ableton Link: Carabiner starten (Port 17000)";
+  $("st-link").title = linkState.connected ? t("Ableton Link über Carabiner verbunden") : t("Ableton Link: Carabiner starten (Port 17000)");
   setPill("st-midi", midi.devices.length ? "ok" : "off", midi.devices.length ? `MIDI · ${midi.devices.length}` : "MIDI");
-  $("st-midi").title = midi.devices.join(", ") || midi.error || "Kein MIDI-Gerät";
+  $("st-midi").title = midi.devices.join(", ") || midi.error || t("Kein MIDI-Gerät");
   const dmxLive = now - lastDmxAt < 1500;
   setPill("st-dmx", dmxLive ? "ok" : "off"); setPill("st-osc", (netStatus?.osc.packets ?? 0) > 0 ? "ok" : "off");
   setPill("st-lj", ctx.lj.connected ? "ok" : "off");
   $("st-fps").textContent = engine ? `${Math.round(engine.info.fps)} FPS · ${engine.info.frameMs.toFixed(1)} ms` : "– FPS";
   if (engine) {
-    const t = s.transition;
-    $("mon-info").textContent = t
-      ? `Überblendung ${Math.round(transitionProgress(t, beat, now) * 100)} % · ${preview.width} × ${preview.height}`
+    const tr = s.transition;
+    $("mon-info").textContent = tr
+      ? `${t("Überblendung")} ${Math.round(transitionProgress(tr, beat, now) * 100)} % · ${preview.width} × ${preview.height}`
       : `${preview.width} × ${preview.height}`;
   }
   $("blackout").classList.toggle("on", s.blackout);
@@ -1103,7 +1104,7 @@ if (thumbs.gl) {
 // ---- Projekt laden und automatisch speichern -----------------------------------------
 let lastSaved = "", lastSaveCheck = 0, loaded = false;
 /** Projektdatei: Name, Fingerabdruck des gespeicherten Stands, ungespeicherte Änderungen. */
-let projName = "Unbenannt", baseline = "", projDirty = false, projRecent: string[] = [];
+let projName = t("Unbenannt"), baseline = "", projDirty = false, projRecent: string[] = [];
 const currentJson = () => serializeProject(ctx, library.items, mappings.list, videoLib.items, outLayout);
 function setDirty(d: boolean): void {
   if (d === projDirty) return;
@@ -1111,10 +1112,10 @@ function setDirty(d: boolean): void {
   bridge?.projectDirty(d);
 }
 function showProjName(): void {
-  $("proj-name").textContent = projName;
+  $("proj-name").textContent = projName === "Unbenannt" ? t("Unbenannt") : projName;
   const list = $("proj-recent"); list.replaceChildren();
   if (!projRecent.length) return;
-  list.append(el("div", "proj-sep", "Zuletzt geöffnet"));
+  list.append(el("div", "proj-sep", t("start.recent")));
   for (const f of projRecent.slice(0, 6)) {
     const b = el("button", "", f.split(/[\\/]/).pop()!.replace(/\.vjlink$/i, "")); b.title = f; b.setAttribute("role", "menuitem");
     b.addEventListener("click", () => { closeProjMenu(); void runFileCmd("openPath", f); });
@@ -1122,14 +1123,14 @@ function showProjName(): void {
   }
 }
 async function runFileCmd(cmd: ProjectFileCmd, filePath?: string): Promise<void> {
-  if (!bridge) { toast("Projektdateien gibt es nur in der App."); return; }
+  if (!bridge) { toast(t("Projektdateien gibt es nur in der App.")); return; }
   // Gesperrt: speichern ja, aber kein anderes Projekt laden
   if (showLock.locked && cmd !== "save" && cmd !== "saveAs") { showLock.hint(); return; }
   const json = currentJson();
   const r = await bridge.projectFile(cmd, json, filePath);
   if (r.ok && (cmd === "save" || cmd === "saveAs")) {
     baseline = hashText(json); projName = r.name ?? projName;
-    setDirty(false); showProjName(); toast(`Gespeichert: ${projName}`);
+    setDirty(false); showProjName(); toast(t("Gespeichert: {name}", { name: projName }));
   }
   // Öffnen und Neu: der Hauptprozess lädt die Oberfläche neu
 }
@@ -1189,17 +1190,17 @@ async function setupStarterProject(): Promise<void> {
   while (s.layers.length < 6 && addShowLayer(s) >= 0) { /* auffüllen */ }
   const L = s.layers;
   const gens = (ids: string[]) => ids.filter(id => EFFECT_BY_ID.get(id)?.status === "ready");
-  L[0]!.name = "Basis"; L[0]!.clip = "tunnel"; L[0]!.colorSource = "A"; L[0]!.blend = "normal";
+  L[0]!.name = t("Basis"); L[0]!.clip = "tunnel"; L[0]!.colorSource = "A"; L[0]!.blend = "normal";
   for (const l of L) { l.opacity = 1; l.drive = "auto"; }
-  L[1]!.name = "Overlay"; L[1]!.clips = gens(["starfield", "bokeh", "burst", "lightning", "vector-gobos", "flower", "moire", "co2-jet"]); L[1]!.clip = "starfield"; L[1]!.blend = "normal";
-  L[2]!.name = "Overlay"; L[2]!.clips = gens(["plexus", "hypercube", "ripples", "liquid-light", "uv-glow", "fire", "mirror-ball", "dot-matrix"]); L[2]!.clip = null; L[2]!.blend = "normal";
+  L[1]!.name = t("Overlay"); L[1]!.clips = gens(["starfield", "bokeh", "burst", "lightning", "vector-gobos", "flower", "moire", "co2-jet"]); L[1]!.clip = "starfield"; L[1]!.blend = "normal";
+  L[2]!.name = t("Overlay"); L[2]!.clips = gens(["plexus", "hypercube", "ripples", "liquid-light", "uv-glow", "fire", "mirror-ball", "dot-matrix"]); L[2]!.clip = null; L[2]!.blend = "normal";
   L[3]!.name = "Laser"; L[3]!.clips = EFFECTS.filter(e => e.category === "laser" && e.kind === "generator" && e.status === "ready").map(e => e.id); L[3]!.clip = null; L[3]!.blend = "add";
   // Text-Ebene: „VJ-Link“
   const spec = { ...defaultText(), text: "VJ-Link", upper: false };
   const cv = document.createElement("canvas"); drawText(cv, spec);
   const tp = { id: newMediaId(), name: "VJ-Link", dataUrl: cv.toDataURL("image/png") };
   const titem = await library.load(tp);
-  L[4]!.name = "Text"; L[4]!.clip = null; L[4]!.blend = "normal";
+  L[4]!.name = t("Text"); L[4]!.clip = null; L[4]!.blend = "normal";
   // Text-Ebene: Text-Clip aktiv, daneben die Now-Playing-Bauchbinde aus LJ-Link zum Umschalten
   if (titem) { titem.text = spec; bridge?.addMedia(tp); L[4]!.clips = [mediaClip(tp.id), "now-playing"]; L[4]!.clip = mediaClip(tp.id); }
   Object.assign(L[4]!.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
@@ -1223,7 +1224,7 @@ async function setupDemoProject(): Promise<void> {
     return mediaClip(p.id);
   };
   const title = await textClip("VJ-LINK", { ...defaultText(), text: "VJ-LINK", size: 260, letterSpacing: 18, glow: { on: true, color: "#ff3b8a", blur: 40 } });
-  const label = await textClip("Demo-Show", { ...defaultText(), text: "DEMO-SHOW", size: 54, letterSpacing: 10, align: "left", valign: "bottom",
+  const label = await textClip(t("Demo-Show"), { ...defaultText(), text: t("DEMO-SHOW"), size: 54, letterSpacing: 10, align: "left", valign: "bottom",
     glow: { on: true, color: "#22d3ee", blur: 18 }, box: { on: true, color: "#000000", opacity: 0.45, padding: 24, radius: 10 } });
   const lp = { id: newMediaId(), name: "VJ-Link-Logo", dataUrl: vjlinkLogo };
   const logo = (await library.load(lp)) ? (bridge?.addMedia(lp), mediaClip(lp.id)) : null;
@@ -1236,7 +1237,7 @@ async function openDemo(): Promise<void> {
   if (!bridge) {
     await setupDemoProject();
     rebuildGrid(); rebuildDeck(); fxPanel.select(0); scenePanel.update(true); showProjName();
-    toast("Demo geladen: Auto spielt die Szenen von selbst durch.");
+    toast(t("Demo geladen: Auto spielt die Szenen von selbst durch."));
     return;
   }
   try { sessionStorage.setItem(DEMO_FLAG, "1"); } catch { /* egal */ }
@@ -1270,24 +1271,24 @@ function syncCanvases(): void {
     box.replaceChildren(); tileCanvases.clear();
     if (mappingOn()) {
       for (const im of images) {
-        const t = el("div", `img-tile${s.canvas === im.id ? " on" : ""}`);
-        t.dataset.img = im.id;
+        const tile = el("div", `img-tile${s.canvas === im.id ? " on" : ""}`);
+        tile.dataset.img = im.id;
         const c = el("canvas"); c.width = 384; c.height = 216; tileCanvases.set(im.id, c);
         const nm = el("span", "img-name", im.name);
-        nm.title = "Doppelklick oder ✎: umbenennen";
-        const pen = el("button", "img-pen", "✎"); pen.title = "Umbenennen";
+        nm.title = t("Doppelklick oder ✎: umbenennen");
+        const pen = el("button", "img-pen", "✎"); pen.title = t("Umbenennen");
         pen.addEventListener("click", ev => { ev.stopPropagation(); renameImage(im.id); });
         // Helligkeit des Bilds (fester Regler „bild.N.hell“, per MIDI/OSC/Pult belegbar)
         const n = images.indexOf(im) + 1;
         const gain = el("input", "img-gain"); gain.type = "range"; gain.min = "0"; gain.max = "1"; gain.step = "0.01";
         gain.value = String(s.stackGain?.[im.id] ?? 1); gain.dataset.ctl = `bild.${n}.hell`; gain.dataset.img = im.id;
-        gain.title = `Helligkeit ${im.name}`; gain.setAttribute("aria-label", `Helligkeit ${im.name}`);
+        gain.title = t("Helligkeit {name}", { name: im.name }); gain.setAttribute("aria-label", t("Helligkeit {name}", { name: im.name }));
         gain.addEventListener("click", ev => ev.stopPropagation());
         gain.addEventListener("input", () => { (s.stackGain ??= {})[im.id] = Number(gain.value); });
-        t.dataset.ctl = `bild.${n}.bearbeiten`;
-        t.append(c, nm, pen, gain);
-        t.title = `${im.name} bearbeiten (Clips, Ebenen, Effekte)`;
-        t.addEventListener("click", ev => {
+        tile.dataset.ctl = `bild.${n}.bearbeiten`;
+        tile.append(c, nm, pen, gain);
+        tile.title = t("{name} bearbeiten (Clips, Ebenen, Effekte)", { name: im.name });
+        tile.addEventListener("click", ev => {
           if ((ev.target as HTMLElement).closest(".img-x, .img-pen, .img-rename")) return;
           // Doppelklick selbst erkennen (der erste Klick baut die Kacheln neu auf)
           const now = performance.now();
@@ -1296,8 +1297,8 @@ function syncCanvases(): void {
           if (ctx.show.canvas !== im.id) editImage(im.id);
         });
         if (im.id !== MAIN_STACK) {
-          const x = el("button", `img-x${armedImageDelete === im.id ? " armed" : ""}`, armedImageDelete === im.id ? "löschen?" : "×");
-          x.title = "Bild löschen";
+          const x = el("button", `img-x${armedImageDelete === im.id ? " armed" : ""}`, armedImageDelete === im.id ? t("löschen?") : "×");
+          x.title = t("Bild löschen");
           x.addEventListener("click", ev => {
             ev.stopPropagation();
             if (armedImageDelete !== im.id) { armedImageDelete = im.id; syncCanvases(); setTimeout(() => { if (armedImageDelete === im.id) { armedImageDelete = ""; syncCanvases(); } }, 2500); return; }
@@ -1305,14 +1306,14 @@ function syncCanvases(): void {
             for (const sf of surfaces) if (sf.image === im.id) sf.image = MAIN_STACK;
             removeImage(s, im.id); rebuildGrid(); rebuildDeck(); fxPanel.select(0); syncCanvases();
           });
-          t.append(x);
+          tile.append(x);
         }
-        box.append(t);
+        box.append(tile);
       }
       if (images.length < MAX_IMAGES) {
-        const add = el("button", "img-add", "+ Bild");
-        add.title = `Weiteres Bild mit eigenen Ebenen (bis ${MAX_IMAGES})`;
-        add.addEventListener("click", () => { const id = addImage(s); if (id) { editImage(id); toast("Neues Bild (Kopie von Bild 1). Rechts einer Leinwand zuweisen."); } });
+        const add = el("button", "img-add", t("+ Bild"));
+        add.title = t("Weiteres Bild mit eigenen Ebenen (bis {n})", { n: MAX_IMAGES });
+        add.addEventListener("click", () => { const id = addImage(s); if (id) { editImage(id); toast(t("Neues Bild (Kopie von Bild 1). Rechts einer Leinwand zuweisen.")); } });
         box.append(add);
       }
     }
@@ -1332,7 +1333,7 @@ function syncCanvases(): void {
     sel.replaceChildren();
     for (const im of images) {
       const on = surfaces.filter(sf => (sf.image ?? MAIN_STACK) === im.id).map(sf => sf.name);
-      sel.append(new Option(`${im.name}${on.length ? ` (${on.join(", ")})` : " (auf keiner Leinwand)"}`, im.id));
+      sel.append(new Option(`${im.name}${on.length ? ` (${on.join(", ")})` : t(" (auf keiner Leinwand)")}`, im.id));
     }
     sel.value = showImage();
   }
@@ -1347,28 +1348,28 @@ function syncCanvases(): void {
   box.hidden = !mappingOn();
   box.replaceChildren();
   if (!mappingOn()) return;
-  box.append(el("div", "cp-head", "Leinwände"));
-  if (!surfaces.length) box.append(el("p", "muted small", "Noch keine Leinwand. Im Tab AUSGABE → Projektionsmapping anlegen."));
+  box.append(el("div", "cp-head", t("Leinwände")));
+  if (!surfaces.length) box.append(el("p", "muted small", t("Noch keine Leinwand. Im Tab AUSGABE → Projektionsmapping anlegen.")));
   for (const sf of surfaces) {
     const row = el("div", "cp-row");
-    const scr = displays.find(d => d.id === sf.screen)?.label ?? "Ausgang";
-    const t = el("div", "cp-name");
+    const scr = displays.find(d => d.id === sf.screen)?.label ?? t("Ausgang");
+    const cell = el("div", "cp-name");
     // Name direkt hier ändern (Enter oder Klick daneben übernimmt)
-    const nm = el("input", "cp-nm"); nm.value = sf.name; nm.maxLength = 40; nm.setAttribute("aria-label", "Name der Leinwand");
+    const nm = el("input", "cp-nm"); nm.value = sf.name; nm.maxLength = 40; nm.setAttribute("aria-label", t("Name der Leinwand"));
     nm.addEventListener("keydown", e => { if (e.key === "Enter") nm.blur(); if (e.key === "Escape") { nm.value = sf.name; nm.blur(); } });
     nm.addEventListener("change", () => { const v = nm.value.trim(); if (v) sf.name = v; canvasSig = ""; cueImgSig = ""; if ($("tab-output").classList.contains("on")) outputTab.render(); });
-    const pen = el("button", "cp-pen", "✎"); pen.title = "Leinwand umbenennen";
+    const pen = el("button", "cp-pen", "✎"); pen.title = t("Leinwand umbenennen");
     pen.addEventListener("click", () => { nm.focus(); nm.select(); });
     const top = el("span", "cp-top"); top.append(nm, pen);
-    t.append(top, el("small", "", scr));
-    const sel = el("select"); sel.setAttribute("aria-label", `Bild für ${sf.name}`);
+    cell.append(top, el("small", "", scr));
+    const sel = el("select"); sel.setAttribute("aria-label", t("Bild für {name}", { name: sf.name }));
     for (const im of images) sel.append(new Option(im.name, im.id));
     sel.value = images.some(im => im.id === sf.image) ? sf.image! : MAIN_STACK;
     sel.addEventListener("change", () => { sf.image = sel.value; canvasSig = ""; syncCanvases(); if ($("tab-output").classList.contains("on")) outputTab.render(); });
-    row.append(t, sel);
+    row.append(cell, sel);
     box.append(row);
   }
-  box.append(el("p", "muted small", "Welches Bild auf welche Leinwand kommt. Ein Bild bearbeiten: links seine Vorschau anklicken. Szenen speichern alle Bilder."));
+  box.append(el("p", "muted small", t("Welches Bild auf welche Leinwand kommt. Ein Bild bearbeiten: links seine Vorschau anklicken. Szenen speichern alle Bilder.")));
 }
 
 $<HTMLSelectElement>("cue-image").addEventListener("change", e => { ctx.show.cueImage = (e.target as HTMLSelectElement).value; cueImgSig = ""; });
@@ -1379,7 +1380,7 @@ function renameImage(id: string): void {
   const nm = document.querySelector<HTMLElement>(`#img-tiles .img-tile[data-img="${id}"] .img-name`);
   const im = imageList(ctx.show).find(x => x.id === id);
   if (!nm || !im) return;
-  const inp = el("input", "img-rename"); inp.value = im.name; inp.maxLength = 30; inp.setAttribute("aria-label", "Name des Bildes");
+  const inp = el("input", "img-rename"); inp.value = im.name; inp.maxLength = 30; inp.setAttribute("aria-label", t("Name des Bildes"));
   let doneOnce = false;
   const done = () => {
     if (doneOnce) return; doneOnce = true;
@@ -1434,7 +1435,7 @@ async function loadProject(): Promise<void> {
       for (const m of r.media) if (want.has(m.id)) await library.load(m);
       // Text-Clips: Angaben zum Bearbeiten aus dem Projekt
       for (const pm of pv?.media ?? []) if (pm.text) { const it = library.items.find(i => i.id === pm.id); if (it) it.text = pm.text; }
-      projName = r.file?.name ?? "Unbenannt"; projRecent = r.recent ?? [];
+      projName = r.file?.name ?? t("Unbenannt"); projRecent = r.recent ?? [];
       baseline = r.fresh ? "" : r.savedHash ?? "";
       fresh = !!r.fresh;
       // Videos: Angaben stehen im Projekt, die Dateien im Bibliotheksordner
@@ -1448,7 +1449,7 @@ async function loadProject(): Promise<void> {
     let demo = false;
     try { demo = sessionStorage.getItem(DEMO_FLAG) === "1"; sessionStorage.removeItem(DEMO_FLAG); } catch { /* egal */ }
     if (!p) { if (demo) await setupDemoProject(); else await setupStarterProject(); }
-    if (!p && demo) toast("Demo geladen: Auto spielt die zehn Szenen von selbst durch. SHOW-Tab: Timeline-Show mit WEITER starten.");
+    if (!p && demo) toast(t("Demo geladen: Auto spielt die zehn Szenen von selbst durch. SHOW-Tab: Timeline-Show mit WEITER starten."));
     if (p) {
       applyProject(ctx, p);
       outLayout = p.outputs;

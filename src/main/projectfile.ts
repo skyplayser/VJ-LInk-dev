@@ -5,6 +5,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { hashText, mediaFolderName, packProject, projectRefs, unpackProject, PROJECT_EXT } from "../core/projectfile";
 import type { Storage } from "./storage";
+import { t } from "../core/i18n";
 
 const FILE_MAX_BYTES = 512 * 1024 * 1024;
 const RECENT_MAX = 8;
@@ -106,10 +107,10 @@ export class ProjectFiles {
     let text: string;
     try {
       const st = await fs.stat(file);
-      if (!st.isFile()) return { ok: false, message: "Datei nicht gefunden." };
-      if (st.size > FILE_MAX_BYTES) return { ok: false, message: "Die Datei ist zu groß." };
+      if (!st.isFile()) return { ok: false, message: t("Datei nicht gefunden.") };
+      if (st.size > FILE_MAX_BYTES) return { ok: false, message: t("Die Datei ist zu groß.") };
       text = await fs.readFile(file, "utf8");
-    } catch { return { ok: false, message: "Datei nicht gefunden." }; }
+    } catch { return { ok: false, message: t("Datei nicht gefunden.") }; }
     const p = unpackProject(text);
     if (typeof p === "string") return { ok: false, message: p };
     for (const img of p.images) await this.storage.addMedia(img);

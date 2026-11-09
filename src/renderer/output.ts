@@ -8,6 +8,7 @@ import { CameraPool } from "./campool";
 import { PersonMasks } from "./segment";
 import { masksFor, viewFor, warpFor } from "../core/layout";
 import { layerTimesAt } from "../core/show";
+import { t } from "../core/i18n";
 
 /** Welcher Bildschirm bin ich? (für den Ausschnitt auf der Leinwand) */
 const displayId = Number(new URLSearchParams(location.search).get("display") ?? "NaN");
@@ -54,8 +55,8 @@ function whoAmI(f: Frame): { n: number; label: string; at: string } {
   const i = screens.findIndex(s => s.id === displayId);
   const me = screens[i];
   const n = i >= 0 ? i + 1 : Math.max(1, open.indexOf(displayId) + 1);
-  const at = f.layout?.mode === "canvas" && me ? `Leinwand bei ${me.x}, ${me.y}${me.w !== canvas.width || me.h !== canvas.height ? ` · als ${me.w} × ${me.h}` : ""}` : "Gleiches Bild auf allen";
-  return { n, label: me?.label ?? `Ausgang ${n}`, at };
+  const at = f.layout?.mode === "canvas" && me ? `${t("Leinwand bei {x}, {y}", { x: me.x, y: me.y })}${me.w !== canvas.width || me.h !== canvas.height ? t(" · als {w} × {h}", { w: me.w, h: me.h }) : ""}` : t("Gleiches Bild auf allen");
+  return { n, label: me?.label ?? t("Ausgang {n}", { n }), at };
 }
 
 /** Schriftgröße so, dass der Text in maxW passt (höchstens fs). */
@@ -102,12 +103,12 @@ function drawOverlay(f: Frame): void {
   else if (p === "span") {
     // Rand dieses Ausgangs in Gelb: zeigt, wo die Übergänge liegen
     c.strokeStyle = "#ffcc00"; c.lineWidth = 4; c.strokeRect(2, 2, w - 4, h - 4);
-    const t = `${me.n} · ${me.label} · ${me.at}`;
-    const f2 = fitFont(c, t, Math.round(fs * 0.45), w - fs * 1.6, 700);
-    const tw = c.measureText(t).width, pad = Math.round(f2 * 0.5);
+    const txt = `${me.n} · ${me.label} · ${me.at}`;
+    const f2 = fitFont(c, txt, Math.round(fs * 0.45), w - fs * 1.6, 700);
+    const tw = c.measureText(txt).width, pad = Math.round(f2 * 0.5);
     c.fillStyle = "#000"; c.fillRect(fs * 0.5, fs * 0.5, tw + pad * 2, f2 + pad * 2);
     c.fillStyle = "#fff"; c.textAlign = "left"; c.textBaseline = "middle";
-    c.fillText(t, fs * 0.5 + pad, fs * 0.5 + pad + f2 / 2);
+    c.fillText(txt, fs * 0.5 + pad, fs * 0.5 + pad + f2 / 2);
   } else if (p === "ident") {
     c.fillStyle = IDENT_COLORS[(me.n - 1) % IDENT_COLORS.length]!;
     c.globalAlpha = 0.35; c.fillRect(0, 0, w, h); c.globalAlpha = 1;
@@ -116,9 +117,9 @@ function drawOverlay(f: Frame): void {
     c.fillText(String(me.n), w / 2, h * 0.42);
     fitFont(c, me.label, fs, maxW, 700);
     c.fillText(me.label, w / 2, h * 0.42 + m * 0.36);
-    for (const [i, t] of [`${w} × ${h} Pixel`, me.at].entries()) {
-      fitFont(c, t, Math.round(fs * 0.5), maxW, 500);
-      c.fillText(t, w / 2, h * 0.42 + m * 0.36 + fs * (1.1 + i * 0.7));
+    for (const [i, txt] of [t("{w} × {h} Pixel", { w, h }), me.at].entries()) {
+      fitFont(c, txt, Math.round(fs * 0.5), maxW, 500);
+      c.fillText(txt, w / 2, h * 0.42 + m * 0.36 + fs * (1.1 + i * 0.7));
     }
   }
 }

@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 // Einstellungen → Timecode. Empfangen und Senden sind getrennt einschaltbar:
 // VJ-Link folgt einem Pult/Programm und kann gleichzeitig Timecode an eine MA schicken.
 import {
@@ -79,8 +80,8 @@ export class TcPanel {
     const seg = <T extends string>(label: string, opts: [T, string][], get: () => T, set: (v: T) => void) => {
       const r = el("div", "set-row"); r.append(el("span", "", label));
       const g = el("div", "seg2");
-      for (const [k, t] of opts) {
-        const b = el("button", get() === k ? "on" : "", t);
+      for (const [k, lbl] of opts) {
+        const b = el("button", get() === k ? "on" : "", lbl);
         b.addEventListener("click", () => { set(k); rebuild(); });
         g.append(b);
       }
@@ -90,42 +91,42 @@ export class TcPanel {
       const r = el("label", "set-row"); r.append(el("span", "", label));
       const w = el("span", "inline");
       const i = el("input", wide ? "tc-in wide" : "tc-in"); i.value = get();
-      i.addEventListener("change", () => { if (set(i.value.trim())) { this.save(); this.apply(); } else { this.d.toast("Eingabe prüfen."); i.value = get(); } });
+      i.addEventListener("change", () => { if (set(i.value.trim())) { this.save(); this.apply(); } else { this.d.toast(t("Eingabe prüfen.")); i.value = get(); } });
       w.append(i); if (hint) w.append(el("small", "muted", hint));
       r.append(w); root.append(r);
     };
     const onOff = (title: string, get: () => boolean, set: (v: boolean) => void, sub: string) => {
       const h = el("div", "tc-head");
-      const t = el("div"); t.append(el("h3", "", title), el("p", "am-hint", sub));
-      const b = el("button", `btn small-btn${get() ? " on" : ""}`, get() ? "an" : "aus");
+      const hd = el("div"); hd.append(el("h3", "", title), el("p", "am-hint", sub));
+      const b = el("button", `btn small-btn${get() ? " on" : ""}`, get() ? t("an") : t("aus"));
       b.setAttribute("aria-pressed", String(get()));
       b.addEventListener("click", () => { set(!get()); rebuild(); });
-      h.append(t, b); root.append(h);
+      h.append(hd, b); root.append(h);
     };
 
     // ---- Eingang
-    onOff("Empfangen", () => s.receive, v => { s.receive = v; }, "Ein Pult oder Programm gibt die Zeit vor. Cues mit Start „Timecode“ folgen ihm.");
+    onOff(t("Empfangen"), () => s.receive, v => { s.receive = v; }, t("Ein Pult oder Programm gibt die Zeit vor. Cues mit Start „Timecode“ folgen ihm."));
     if (s.receive) {
       root.append(this.inBig, this.inStatus);
-      seg("Quelle", [["artnet", "Art-Net"], ["mtc", "MIDI (MTC)"]], () => s.source, v => { s.source = v; });
-      seg("Videos", [["chase", "folgen dem Timecode"], ["start", "werden nur gestartet"]], () => (s.chase ? "chase" : "start"), v => { s.chase = v === "chase"; });
-      seg("Bei Aussetzer", [["2", "2 s weiterlaufen"], ["0.3", "sofort anhalten"]], () => (s.freewheel >= 1 ? "2" : "0.3"), v => { s.freewheel = Number(v); });
-      text("Versatz", () => s.offset, v => { if (!parseTc(v, this.clock.fps)) return false; s.offset = v; return true; }, "wird zum empfangenen Wert addiert");
+      seg(t("Quelle"), [["artnet", "Art-Net"], ["mtc", "MIDI (MTC)"]], () => s.source, v => { s.source = v; });
+      seg(t("Videos"), [["chase", t("folgen dem Timecode")], ["start", t("werden nur gestartet")]], () => (s.chase ? "chase" : "start"), v => { s.chase = v === "chase"; });
+      seg(t("Bei Aussetzer"), [["2", t("2 s weiterlaufen")], ["0.3", t("sofort anhalten")]], () => (s.freewheel >= 1 ? "2" : "0.3"), v => { s.freewheel = Number(v); });
+      text(t("Versatz"), () => s.offset, v => { if (!parseTc(v, this.clock.fps)) return false; s.offset = v; return true; }, t("wird zum empfangenen Wert addiert"));
     }
 
     // ---- Ausgang
-    onOff("Senden", () => s.send, v => { s.send = v; }, "VJ-Link schickt Timecode, z. B. an eine MA, deren Timecode-Show dann Befehle auslöst.");
+    onOff(t("Senden"), () => s.send, v => { s.send = v; }, t("VJ-Link schickt Timecode, z. B. an eine MA, deren Timecode-Show dann Befehle auslöst."));
     if (s.send) {
       root.append(this.outBig, this.outStatus);
-      seg("Was senden", [["own", "eigene Uhr"], ["thru", "Empfangenen weitergeben"]], () => s.sendFrom, v => { s.sendFrom = v; });
-      if (s.sendFrom === "own") seg("Bildrate", TC_RATES.map(f => [String(f), fpsLabel(f)] as [string, string]), () => String(s.fps), v => { s.fps = Number(v) as TcFps; });
-      seg("Senden über", [["artnet", "Art-Net"], ["mtc", "MIDI (MTC)"], ["both", "beides"]], () => s.via, v => { s.via = v; });
-      if (s.via !== "mtc") text("Art-Net-Ziel", () => s.host, v => { if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(v)) return false; s.host = v; return true; }, "IP der MA oder 255.255.255.255 für alle", true);
+      seg(t("Was senden"), [["own", t("eigene Uhr")], ["thru", t("Empfangenen weitergeben")]], () => s.sendFrom, v => { s.sendFrom = v; });
+      if (s.sendFrom === "own") seg(t("Bildrate"), TC_RATES.map(f => [String(f), fpsLabel(f)] as [string, string]), () => String(s.fps), v => { s.fps = Number(v) as TcFps; });
+      seg(t("Senden über"), [["artnet", "Art-Net"], ["mtc", "MIDI (MTC)"], ["both", t("beides")]], () => s.via, v => { s.via = v; });
+      if (s.via !== "mtc") text(t("Art-Net-Ziel"), () => s.host, v => { if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(v)) return false; s.host = v; return true; }, t("IP der MA oder 255.255.255.255 für alle"), true);
       if (s.via !== "artnet") {
-        const r = el("div", "set-row"); r.append(el("span", "", "MIDI-Ausgang"));
+        const r = el("div", "set-row"); r.append(el("span", "", t("MIDI-Ausgang")));
         const g = el("div", "am-list");
         const outs = this.d.midiOutputs();
-        if (!outs.length) g.append(el("p", "am-hint", "Kein MIDI-Ausgang gefunden."));
+        if (!outs.length) g.append(el("p", "am-hint", t("Kein MIDI-Ausgang gefunden.")));
         for (const o of outs) {
           const b = el("button", "am-item", o); b.setAttribute("aria-checked", String(s.midiOut === o));
           b.addEventListener("click", () => { s.midiOut = o; rebuild(); });
@@ -134,17 +135,17 @@ export class TcPanel {
         r.append(g); root.append(r);
       }
       if (s.sendFrom === "own") {
-        text("Startzeit", () => s.start, v => { if (!parseTc(v, s.fps)) return false; s.start = v; return true; });
-        const act = el("div", "set-row"); act.append(el("span", "", "Uhr"));
+        text(t("Startzeit"), () => s.start, v => { if (!parseTc(v, s.fps)) return false; s.start = v; return true; });
+        const act = el("div", "set-row"); act.append(el("span", "", t("Uhr")));
         const w = el("span", "inline wrap");
         const go = el("button", "btn small-btn", "▶ Start"); go.dataset.ctl = "tc.start";
         go.addEventListener("click", () => this.clock.start(Date.now()));
-        const st = el("button", "btn small-btn", "■ Stopp"); st.dataset.ctl = "tc.stop";
+        const st = el("button", "btn small-btn", t("■ Stopp")); st.dataset.ctl = "tc.stop";
         st.addEventListener("click", () => this.clock.stop(Date.now()));
-        const zero = el("button", "btn small-btn", "Auf Startzeit"); zero.dataset.ctl = "tc.zero";
+        const zero = el("button", "btn small-btn", t("Auf Startzeit")); zero.dataset.ctl = "tc.zero";
         zero.addEventListener("click", () => { const t = parseTc(s.start, s.fps); this.clock.locate(t ? tcToFrames(t, s.fps) : 0, Date.now()); });
         w.append(go, st, zero); act.append(w); root.append(act);
-        root.append(el("p", "am-hint", "Steuern lässt sich die Uhr auch aus dem SHOW-Ablauf (Cue „+ Timecode“: Start ab Zeit, Stopp, Springen) und per Mapping."));
+        root.append(el("p", "am-hint", t("Steuern lässt sich die Uhr auch aus dem SHOW-Ablauf (Cue „+ Timecode“: Start ab Zeit, Stopp, Springen) und per Mapping.")));
       }
     }
     this.update();
@@ -153,13 +154,13 @@ export class TcPanel {
   /** Anzeigen nachführen (wenn sichtbar). */
   update(): void {
     if (!this.root || !this.root.isConnected) return;
-    const t = Date.now(), c = this.clock;
-    const i = c.incoming(t), o = c.outgoing(t);
+    const nowMs = Date.now(), c = this.clock;
+    const i = c.incoming(nowMs), o = c.outgoing(nowMs);
     this.inBig.textContent = i ? formatFrames(Math.floor(i.frames), i.fps) : "--:--:--:--";
     this.inBig.classList.toggle("run", !!i?.running); this.inBig.classList.toggle("stale", !!i?.stale);
-    this.inStatus.textContent = i ? `${i.stale ? "Kein Signal mehr · " : i.running ? "läuft · " : "steht · "}${fpsLabel(c.fps)} fps${c.from ? ` · von ${c.from}` : ""}` : "Wartet auf Timecode …";
+    this.inStatus.textContent = i ? `${i.stale ? t("Kein Signal mehr · ") : i.running ? t("läuft · ") : t("steht · ")}${fpsLabel(c.fps)} fps${c.from ? t(" · von {host}", { host: c.from }) : ""}` : t("Wartet auf Timecode …");
     this.outBig.textContent = o ? formatFrames(Math.floor(o.frames), o.fps) : "--:--:--:--";
     this.outBig.classList.toggle("run", !!o?.running);
-    this.outStatus.textContent = o ? (o.running ? `sendet · ${fpsLabel(o.fps)} fps · ${this.s.via === "artnet" ? "Art-Net" : this.s.via === "mtc" ? "MIDI" : "Art-Net und MIDI"}` : "angehalten") : "nichts zu senden (kein Eingang)";
+    this.outStatus.textContent = o ? (o.running ? `${t("sendet")} · ${fpsLabel(o.fps)} fps · ${this.s.via === "artnet" ? "Art-Net" : this.s.via === "mtc" ? "MIDI" : t("Art-Net und MIDI")}` : t("angehalten")) : t("nichts zu senden (kein Eingang)");
   }
 }

@@ -2,6 +2,7 @@
 // „<Name> Medien“, damit die Datei klein bleibt und das Projekt mit dem Ordner auf einen anderen Rechner umziehen kann.
 import { isValidMediaId, type MediaPayload } from "./media";
 import { parseProject } from "./project";
+import { t } from "./i18n";
 
 export const PROJECT_EXT = "vjlink";
 export const PROJECT_FORMAT = "vjlink-project";
@@ -45,13 +46,13 @@ export interface UnpackedProject { projectJson: string; images: MediaPayload[]; 
 /** Projektdatei lesen. Gibt eine Fehlermeldung zurück, wenn es keine (lesbare) VJ-Link-Datei ist. */
 export function unpackProject(text: string): UnpackedProject | string {
   let raw: unknown;
-  try { raw = JSON.parse(text); } catch { return "Die Datei ist keine VJ-Link-Projektdatei."; }
-  if (typeof raw !== "object" || raw === null) return "Die Datei ist keine VJ-Link-Projektdatei.";
+  try { raw = JSON.parse(text); } catch { return t("Die Datei ist keine VJ-Link-Projektdatei."); }
+  if (typeof raw !== "object" || raw === null) return t("Die Datei ist keine VJ-Link-Projektdatei.");
   const r = raw as Record<string, unknown>;
-  if (r.format !== PROJECT_FORMAT) return "Die Datei ist keine VJ-Link-Projektdatei.";
-  if (typeof r.formatVersion !== "number" || r.formatVersion > PROJECT_FORMAT_VERSION) return "Die Datei stammt aus einer neueren VJ-Link-Version.";
+  if (r.format !== PROJECT_FORMAT) return t("Die Datei ist keine VJ-Link-Projektdatei.");
+  if (typeof r.formatVersion !== "number" || r.formatVersion > PROJECT_FORMAT_VERSION) return t("Die Datei stammt aus einer neueren VJ-Link-Version.");
   const projectJson = JSON.stringify(r.project ?? null);
-  if (!parseProject(projectJson)) return "Das Projekt in der Datei ist beschädigt.";
+  if (!parseProject(projectJson)) return t("Das Projekt in der Datei ist beschädigt.");
   const images = (Array.isArray(r.images) ? r.images : [])
     .filter((m): m is MediaPayload => typeof m === "object" && m !== null && isValidMediaId((m as MediaPayload).id)
       && typeof (m as MediaPayload).name === "string" && typeof (m as MediaPayload).dataUrl === "string")

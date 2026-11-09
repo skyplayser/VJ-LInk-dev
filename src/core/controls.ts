@@ -5,9 +5,10 @@ import { STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
 import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAIN_STACK, MAX_IMAGES, MAX_LAYERS, SLOT_NAMES, allStacks, clamp01, imageList, selectCanvas, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
+import { t } from "./i18n";
 
-export const DRIVE_LABEL = { auto: "Auto", bpm: "Takt", audio: "Audio", static: "Statisch" } as const;
-const LASER_LABEL = { y: "Y (Höhe)", x: "X (Seite)", size: "Größe", thick: "Stärke", rot: "Drehung" } as const;
+export const DRIVE_LABEL: Record<"auto" | "bpm" | "audio" | "static", string> = { auto: "Auto", bpm: t("Takt"), audio: "Audio", static: t("Statisch") };
+const LASER_LABEL: Record<"y" | "x" | "size" | "thick" | "rot", string> = { y: t("Y (Höhe)"), x: t("X (Seite)"), size: t("Größe"), thick: t("Stärke"), rot: t("Drehung") };
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
 export const SCENE_SLOTS = 32;
@@ -35,7 +36,7 @@ export interface ControlDef {
 
 /** Stufen-Fader: Wert 0–1 auf eine Liste verteilen. */
 const stepIndex = (v: number, n: number): number => Math.min(n - 1, Math.floor(clamp01(v) * n));
-const beatsLabel = (b: number): string => b === 0 ? "Schnitt" : b < 1 ? `${b === 0.25 ? "¼" : "½"} Beat` : `${b} ${b === 1 ? "Beat" : "Beats"}`;
+const beatsLabel = (b: number): string => b === 0 ? t("Schnitt") : b < 1 ? `${b === 0.25 ? "¼" : "½"} Beat` : `${b} ${b === 1 ? "Beat" : "Beats"}`;
 
 const on = (v: number): boolean => v >= 0.5;
 
@@ -50,7 +51,7 @@ export function buildControls(): ControlDef[] {
       format: c => c.show.strobe.sync
         ? `${STROBE_DIVISIONS[stepIndex(c.show.strobe.speed, STROBE_DIVISIONS.length)]}×`
         : `${strobeHz(c.show.strobe, 120).toFixed(0)}Hz` },
-    { id: "strobe.intensity", label: "Intens.", group: "Strobe", kind: "fader", quick: true,
+    { id: "strobe.intensity", label: t("Intens."), group: "Strobe", kind: "fader", quick: true,
       get: c => c.show.strobe.intensity, set: (c, v) => { c.show.strobe.intensity = clamp01(v); } },
     { id: "strobe.on", label: "Strobe", group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.strobe.on ? 1 : 0), set: (c, v) => { c.show.strobe.on = on(v); } },
@@ -62,9 +63,9 @@ export function buildControls(): ControlDef[] {
       get: c => (c.show.strobe.whiteFlash ? 1 : 0), set: (c, v) => { c.show.strobe.whiteFlash = on(v); } },
     { id: "blinder", label: "Blinder", group: "Strobe", kind: "hold", quick: true,
       get: c => (c.show.blinder ?? 0) >= 0.5 ? 1 : 0, set: (c, v) => { c.show.blinder = on(v) ? 1 : 0; } },
-    { id: "strobe.sync", label: "Takt", group: "Strobe", kind: "toggle", quick: true,
+    { id: "strobe.sync", label: t("Takt"), group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.strobe.sync ? 1 : 0), set: (c, v) => { c.show.strobe.sync = on(v); } },
-    { id: "fx.master", label: "Effekte", group: "Effekt", kind: "fader", quick: true,
+    { id: "fx.master", label: t("Effekte"), group: "Effekt", kind: "fader", quick: true,
       get: c => c.show.fxMaster, set: (c, v) => { c.show.fxMaster = clamp01(v); } },
     { id: "tempo.tap", label: "Tap", group: "Tempo", kind: "trigger", quick: true,
       get: () => 0, set: (c, v) => { if (on(v)) c.tempo.tap(Date.now()); } },
@@ -72,7 +73,7 @@ export function buildControls(): ControlDef[] {
       get: c => Math.max(0, TEMPO_FACTORS.indexOf(c.tempo.factor as typeof TEMPO_FACTORS[number])) / (TEMPO_FACTORS.length - 1),
       set: (c, v) => { c.tempo.factor = TEMPO_FACTORS[stepIndex(v, TEMPO_FACTORS.length)]!; },
       format: c => `${c.tempo.factor}×` },
-    { id: "transition.beats", label: "Blende", group: "Szenen", kind: "fader", quick: true,
+    { id: "transition.beats", label: t("Blende"), group: "Szenen", kind: "fader", quick: true,
       get: c => Math.max(0, TRANSITION_BEATS.indexOf(c.show.transitionBeats as typeof TRANSITION_BEATS[number])) / (TRANSITION_BEATS.length - 1),
       set: (c, v) => { c.show.transitionBeats = TRANSITION_BEATS[stepIndex(v, TRANSITION_BEATS.length)]!; },
       format: c => beatsLabel(c.show.transitionBeats) },
@@ -84,82 +85,82 @@ export function buildControls(): ControlDef[] {
     format: c => c.tempo.bpm.toFixed(1) });
   // Ebenen bis MAX_LAYERS: fehlt eine Ebene, passiert nichts (Zuordnungen bleiben trotzdem gültig).
   for (let i = 0; i < MAX_LAYERS; i++) {
-    list.push({ id: `layer.${i + 1}.opacity`, label: `E${i + 1}`, group: "Ebenen", kind: "fader", quick: true,
+    list.push({ id: `layer.${i + 1}.opacity`, label: t("E{n}", { n: i + 1 }), group: "Ebenen", kind: "fader", quick: true,
       get: c => c.show.layers[i]?.opacity ?? 0, set: (c, v) => { const l = c.show.layers[i]; if (l) l.opacity = clamp01(v); } });
     list.push(
-      { id: `layer.${i + 1}.color`, label: `E${i + 1} Farbe`, group: "Ebenen", kind: "fader", quick: false,
+      { id: `layer.${i + 1}.color`, label: t("E{n} Farbe", { n: i + 1 }), group: "Ebenen", kind: "fader", quick: false,
         get: c => Math.max(0, COLOR_SOURCES.indexOf(c.show.layers[i]?.colorSource ?? "original")) / (COLOR_SOURCES.length - 1),
         set: (c, v) => { const l = c.show.layers[i]; if (l) l.colorSource = COLOR_SOURCES[stepIndex(v, COLOR_SOURCES.length)]!; },
         format: c => c.show.layers[i]?.colorSource ?? "–" },
-      { id: `layer.${i + 1}.blend`, label: `E${i + 1} Mischmodus`, group: "Ebenen", kind: "fader", quick: false,
+      { id: `layer.${i + 1}.blend`, label: t("E{n} Mischmodus", { n: i + 1 }), group: "Ebenen", kind: "fader", quick: false,
         get: c => Math.max(0, BLEND_MODES.indexOf(c.show.layers[i]?.blend ?? "normal")) / (BLEND_MODES.length - 1),
         set: (c, v) => { const l = c.show.layers[i]; if (l) l.blend = BLEND_MODES[stepIndex(v, BLEND_MODES.length)]!; },
         format: c => c.show.layers[i]?.blend ?? "–" },
-      { id: `layer.${i + 1}.drive`, label: `E${i + 1} Antrieb`, group: "Ebenen", kind: "fader", quick: false,
+      { id: `layer.${i + 1}.drive`, label: t("E{n} Antrieb", { n: i + 1 }), group: "Ebenen", kind: "fader", quick: false,
         get: c => Math.max(0, DRIVES.indexOf(c.show.layers[i]?.drive ?? "auto")) / (DRIVES.length - 1),
         set: (c, v) => { const l = c.show.layers[i]; if (l) l.drive = DRIVES[stepIndex(v, DRIVES.length)]!; },
         format: c => DRIVE_LABEL[c.show.layers[i]?.drive ?? "auto"] },
       ...(["y", "x", "size", "thick", "rot"] as const).map(k => ({
-        id: `layer.${i + 1}.laser.${k}`, label: `E${i + 1} ${k === "thick" ? "Laser " : ""}${LASER_LABEL[k]}`, group: "Ebenen" as const, kind: "fader" as const, quick: false,
+        id: `layer.${i + 1}.laser.${k}`, label: `${t("E{n}", { n: i + 1 })} ${k === "thick" ? "Laser " : ""}${LASER_LABEL[k]}`, group: "Ebenen" as const, kind: "fader" as const, quick: false,
         get: (c: ControlContext) => { const z = c.show.layers[i]?.laser ?? defaultLaser(); const [lo, hi] = LASER_LIMITS[k]; return clamp01(((z[k] ?? 0) - lo) / (hi - lo)); },
         set: (c: ControlContext, v: number) => {
           const l = c.show.layers[i]; if (!l) return;
           const [lo, hi] = LASER_LIMITS[k]; l.laser = { ...(l.laser ?? defaultLaser()), [k]: lo + clamp01(v) * (hi - lo) } as LaserSettings;
         },
       })),
-      { id: `layer.${i + 1}.laser.xy`, label: `E${i + 1} XY-Override`, group: "Ebenen", kind: "toggle", quick: false,
+      { id: `layer.${i + 1}.laser.xy`, label: `${t("E{n}", { n: i + 1 })} XY-Override`, group: "Ebenen", kind: "toggle", quick: false,
         get: c => (c.show.layers[i]?.laser?.override ? 1 : 0),
         set: (c, v) => { const l = c.show.layers[i]; if (l) l.laser = { ...(l.laser ?? defaultLaser()), override: on(v) }; } },
-      { id: `layer.${i + 1}.clear`, label: `E${i + 1} Clip aus`, group: "Ebenen", kind: "trigger", quick: false,
+      { id: `layer.${i + 1}.clear`, label: t("E{n} Clip aus", { n: i + 1 }), group: "Ebenen", kind: "trigger", quick: false,
         get: c => (c.show.layers[i]?.clip ? 0 : 1), set: (c, v) => { const l = c.show.layers[i]; if (l && on(v)) l.clip = null; } },
     );
     for (let k = 0; k < 3; k++) {
-      list.push({ id: `layer.${i + 1}.fx.${k + 1}`, label: `E${i + 1} Fx${k + 1}`, group: "Ebenen", kind: "fader", quick: false,
+      list.push({ id: `layer.${i + 1}.fx.${k + 1}`, label: `${t("E{n}", { n: i + 1 })} Fx${k + 1}`, group: "Ebenen", kind: "fader", quick: false,
         get: c => c.show.layers[i]?.effects[k]?.amount ?? 0,
         set: (c, v) => { const slot = c.show.layers[i]?.effects[k]; if (slot) slot.amount = clamp01(v); } });
     }
   }
   // Farbslots per Drehregler: Farbton bei voller Sättigung
   SLOT_NAMES.forEach((n, i) => {
-    list.push({ id: `slot.${n}.hue`, label: `Slot ${n} Farbton`, group: "Farben", kind: "fader", quick: false,
+    list.push({ id: `slot.${n}.hue`, label: t("Slot {n} Farbton", { n }), group: "Farben", kind: "fader", quick: false,
       get: c => hueOf(c.show.slots[i] ?? [1, 1, 1]), set: (c, v) => { c.show.slots[i] = hueRgb(v); } });
     (["Rot", "Grün", "Blau"] as const).forEach((name, k) => {
-      list.push({ id: `slot.${n}.${"rgb"[k]}`, label: `Slot ${n} ${name}`, group: "Farben", kind: "fader", quick: false,
+      list.push({ id: `slot.${n}.${"rgb"[k]}`, label: `Slot ${n} ${t(name)}`, group: "Farben", kind: "fader", quick: false,
         get: c => c.show.slots[i]?.[k] ?? 0,
         set: (c, v) => { const o = c.show.slots[i] ?? [0, 0, 0]; const nx: [number, number, number] = [o[0], o[1], o[2]]; nx[k] = clamp01(v); c.show.slots[i] = nx; } });
     });
   });
   list.push(
-    { id: "show.go", label: "WEITER", group: "Show", kind: "trigger", quick: false,
+    { id: "show.go", label: t("WEITER"), group: "Show", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) showGo(c); } },
-    { id: "show.back", label: "Zurück", group: "Show", kind: "trigger", quick: false,
+    { id: "show.back", label: t("Zurück"), group: "Show", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) showBack(c); } },
-    { id: "show.stop", label: "Alles stoppen", group: "Show", kind: "trigger", quick: false,
+    { id: "show.stop", label: t("Alles stoppen"), group: "Show", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) showStop(c); } },
-    { id: "tc.start", label: "Timecode Start", group: "Show", kind: "trigger", quick: false,
+    { id: "tc.start", label: t("Timecode Start"), group: "Show", kind: "trigger", quick: false,
       get: c => (c.tc?.sending ? 1 : 0), set: (c, v) => { if (on(v)) c.tc?.start(Date.now()); } },
-    { id: "tc.stop", label: "Timecode Stopp", group: "Show", kind: "trigger", quick: false,
+    { id: "tc.stop", label: t("Timecode Stopp"), group: "Show", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) c.tc?.stop(Date.now()); } },
-    { id: "tc.zero", label: "Timecode auf Start", group: "Show", kind: "trigger", quick: false,
+    { id: "tc.zero", label: t("Timecode auf Start"), group: "Show", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) c.tc?.locate(0, Date.now()); } },
-    { id: "test.toggle", label: "Testbild", group: "Master", kind: "toggle", quick: false,
+    { id: "test.toggle", label: t("Testbild"), group: "Master", kind: "toggle", quick: false,
       get: c => (c.show.testCard ? 1 : 0), set: (c, v) => { c.show.testCard = on(v); } },
-    { id: "test.next", label: "Nächstes Testbild", group: "Master", kind: "trigger", quick: false,
+    { id: "test.next", label: t("Nächstes Testbild"), group: "Master", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (!on(v)) return; if (c.show.testCard) c.show.testPattern = stepTestPattern(c.show.testPattern, 1); else c.show.testCard = true; } },
-    { id: "test.prev", label: "Voriges Testbild", group: "Master", kind: "trigger", quick: false,
+    { id: "test.prev", label: t("Voriges Testbild"), group: "Master", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (!on(v)) return; if (c.show.testCard) c.show.testPattern = stepTestPattern(c.show.testPattern, -1); else c.show.testCard = true; } },
   );
   list.push(
-    { id: "scene.next", label: "Weiter", group: "Szenen", kind: "trigger", quick: false,
+    { id: "scene.next", label: t("Weiter"), group: "Szenen", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) stepScene(c, 1); } },
-    { id: "scene.prev", label: "Zurück", group: "Szenen", kind: "trigger", quick: false,
+    { id: "scene.prev", label: t("Zurück"), group: "Szenen", kind: "trigger", quick: false,
       get: () => 0, set: (c, v) => { if (on(v)) stepScene(c, -1); } },
     { id: "scene.auto", label: "Auto", group: "Szenen", kind: "toggle", quick: false,
       get: c => (c.show.autoVj ? 1 : 0), set: (c, v) => { c.show.autoVj = on(v); } },
   );
   // Die Leiste baut ihre Szenen-Tasten selbst aus der aktuellen Szenenliste.
   for (let i = 0; i < SCENE_SLOTS; i++) {
-    list.push({ id: `scene.${i + 1}`, label: `Szene ${i + 1}`, group: "Szenen", kind: "trigger", quick: false,
+    list.push({ id: `scene.${i + 1}`, label: t("Szene {n}", { n: i + 1 }), group: "Szenen", kind: "trigger", quick: false,
       get: c => (c.show.scene === i + 1 ? 1 : 0), set: (c, v) => { if (on(v)) recallScene(c, i); },
       format: c => c.scenes[i]?.name ?? "–" });
   }
@@ -174,14 +175,14 @@ function imageControls(): ControlDef[] {
   const list: ControlDef[] = [];
   const imgId = (c: ControlContext, n: number): string | undefined => imageList(c.show)[n]?.id;
   for (let n = 0; n < MAX_IMAGES; n++) {
-    list.push({ id: `bild.${n + 1}.hell`, label: `Bild ${n + 1} Helligkeit`, group: "Bilder", kind: "fader", quick: false,
+    list.push({ id: `bild.${n + 1}.hell`, label: t("Bild {n} Helligkeit", { n: n + 1 }), group: "Bilder", kind: "fader", quick: false,
       get: c => { const id = imgId(c, n); return id ? c.show.stackGain?.[id] ?? 1 : 0; },
       set: (c, v) => { const id = imgId(c, n); if (id) (c.show.stackGain ??= {})[id] = clamp01(v); } });
-    list.push({ id: `bild.${n + 1}.bearbeiten`, label: `Bild ${n + 1} bearbeiten`, group: "Bilder", kind: "trigger", quick: false,
+    list.push({ id: `bild.${n + 1}.bearbeiten`, label: t("Bild {n} bearbeiten", { n: n + 1 }), group: "Bilder", kind: "trigger", quick: false,
       get: c => (c.show.canvas ?? MAIN_STACK) === imgId(c, n) ? 1 : 0,
       set: (c, v) => { const id = imgId(c, n); if (id && on(v)) selectCanvas(c.show, id); } });
     for (let k = 0; k < MAX_LAYERS; k++) {
-      list.push({ id: `bild.${n + 1}.e${k + 1}`, label: `Bild ${n + 1} E${k + 1}`, group: "Bilder", kind: "fader", quick: false,
+      list.push({ id: `bild.${n + 1}.e${k + 1}`, label: `${t("Bild {n}", { n: n + 1 })} ${t("E{n}", { n: k + 1 })}`, group: "Bilder", kind: "fader", quick: false,
         get: c => { const id = imgId(c, n); return (id ? allStacks(c.show)[id]?.[k]?.opacity : 0) ?? 0; },
         set: (c, v) => { const id = imgId(c, n); const l = id ? allStacks(c.show)[id]?.[k] : undefined; if (l) l.opacity = clamp01(v); } });
     }
@@ -207,7 +208,7 @@ export function resolveControl(id: string): ControlDef | undefined {
     const li = Number(m[1]) - 1, clip = m[2]!;
     if (li < 0 || li >= MAX_LAYERS) return undefined;
     return {
-      id, label: `E${li + 1} ${EFFECT_BY_ID.get(clip)?.name ?? (clip.startsWith("img:") ? "Grafik" : clip)}`, group: "Clips",
+      id, label: `${t("E{n}", { n: li + 1 })} ${EFFECT_BY_ID.get(clip)?.name ?? (clip.startsWith("img:") ? t("Grafik") : clip)}`, group: "Clips",
       kind: "trigger", quick: false,
       get: c => (c.show.layers[li]?.clip === clip ? 1 : 0),
       set: (c, v) => { const l = c.show.layers[li]; if (l && on(v)) l.clip = l.clip === clip ? null : clip; },

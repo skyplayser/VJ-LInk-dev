@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 // Text-Clips: ein Text-Rahmen (1920 × 1080, durchsichtig) mit Formatierung. Wird als Grafik gerendert und
 // ist damit überall nutzbar, wo Grafiken gehen (Clip-Raster, Szenen, SHOW). Die Angaben bleiben im Projekt,
 // damit man den Text später bearbeiten kann.
@@ -27,15 +28,15 @@ export interface TextSpec {
 
 /** Schriften, die auf macOS und Windows meist vorhanden sind (sonst greift der Browser auf eine ähnliche zurück). */
 export const TEXT_FONTS: readonly { id: string; label: string; css: string }[] = [
-  { id: "system", label: "System (klar)", css: "system-ui, -apple-system, 'Segoe UI', sans-serif" },
+  { id: "system", label: t("System (klar)"), css: "system-ui, -apple-system, 'Segoe UI', sans-serif" },
   { id: "helvetica", label: "Helvetica / Arial", css: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
-  { id: "black", label: "Arial Black (fett)", css: "'Arial Black', 'Helvetica Neue', Arial, sans-serif" },
-  { id: "impact", label: "Impact (schmal, laut)", css: "Impact, 'Haettenschweiler', 'Arial Narrow Bold', sans-serif" },
+  { id: "black", label: t("Arial Black (fett)"), css: "'Arial Black', 'Helvetica Neue', Arial, sans-serif" },
+  { id: "impact", label: t("Impact (schmal, laut)"), css: "Impact, 'Haettenschweiler', 'Arial Narrow Bold', sans-serif" },
   { id: "futura", label: "Futura / Century Gothic", css: "Futura, 'Century Gothic', 'Avenir Next', sans-serif" },
   { id: "avenir", label: "Avenir / Segoe", css: "'Avenir Next', Avenir, 'Segoe UI', sans-serif" },
   { id: "georgia", label: "Georgia (Serif)", css: "Georgia, 'Times New Roman', serif" },
   { id: "mono", label: "Monospace", css: "Menlo, Consolas, 'Courier New', monospace" },
-  { id: "marker", label: "Handschrift", css: "'Marker Felt', 'Segoe Print', 'Comic Sans MS', cursive" },
+  { id: "marker", label: t("Handschrift"), css: "'Marker Felt', 'Segoe Print', 'Comic Sans MS', cursive" },
 ];
 export const fontCss = (id: string): string => (TEXT_FONTS.find(f => f.id === id) ?? TEXT_FONTS[0]!).css;
 

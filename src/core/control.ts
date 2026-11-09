@@ -6,6 +6,7 @@ import { SLOT_NAMES, allStacks, applyScene, clamp01, cloneLayers, cloneSideStack
 import { READY_GENERATORS } from "./effects";
 import { cueBack, cueGo, cueStopAll, type CueEnv, type CueState } from "./video";
 import { setControl } from "./controls";
+import { t } from "./i18n";
 
 export interface ControlContext {
   /** SHOW-Ablauf (Cues und laufender Zustand). */
@@ -85,7 +86,7 @@ export function tickAuto(c: ControlContext, nowMs: number): boolean {
 /** Aktuelles Bild als neue Szene ablegen. Gibt den Index zurück. */
 export function addSceneFromCurrent(c: ControlContext, name?: string): number {
   c.scenes.push({
-    name: name ?? `Szene ${c.scenes.length + 1}`,
+    name: name ?? t("Szene {n}", { n: c.scenes.length + 1 }),
     layers: (syncStacks(c.show), cloneLayers(mainLayers(c.show))),
     stacks: cloneSideStacks(c.show),
     transition: { unit: "beats", value: c.show.transitionBeats || 1, style: "fade" },
