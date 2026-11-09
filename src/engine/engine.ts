@@ -197,7 +197,8 @@ export class Engine {
       gl.uniform1i(this.loc(im, "uImg"), 0);
       gl.uniform2f(this.loc(im, "uRes"), w, h);
       gl.uniform1f(this.loc(im, "uImgAspect"), media.w / Math.max(1, media.h));
-      gl.uniform2f(this.loc(im, "uPos"), tf.x, tf.y);
+      // x in Bildhöhen → auf die Breite beziehen: ±1 (Regler ±100) = Bildrand
+      gl.uniform2f(this.loc(im, "uPos"), tf.x * (w / h), tf.y);
       gl.uniform1f(this.loc(im, "uScale"), tf.scale);
       gl.uniform1f(this.loc(im, "uRot"), tf.rotation);
       gl.uniform1i(this.loc(im, "uKeyMode"), isVideo ? 0 : l.media.keyMode === "white" ? 1 : l.media.keyMode === "black" ? 2 : 0);

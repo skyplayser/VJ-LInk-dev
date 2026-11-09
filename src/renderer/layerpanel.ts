@@ -3,7 +3,7 @@ import type { ControlContext } from "../core/control";
 import { DRIVE_LABEL } from "../core/controls";
 import { EFFECT_BY_ID } from "../core/effects";
 import {
-  DRIVES, LASER_LIMITS, SLOT_NAMES, defaultLaser, toggleColorSlot,
+  DRIVES, LASER_LIMITS, SLOT_NAMES, defaultLaser, layerName, toggleColorSlot,
   type ColorSource, type Drive, type LaserSettings, type LayerState,
 } from "../core/show";
 
@@ -34,7 +34,7 @@ export class LayerPanel {
   private sig = "";
   private ranges = new Map<NumKey, { input: HTMLInputElement; val: HTMLElement }>();
 
-  constructor(private ctx: ControlContext, private root: HTMLElement, private layerOf: () => number) {}
+  constructor(private ctx: ControlContext, private root: HTMLElement, private layerOf: () => number, private onRename: () => void = () => {}) {}
 
   private layer(): LayerState | undefined { return this.ctx.show.layers[this.layerOf()]; }
 
@@ -62,6 +62,13 @@ export class LayerPanel {
     this.root.replaceChildren();
     this.ranges.clear();
     this.root.append(el("h2", "", `Ebene ${n + 1}`));
+    // Name der Ebene (erscheint im Clip-Raster)
+    const nr = el("div", "lp-row"); nr.append(el("span", "lp-lab", "Name"));
+    const name = el("input", "lp-name"); name.maxLength = 24; name.value = l.name ?? ""; name.placeholder = layerName(undefined, n);
+    name.setAttribute("aria-label", `Name Ebene ${n + 1}`);
+    name.addEventListener("change", () => { l.name = name.value.trim().slice(0, 24) || undefined; this.onRename(); });
+    name.addEventListener("keydown", e => { if (e.key === "Enter") name.blur(); });
+    nr.append(name); this.root.append(nr);
 
     // Antrieb
     const dr = el("div", "lp-row"); dr.append(el("span", "lp-lab", "Antrieb"));

@@ -514,3 +514,4 @@ body.mapping .cell-edit,body.modding .cell-edit{display:none}
 .tf-ctl input[type=color]{width:34px;height:24px;padding:0;border:1px solid var(--line);border-radius:4px;background:none}
 .text-view{display:flex;flex-direction:column;gap:6px;min-width:0}
 .text-preview{width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--line);border-radius:6px}
+.lp-name{min-width:0;background:var(--raise);border:1px solid var(--line);border-radius:4px;color:var(--text);padding:4px 7px;font:600 12px system-ui,sans-serif}

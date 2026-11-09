@@ -799,7 +799,7 @@ void main(){
   vec2 uv = vUv;
   vec3 c;
   // Lage, Größe, Drehung für alle Visuals außer Lasern (die rechnen sie selbst, damit Linien dünn bleiben).
-  // Was aus dem Rahmen fällt, bleibt schwarz.
+  // Das Visual läuft dabei weiter über den ganzen Bildschirm (kein Rahmen).
   bool isLz = uGen >= 28 || uGen == 22;
   if (!isLz && uGen != 27) {
     float asp = uRes.x / uRes.y;
@@ -807,7 +807,6 @@ void main(){
     float co = cos(uLzRot), si = sin(uLzRot);
     p = mat2(co, si, -si, co) * p / max(uLz.z, 0.05);
     uv = p / vec2(asp, 1.0) + 0.5;
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { outColor = vec4(0.0); return; }
   }
   if (uGen == 0) c = barSpectrum(uv);
   else if (uGen == 1) c = radialEq(uv);

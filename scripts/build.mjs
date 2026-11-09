@@ -12,7 +12,7 @@ await build({ ...common, entryPoints: ["src/main/main.ts"], outfile: "dist/main/
   platform: "node", format: "cjs", target: "node22", external: ["electron"] });
 await build({ ...common, entryPoints: ["src/main/preload.ts"], outfile: "dist/main/preload.js",
   platform: "node", format: "cjs", target: "node22", external: ["electron"] });
-await build({ ...common, entryPoints: { app: "src/renderer/app.ts", output: "src/renderer/output.ts" },
+await build({ ...common, loader: { ".png": "dataurl" }, entryPoints: { app: "src/renderer/app.ts", output: "src/renderer/output.ts" },
   outdir: "dist/renderer", platform: "browser", format: "iife", target: "chrome120" });
 
 await cp("src/renderer/index.html", "dist/renderer/index.html");

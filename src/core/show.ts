@@ -42,6 +42,8 @@ export const DMX_LAYERS = 4;
 export const SLOT_NAMES = ["A", "B", "C", "D", "E"] as const;
 
 export interface LayerState {
+  /** Eigener Name (z. B. „LOGO“); leer = „Basis“ bzw. „Overlay“. */
+  name?: string;
   clip: string | null;
   /** Clips in der Zeile dieser Ebene (aus der Bibliothek zusammengestellt). */
   clips: string[];
@@ -312,7 +314,10 @@ export function applyScene(state: ShowState, scene: Scene): void {
   scene.layers.forEach((patch, i) => {
     const layer = state.layers[i];
     if (!patch || !layer) return;
+    // Der Name gehört zur Ebene, nicht zur Szene
+    const name = layer.name;
     Object.assign(layer, patch);
+    layer.name = name;
     if (patch.effects) layer.effects = patch.effects.map(e => ({ ...e }));
     if (patch.media) layer.media = { ...patch.media };
     if (patch.clips) layer.clips = [...patch.clips];
@@ -389,3 +394,7 @@ export function layerTimesAt(s: LayerClockSnap, nowMs: number, layers: readonly 
   const dt = Math.min(1, Math.max(0, (nowMs - s.at) / 1000));
   return s.t.map((t, i) => t + dt * (layers[i]?.speed ?? 1));
 }
+
+/** Anzeigename einer Ebene. */
+export const layerName = (l: Pick<LayerState, "name"> | undefined, i: number): string =>
+  (l?.name?.trim() || (i === 0 ? "Basis" : "Overlay"));

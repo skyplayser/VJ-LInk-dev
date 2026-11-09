@@ -38,7 +38,11 @@ import type { ProjectFileCmd } from "../core/frame";
 import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
 import { LayerPanel } from "./layerpanel";
+import { addLayer as addShowLayer, layerName } from "../core/show";
 import { ShowLock } from "./lock";
+import ljlinkLogo from "../../assets/ljlink-logo.png";
+import { drawText } from "./texteditor";
+import { defaultText } from "../core/text";
 import { TextEditor } from "./texteditor";
 import { textName } from "../core/text";
 import { DRIVE_LABEL } from "../core/controls";
@@ -272,7 +276,7 @@ function rebuildGrid(): void {
       if ((e.target as HTMLElement).closest("input,select")) return;
       fxPanel.select(l);
     });
-    const title = el("b", "", `E${l + 1} · ${l === 0 ? "Basis" : "Overlay"}`);
+    const title = el("b", "", `E${l + 1} · ${layerName(ctx.show.layers[l], l)}`);
     if (n > 1) {
       const del = el("button", "layer-del", "×");
       del.title = "Ebene entfernen"; del.setAttribute("aria-label", `Ebene ${l + 1} entfernen`);
@@ -933,7 +937,7 @@ function updateUi(now: number, beat: number): void {
   for (let l = 0; l < s.layers.length; l++) {
     const layer = s.layers[l]!;
     clipCells[l]?.forEach((b, c) => b.classList.toggle("on", rowClips[l]?.[c] === layer.clip));
-    if (document.activeElement !== opSliders[l]) opSliders[l]!.value = String(Math.round(layer.opacity * 100));
+    const op = opSliders[l]; if (op && document.activeElement !== op) op.value = String(Math.round(layer.opacity * 100));
   }
   const rows = document.querySelectorAll<HTMLElement>("#grid .lrow");
   rows.forEach((row, ri) => {
@@ -962,7 +966,7 @@ function updateUi(now: number, beat: number): void {
 }
 
 const fxPanel = new FxPanel(ctx, $("fx-title"), $("fx-list"), $<HTMLSelectElement>("fx-add"));
-const layerPanel = new LayerPanel(ctx, $("layer-panel"), () => fxPanel.layer);
+const layerPanel = new LayerPanel(ctx, $("layer-panel"), () => fxPanel.layer, () => { rebuildGrid(); rebuildDeck(); });
 const mediaPanel = new MediaPanel(ctx, library, $("media-panel"), () => fxPanel.layer, () => rebuildGrid());
 const videoPanel = new VideoPanel(ctx, videoLib, $("video-panel"), () => fxPanel.layer, () => rebuildGrid());
 const showTab = new ShowTab({
@@ -1038,6 +1042,36 @@ function autosave(now: number): void {
 function json0(raw: string | null): ReturnType<typeof parseProject> {
   return raw ? parseProject(raw) : null;
 }
+/**
+ * Start-Aufbau für ein leeres oder neues Projekt:
+ * E6 LOGO (LJ-Link-Logo klein unten rechts), E5 TEXT EBENE (Text „LJ Link“), E4 Laser Ebene (alle Laser-Visuals),
+ * E3 und E2 Overlay (Licht, Partikel, Geometrie), E1 Basis (Start-Clips).
+ */
+async function setupStarterProject(): Promise<void> {
+  const s = ctx.show;
+  while (s.layers.length < 6 && addShowLayer(s) >= 0) { /* auffüllen */ }
+  const L = s.layers;
+  const gens = (ids: string[]) => ids.filter(id => EFFECT_BY_ID.get(id)?.status === "ready");
+  L[0]!.name = "Basis";
+  L[1]!.name = "Overlay"; L[1]!.clips = gens(["starfield", "bokeh", "burst", "lightning", "vector-gobos", "flower", "moire", "co2-jet"]); L[1]!.clip = null;
+  L[2]!.name = "Overlay"; L[2]!.clips = gens(["plexus", "hypercube", "ripples", "liquid-light", "uv-glow", "fire", "mirror-ball", "dot-matrix"]); L[2]!.clip = null;
+  L[3]!.name = "Laser Ebene"; L[3]!.clips = EFFECTS.filter(e => e.category === "laser" && e.kind === "generator" && e.status === "ready").map(e => e.id); L[3]!.clip = null; L[3]!.blend = "add";
+  // Text-Ebene: „LJ Link“
+  const spec = { ...defaultText(), text: "LJ Link" };
+  const cv = document.createElement("canvas"); drawText(cv, spec);
+  const tp = { id: newMediaId(), name: "LJ Link", dataUrl: cv.toDataURL("image/png") };
+  const titem = await library.load(tp);
+  L[4]!.name = "TEXT EBENE"; L[4]!.clip = null; L[4]!.blend = "normal";
+  if (titem) { titem.text = spec; bridge?.addMedia(tp); L[4]!.clips = [mediaClip(tp.id)]; }
+  Object.assign(L[4]!.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
+  // Logo-Ebene: LJ-Link-Logo klein unten rechts
+  const lp = { id: newMediaId(), name: "LJ-Link-Logo", dataUrl: ljlinkLogo };
+  const litem = await library.load(lp);
+  L[5]!.name = "LOGO"; L[5]!.blend = "normal";
+  if (litem) { bridge?.addMedia(lp); L[5]!.clips = [mediaClip(lp.id)]; L[5]!.clip = mediaClip(lp.id); }
+  Object.assign(L[5]!.media, { scale: 0.16, x: 0.86, y: -0.76, rotation: 0, anim: "none", keyMode: "none" });
+  L[5]!.opacity = 1;
+}
 let fresh = false;
 async function loadProject(): Promise<void> {
   try {
@@ -1060,6 +1094,8 @@ async function loadProject(): Promise<void> {
       try { json = localStorage.getItem("vjlink.project"); } catch { json = null; }
     }
     const p = json ? parseProject(json) : null;
+    // Leeres bzw. neues Projekt: Start-Aufbau mit sechs Ebenen, Text und Logo
+    if (!p) await setupStarterProject();
     if (p) {
       applyProject(ctx, p);
       outLayout = p.outputs;

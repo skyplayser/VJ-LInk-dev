@@ -128,6 +128,7 @@ function partialLayer(v: unknown): Partial<LayerState> | null {
   if (!isObj(v)) return null;
   const out: Partial<LayerState> = {};
   if ("clip" in v) out.clip = clip(v.clip);
+  if (typeof v.name === "string") out.name = v.name.slice(0, 24);
   if (Array.isArray(v.clips)) out.clips = [...new Set(v.clips.map(clip).filter((c): c is string => !!c))].slice(0, 128);
   if ("opacity" in v) out.opacity = clamp01(num(v.opacity, 1));
   if ("blend" in v) out.blend = oneOf(v.blend, BLEND_MODES, "normal");
