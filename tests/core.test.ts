@@ -1565,3 +1565,13 @@ describe("Kamera-Darstellungen", () => {
     expect(usesCells("ascii") && usesCells("halftone") && !usesCells("thermal")).toBe(true);
   });
 });
+
+import { HISTORY_FX } from "../src/engine/shaders";
+describe("Techno-Effekte", () => {
+  it("Effekte mit Gedächtnis gibt es im Stapel, alle neuen sind wählbar", () => {
+    for (const id of HISTORY_FX) expect(POST_IDS as readonly string[]).toContain(id);
+    for (const id of ["datamosh", "echo", "stutter", "zoom-blur", "tiles", "edges", "one-bit", "shake", "polar", "liquid", "slices", "hue-cycle", "posterize", "beat-invert"])
+      expect(POST_EFFECTS.map(e => e.id)).toContain(id);
+    expect(POST_EFFECTS.length).toBe(27);
+  });
+});

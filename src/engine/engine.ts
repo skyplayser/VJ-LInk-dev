@@ -10,7 +10,7 @@ import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
 import { mediaTransform } from "../core/media";
 import type { Mask, View, Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
-import { COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG, DJWAVE_FRAG } from "./shaders";
+import { HISTORY_FX, COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG, DJWAVE_FRAG } from "./shaders";
 
 const COLOR_MODE: Record<ColorSource, number> = {
   original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3, multi: 4,
@@ -286,7 +286,7 @@ export class Engine {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, media.tex);
       this.bindTarget(this.work[0]);
       this.draw();
-      return this.applyEffects(l, fbKey, time, w, h, show, drv.pulse, ca, cb);
+      return this.applyEffects(l, fbKey, time, w, h, show, drv.pulse, ca, cb, drv.beat);
     }
 
     // 1) Generator
@@ -318,7 +318,7 @@ export class Engine {
     if (wave) gl.uniform1fv(this.loc(g, "uWave"), new Float32Array(wave));
     this.bindTarget(this.work[0]);
     this.draw();
-    return this.applyEffects(l, fbKey, time, w, h, show, drv.pulse, ca, cb);
+    return this.applyEffects(l, fbKey, time, w, h, show, drv.pulse, ca, cb, drv.beat);
   }
 
   /** DJ-Wellenform des Master-Decks (Position läuft zwischen den Meldungen mit der Geschwindigkeit weiter). */
@@ -353,7 +353,7 @@ export class Engine {
 
   /** 2) Effekt-Stapel auf work[0] anwenden, Ergebnis zurückgeben. */
   private applyEffects(l: LayerState, fbKey: string, time: number, w: number, h: number,
-    show: ShowState, pulse: number, ca: Rgb, cb: Rgb): Target {
+    show: ShowState, pulse: number, ca: Rgb, cb: Rgb, beat = 0): Target {
     const gl = this.gl;
     let src: Target = this.work[0]!;
     const p = this.post;
@@ -361,6 +361,7 @@ export class Engine {
     gl.uniform2f(this.loc(p, "uRes"), w, h);
     gl.uniform1f(this.loc(p, "uTime"), time);
     gl.uniform1f(this.loc(p, "uPulse"), pulse);
+    gl.uniform1f(this.loc(p, "uBeat"), beat);
     gl.uniform1i(this.loc(p, "uTex"), 0);
     gl.uniform1i(this.loc(p, "uPrev"), 1);
     gl.uniform3f(this.loc(p, "uColA"), ca[0], ca[1], ca[2]);
@@ -372,8 +373,9 @@ export class Engine {
       const eff = POST_IDS.indexOf(slot.id as typeof POST_IDS[number]);
       if (!slot.on || amount < 0.005 || eff < 0) continue;
       let dst: Target;
-      if (slot.id === "feedback") {
-        const fb = this.feedbackPair(fbKey, w, h);
+      if (HISTORY_FX.has(slot.id)) {
+        // Effekte mit Gedächtnis: je Ebene und Effekt ein eigenes Paar (letztes Bild ↔ neues Bild)
+        const fb = this.feedbackPair(slot.id === "feedback" ? fbKey : `${fbKey}:${slot.id}`, w, h);
         this.bindTex(1, fb.t[fb.cur]);
         fb.cur = fb.cur === 0 ? 1 : 0;
         dst = fb.t[fb.cur];

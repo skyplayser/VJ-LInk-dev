@@ -154,6 +154,21 @@ export const POST_EFFECTS: readonly PostEffectDef[] = [
   { id: "tint", name: "Farbüberlagerung", info: "Färbt die Ebene in ihrer Farbquelle (Slot, Verlauf, Regenbogen; Original = Slot A)." },
   { id: "ascii", name: "ASCII", info: "Bild als Zeichenraster (. : + # @) in den Farben des Bildes.", no: 25 },
   { id: "laser", name: "Laser-Look", info: "Macht aus jedem Visual dünne, satte Linien auf reinem Schwarz, wie ein Laser. Für den Beamer im Nebel." },
+  // Techno-Effekte
+  { id: "datamosh", name: "Datamosh", info: "Blöcke bleiben vom letzten Bild stehen und verschmieren, wie ein kaputtes Video." },
+  { id: "echo", name: "Echo-Spuren", info: "Farbige Nachzieher hinter allem, was sich bewegt." },
+  { id: "stutter", name: "Stutter", info: "Friert das Bild im Takt ein (Achtel). Stärke = wie lange es steht." },
+  { id: "zoom-blur", name: "Zoom-Blur", info: "Bewegungsunschärfe zur Mitte, auf dem Beat stärker." },
+  { id: "tiles", name: "Kacheln", info: "Wiederholt das Bild 2× bis 5×, jede zweite Kachel gespiegelt, wechselt im Takt." },
+  { id: "edges", name: "Neon-Kanten", info: "Nur noch leuchtende Umrisse in den Farben des Bildes." },
+  { id: "one-bit", name: "1-Bit", info: "Hartes Schwarz-Weiß mit Pixelraster, wie ein alter Monitor." },
+  { id: "shake", name: "Shake", info: "Das Bild ruckt und kippt auf jedem Beat." },
+  { id: "polar", name: "Polar-Warp", info: "Biegt jedes Visual zu einem Tunnel." },
+  { id: "liquid", name: "Liquid-Warp", info: "Wellige, flüssige Verformung, pumpt im Takt." },
+  { id: "slices", name: "Beat-Slices", info: "Waagerechte Streifen verrutschen auf jedem Beat." },
+  { id: "hue-cycle", name: "Farbrad", info: "Farbton dreht sich langsam und springt auf jedem Beat." },
+  { id: "posterize", name: "Posterize", info: "Wenige harte Farbstufen, Pop-Art-Look." },
+  { id: "beat-invert", name: "Beat-Invert", info: "Blitzt auf dem Beat ins Negativ." },
 ];
 
 export const POST_BY_ID: ReadonlyMap<string, PostEffectDef> = new Map(POST_EFFECTS.map(x => [x.id, x]));

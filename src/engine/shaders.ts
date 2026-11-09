@@ -1226,7 +1226,11 @@ void main(){
 
 // ---- Effekt-Stapel ------------------------------------------------------------------
 /** Reihenfolge = uEffect-Nummer. Muss zu POST_EFFECTS in src/core/effects.ts passen. */
-export const POST_IDS = ["kaleidoscope", "mirror", "rgb-shift", "glitch", "crt", "pixelate", "feedback", "glow", "strobe-zoom", "invert", "tint", "ascii", "laser"] as const;
+export const POST_IDS = ["kaleidoscope", "mirror", "rgb-shift", "glitch", "crt", "pixelate", "feedback", "glow", "strobe-zoom", "invert", "tint", "ascii", "laser",
+  // Techno-Effekte
+  "datamosh", "echo", "stutter", "zoom-blur", "tiles", "edges", "one-bit", "shake", "polar", "liquid", "slices", "hue-cycle", "posterize", "beat-invert"] as const;
+/** Effekte, die das letzte Bild der Ebene brauchen (eigener Zwischenspeicher je Effekt). */
+export const HISTORY_FX: ReadonlySet<string> = new Set(["feedback", "datamosh", "echo", "stutter"]);
 
 export const POST_FRAG = `#version 300 es
 precision highp float;
@@ -1238,6 +1242,7 @@ uniform vec2  uRes;
 uniform float uAmount;
 uniform float uTime;
 uniform float uPulse;
+uniform float uBeat;       // fortlaufender Beat (Stutter, Slices, Shake, Farbrad)
 uniform int   uEffect;
 uniform int   uColorMode;  // Farbüberlagerung: 0 = Slot A, 1 = Slot, 2 = Verlauf, 3 = Regenbogen
 uniform vec3  uColA;
@@ -1359,6 +1364,81 @@ void main(){
     col = clamp((col - mn * 0.85) / max(1.0 - mn * 0.85, 0.001), 0.0, 1.0);
     if (max(col.r, max(col.g, col.b)) < 0.01) col = vec3(0.0, 1.0, 0.08);
     c = mix(tex(uv), vec4(col * line, line), smoothstep(0.0, 0.2, a));
+  } else if (uEffect == 13) {    // Datamosh: Blöcke bleiben vom letzten Bild stehen und verschmieren
+    vec2 bs = vec2(16.0) / uRes;
+    vec2 bid = floor(uv / bs);
+    float h = hash(bid + floor(uTime * 8.0));
+    vec2 drift = (vec2(hash(bid + 3.1), hash(bid + 7.7)) - 0.5) * bs * 1.5;
+    c = h < a * 0.75 ? texture(uPrev, uv + drift) : tex(uv);
+  } else if (uEffect == 14) {    // Echo-Spuren: farbige Nachzieher
+    vec4 pr = texture(uPrev, (uv - 0.5) * 0.995 + 0.5);
+    pr = vec4(pr.gbr, pr.a) * (0.72 + 0.25 * a);
+    c = max(tex(uv), pr);
+  } else if (uEffect == 15) {    // Stutter: im Takt einfrieren (Anteil je Beat = Stärke)
+    float ph = fract(uBeat * 2.0);
+    c = ph > 1.0 - a * 0.85 ? texture(uPrev, uv) : tex(uv);
+  } else if (uEffect == 16) {    // Zoom-Blur zur Mitte, auf dem Beat stärker
+    vec2 d = (uv - 0.5) * (0.02 + 0.12 * a * (0.4 + 0.6 * uPulse));
+    vec4 acc = vec4(0.0);
+    for (int i = 0; i < 12; i++) acc += tex(uv - d * float(i) / 11.0);
+    c = acc / 12.0;
+  } else if (uEffect == 17) {    // Kacheln: 2×2 bis 5×5, jede zweite gespiegelt
+    float n = 2.0 + floor(a * 3.99);
+    vec2 g = uv * n;
+    vec2 f = fract(g), id = floor(g);
+    if (mod(id.x + floor(uBeat), 2.0) > 0.5) f.x = 1.0 - f.x;
+    if (mod(id.y, 2.0) > 0.5) f.y = 1.0 - f.y;
+    c = tex(f);
+  } else if (uEffect == 18) {    // Neon-Kanten
+    vec2 e = 1.0 / uRes;
+    float l00 = dot(tex(uv + vec2(-e.x, -e.y)).rgb, vec3(0.333)), l10 = dot(tex(uv + vec2(0.0, -e.y)).rgb, vec3(0.333)), l20 = dot(tex(uv + vec2(e.x, -e.y)).rgb, vec3(0.333));
+    float l01 = dot(tex(uv + vec2(-e.x, 0.0)).rgb, vec3(0.333)), l21 = dot(tex(uv + vec2(e.x, 0.0)).rgb, vec3(0.333));
+    float l02 = dot(tex(uv + vec2(-e.x, e.y)).rgb, vec3(0.333)), l12 = dot(tex(uv + vec2(0.0, e.y)).rgb, vec3(0.333)), l22 = dot(tex(uv + vec2(e.x, e.y)).rgb, vec3(0.333));
+    float gx = -l00 - 2.0 * l01 - l02 + l20 + 2.0 * l21 + l22, gy = -l00 - 2.0 * l10 - l20 + l02 + 2.0 * l12 + l22;
+    float edge = clamp(length(vec2(gx, gy)) * 2.5, 0.0, 1.0);
+    vec4 t = tex(uv);
+    vec3 col = t.rgb / max(max(t.r, max(t.g, t.b)), 0.05);
+    c = mix(t, vec4(col * edge, edge), a);
+  } else if (uEffect == 19) {    // 1-Bit: schwarz-weiß mit Raster (Bayer 4×4)
+    vec4 t = tex(uv);
+    vec2 pp = mod(floor(uv * uRes / max(1.0, uRes.y / 360.0)), 4.0);
+    float bay = mod(pp.x * 4.0 + pp.y * 11.0, 16.0) / 16.0;
+    float lum = dot(t.rgb, vec3(0.299, 0.587, 0.114));
+    float bit = step(bay, lum);
+    c = mix(t, vec4(vec3(bit), max(t.a, bit)), a);
+  } else if (uEffect == 20) {    // Shake: Bild ruckt auf dem Beat
+    float b = floor(uBeat);
+    vec2 o = (vec2(hash(vec2(b, 1.0)), hash(vec2(b, 2.0))) - 0.5) * 0.08 * a * uPulse;
+    float rt = (hash(vec2(b, 3.0)) - 0.5) * 0.08 * a * uPulse;
+    vec2 q = (uv - 0.5); q = mat2(cos(rt), -sin(rt), sin(rt), cos(rt)) * q;
+    c = tex(q / (1.0 + 0.05 * a * uPulse) + 0.5 + o);
+  } else if (uEffect == 21) {    // Polar-Warp: Bild wird zum Tunnel
+    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+    vec2 q = vec2(atan(p.y, p.x) / (2.0 * PI) + 0.5, fract(0.25 / max(length(p), 0.01) + uTime * 0.2));
+    c = mix(tex(uv), tex(q), a);
+  } else if (uEffect == 22) {    // Liquid-Warp: wellige Verformung
+    vec2 d = vec2(sin(uv.y * 18.0 + uTime * 3.0), cos(uv.x * 14.0 + uTime * 2.4)) * 0.035 * a * (0.6 + 0.6 * uPulse);
+    c = tex(uv + d);
+  } else if (uEffect == 23) {    // Beat-Slices: Streifen verrutschen im Takt
+    float n = 6.0 + floor(hash(vec2(floor(uBeat), 9.0)) * 18.0);
+    float sl = floor(uv.y * n);
+    float sh = (hash(vec2(sl, floor(uBeat))) - 0.5) * 0.6 * a * (0.3 + 0.7 * uPulse);
+    c = tex(vec2(fract(uv.x + sh), uv.y));
+  } else if (uEffect == 24) {    // Farbrad: Farbton dreht sich, springt auf jedem Beat
+    vec4 t = tex(uv);
+    float ang = (floor(uBeat) * 0.37 + uTime * 0.1) * 6.2832 * a;
+    const mat3 toY = mat3(0.299, 0.596, 0.211, 0.587, -0.274, -0.523, 0.114, -0.322, 0.312);
+    const mat3 toR = mat3(1.0, 1.0, 1.0, 0.956, -0.272, -1.106, 0.621, -0.647, 1.703);
+    vec3 yiq = toY * t.rgb;
+    yiq.yz = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * yiq.yz;
+    c = vec4(clamp(toR * yiq, 0.0, 1.0), t.a);
+  } else if (uEffect == 25) {    // Posterize: wenige Farbstufen
+    vec4 t = tex(uv);
+    float lv = mix(8.0, 2.0, a);
+    c = vec4(floor(t.rgb * lv + 0.5) / lv, t.a);
+  } else if (uEffect == 26) {    // Beat-Invert: blitzt auf dem Beat ins Negativ
+    vec4 t = tex(uv);
+    c = mix(t, vec4(t.a - t.rgb, t.a), step(0.65, uPulse) * a);
   } else {                       // Farbüberlagerung
     vec4 t = tex(uv);
     vec3 col = uColorMode == 2 ? mix(uColA, uColB, uv.y)
