@@ -1058,6 +1058,13 @@ uniform float uRot;
 uniform float uOpacity;  // Deckkraft (Cues im SHOW-Ablauf), sonst 1
 uniform int   uKeyMode;  // 0 aus, 1 Weiß entfernen, 2 Schwarz entfernen
 uniform float uKeyTol;
+// Kamera: spiegeln und Silhouette (Person als Umriss, Hintergrund durchsichtig)
+uniform int   uMirror;
+uniform int   uLook;     // 0 normal, 1 Silhouette
+uniform float uSilTol;
+uniform sampler2D uRef;  // gemerkter Hintergrund (Einheit 1)
+uniform int   uHasRef;
+uniform vec3  uFig;      // Farbe der Silhouette
 void main(){
   float aspect = uRes.x / uRes.y;
   vec2 p = (vUv - 0.5) * vec2(aspect, 1.0) - uPos;
@@ -1066,7 +1073,9 @@ void main(){
   vec2 q = p / (max(uScale, 0.001) * vec2(uImgAspect, 1.0)) + 0.5;
   // Textur immer lesen (gleichmäßiger Ablauf: sonst wählt die Grafikkarte an der Bildkante die falsche
   // Mipmap-Stufe, und es entsteht ein feiner Rahmen). Außerhalb der Bildfläche per Maske ausblenden.
-  vec4 c = texture(uImg, vec2(clamp(q.x, 0.0, 1.0), 1.0 - clamp(q.y, 0.0, 1.0)));
+  if (uMirror == 1) q.x = 1.0 - q.x;
+  vec2 tc = vec2(clamp(q.x, 0.0, 1.0), 1.0 - clamp(q.y, 0.0, 1.0));
+  vec4 c = texture(uImg, tc);
   c.rgb = min(c.rgb, vec3(c.a));   // vormultipliziert: keine Farbe ohne Deckkraft
   c *= step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
   if (uKeyMode != 0 && c.a > 0.0) {
@@ -1075,6 +1084,21 @@ void main(){
                             : max(u.r, max(u.g, u.b));      // Abstand zu Schwarz
     float t = max(uKeyTol, 0.01);
     c *= smoothstep(t * 0.4, t, d);                         // weiche Kante, kein harter Rand
+  }
+  if (uLook == 1) {
+    float inside = step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
+    float fig;
+    if (uHasRef == 1) {
+      // Unterschied zum gemerkten Hintergrund: was neu im Bild ist, gehört zur Person
+      float d = length(c.rgb - texture(uRef, tc).rgb) / 1.732;
+      fig = smoothstep(uSilTol * 0.5, uSilTol * 0.5 + 0.06, d);
+    } else {
+      // Gegenlicht: dunkle Bereiche vor hellem Hintergrund
+      float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      fig = 1.0 - smoothstep(uSilTol, uSilTol + 0.08, lum);
+    }
+    fig *= inside;
+    c = vec4(uFig * fig, fig);
   }
   outColor = c * uOpacity;
 }`;

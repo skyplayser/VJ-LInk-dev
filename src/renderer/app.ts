@@ -1,4 +1,7 @@
 // Hauptfenster: Show-Zustand, Eingänge und Oberfläche.
+import { isCamClip, camIdOf } from "../core/camera";
+import { CameraPool } from "./campool";
+import { CamPanel } from "./campanel";
 import { Engine } from "../engine/engine";
 import { GEN_IDS } from "../engine/shaders";
 import { TempoClock } from "../core/tempo";
@@ -204,6 +207,7 @@ function layerClips(l: number): { id: string; name: string }[] {
   for (const id of ctx.show.layers[l]?.clips ?? []) {
     if (id.startsWith("img:")) { const m = library.items.find(i => mediaClip(i.id) === id); if (m) out.push({ id, name: m.name }); }
     else if (isVideoClip(id)) { const v = videoLib.find(videoIdOf(id)); if (v) out.push({ id, name: v.name }); }
+    else if (isCamClip(id)) { const c = ctx.show.cameras.find(k => k.id === camIdOf(id)); if (c) out.push({ id, name: c.label || "Kamera" }); }
     else { const g = READY_GENERATORS.find(x => x.id === id); if (g) out.push({ id, name: g.name }); }
   }
   return out;
@@ -212,6 +216,9 @@ function layerClips(l: number): { id: string; name: string }[] {
 const videoLib = new VideoLibrary();
 /** Abspieler für die Vorschau im Hauptfenster (darf Ton ausgeben). */
 const previewPool = new VideoPool(id => videoLib.url(id), true);
+// Kameras: ein gemeinsamer Pool für Vorschau und Raster; die Liste kommt aus dem Show-Zustand
+const camPool = new CameraPool();
+camPool.sources = ctx.show.cameras;
 previewPool.setSink(settings.audioOut);
 let lastSweep = 0;
 const cueEnv: CueEnv = {
@@ -333,6 +340,7 @@ function rebuildGrid(): void {
       const b = el("button", clip.id.startsWith("img:") || isVideoClip(clip.id) ? "cell media" : "cell");
       b.append(el("span", "cell-name", clip.name));
       if (isVideoClip(clip.id)) b.append(el("span", "vbadge", "VIDEO"));
+      if (isCamClip(clip.id)) b.append(el("span", "vbadge cam", "LIVE-KAMERA"));
       b.dataset.ctl = `clip.${l + 1}.${clip.id}`;
       b.title = `${clip.name} · Klick startet/stoppt`;
       b.addEventListener("click", ev => {
@@ -914,6 +922,7 @@ const monHome = $("mon-box").parentElement!;
 try {
   engine = new Engine(preview);
   engine.videoSource = (key, id, t, rate, o) => previewPool.get(key, id, t, rate, o);
+  engine.camSource = id => { camPool.sources = ctx.show.cameras; return camPool.get(id); };
   engine.videoDuration = id => videoLib.duration(id);
 } catch (e) {
   $("mon-info").textContent = (e as Error).message;
@@ -935,7 +944,7 @@ function frame(): void {
   tickVideoStarts(ctx, now);
   cueTick(ctx.cues, now, cueEnv);
   ctx.show.cues = cueRenders(ctx.cues, now, cueEnv);
-  if (now - lastSweep > 1000) { lastSweep = now; previewPool.sweep(); }
+  if (now - lastSweep > 1000) { lastSweep = now; previewPool.sweep(); camPool.sweep(); }
   // Testbild per Mapping umgeschaltet: Knöpfe nachziehen
   if (`${ctx.show.testCard}|${ctx.show.testPattern}` !== testUiKey) syncTestUi();
   // Audio-Eingang: Spektrum und Wellenform in den Show-Zustand (gehen so auch an die Ausgänge)
@@ -1039,6 +1048,7 @@ function updateUi(now: number, beat: number): void {
   layerPanel.update();
   mediaPanel.update();
   videoPanel.update(ctx.tempo.bpm);
+  camPanel.update();
   scenePanel.update();
   if ($("tab-show").classList.contains("on")) showTab.update();
   autosave(now);
@@ -1049,6 +1059,7 @@ const fxPanel = new FxPanel(ctx, $("fx-title"), $("fx-list"), $<HTMLSelectElemen
 const layerPanel = new LayerPanel(ctx, $("layer-panel"), () => fxPanel.layer, () => { rebuildGrid(); rebuildDeck(); });
 const mediaPanel = new MediaPanel(ctx, library, $("media-panel"), () => fxPanel.layer, () => rebuildGrid());
 const videoPanel = new VideoPanel(ctx, videoLib, $("video-panel"), () => fxPanel.layer, () => rebuildGrid());
+const camPanel = new CamPanel(ctx, $("cam-panel"), () => fxPanel.layer);
 const showTab = new ShowTab({
   ctx, env: cueEnv, videos: videoLib, images: library, importFiles: f => importToLibrary(f), toast,
   tcNow: () => tcClock.now(Date.now()), tcFps: () => tcClock.fps,
@@ -1064,6 +1075,7 @@ if (thumbs.gl) {
   // Im Clip-Raster zeigen Videos ihr Vorschaubild (spart Dekodieren)
   thumbs.gl.videoSource = (_key, id) => { const p = videoLib.posters.get(id); return p ? { el: p, w: p.width, h: p.height } : null; };
   thumbs.gl.videoDuration = id => videoLib.duration(id);
+  thumbs.gl.camSource = id => camPool.get(id);
 }
 
 // ---- Projekt laden und automatisch speichern -----------------------------------------
@@ -1391,6 +1403,8 @@ requestAnimationFrame(frame);
 
 // Entwicklungshilfe: im Browser-Modus Zustand von außen setzen.
 (window as unknown as { __vj: unknown }).__vj = {
+  // Test: Kamerabild ersetzen (ohne echte Kamera)
+  camTest: (fn: (id: string) => { el: TexImageSource; w: number; h: number } | null) => { if (engine) engine.camSource = fn; if (thumbs.gl) thumbs.gl.camSource = fn; },
   ctx, onControl, select: (l: number) => fxPanel.select(l), videoStats: () => previewPool.stats,
   loadMedia: async (p: { id: string; name: string; dataUrl: string }) => { await library.load(p); rebuildGrid(); },
   addVideo: async (v: { id: string; name: string; ext: string }) => { await videoLib.add({ ...v, duration: 0, width: 0, height: 0 }); rebuildGrid(); },

@@ -735,7 +735,7 @@ describe("Bibliothek der Visuals", () => {
     for (const g of READY_GENERATORS) expect(GEN_IDS as readonly string[]).toContain(g.id);
     expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
     expect(READY_GENERATORS.length).toBe(44);
-    expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual(["silhouette"]);
+    expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual([]);
   });
 });
 
@@ -1475,5 +1475,41 @@ describe("LJ-Link PRO: Cover, Wellenform, Position", () => {
     expect(c.lj.decks.get(2)?.detail).toBe("/api/deck/2/detail?v=5");
     handleLj(c, { t: "pos", deck: 2, ms: 500, v: 1 }, 42);
     expect(c.lj.pos.get(2)).toEqual({ ms: 500, v: 1, at: 42 });
+  });
+});
+
+import { camClip, ensureCamera, isCamClip } from "../src/core/camera";
+describe("Kameras", () => {
+  it("anlegen, wiederfinden über Gerät oder Namen", () => {
+    const list: { id: string; deviceId: string; label: string }[] = [];
+    const a = ensureCamera(list, "dev1", "FaceTime HD");
+    expect(ensureCamera(list, "dev1", "FaceTime HD").id).toBe(a.id);
+    const b = ensureCamera(list, "dev2-neu", "FaceTime HD"); // neue Geräte-ID, gleicher Name
+    expect(b.id).toBe(a.id); expect(b.deviceId).toBe("dev2-neu");
+    expect(ensureCamera(list, "obs", "OBS Virtual Camera").id).not.toBe(a.id);
+    expect(isCamClip(camClip(a.id))).toBe(true);
+  });
+  it("Projekt speichert Kameras, Kamera-Clips und Silhouette", () => {
+    const c = ctx();
+    const cam = ensureCamera(c.show.cameras, "dev1", "OBS Virtual Camera");
+    const l = c.show.layers[1]!;
+    addClip(l, camClip(cam.id)); l.clip = camClip(cam.id);
+    l.cam = { mirror: true, look: "silhouette", tol: 0.4, bgStamp: 123 };
+    c.cues.list.push(newCue("camera", "Kamera", camClip(cam.id)));
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.cameras).toEqual([{ id: cam.id, deviceId: "dev1", label: "OBS Virtual Camera" }]);
+    expect(p.layers[1]!.clip).toBe(camClip(cam.id));
+    expect(p.layers[1]!.cam).toEqual({ mirror: true, look: "silhouette", tol: 0.4, bgStamp: 123 });
+    expect(p.cues.at(-1)!.kind).toBe("camera");
+    expect(p.cues.at(-1)!.media).toBe(camClip(cam.id));
+    expect(parseProject(JSON.stringify({ version: 1, layers: [{ clip: "cam:../x" }] }))!.layers[0]!.clip).toBeNull();
+  });
+  it("Kamera-Cue wird gezeichnet wie ein Bild (steht, bis WEITER)", () => {
+    const s = { list: [newCue("camera", "Kamera", "cam:abcd1234")], run: { active: [{ uid: "u1", cueId: "", startMs: 0, fadeOutMs: null, releasedMs: null }], next: 1, current: 0 } } as never as Parameters<typeof cueRenders>[0];
+    (s.run.active[0] as { cueId: string }).cueId = s.list[0]!.id;
+    const r = cueRenders(s, 5000, { duration: () => 0 } as never);
+    expect(r.length).toBe(1);
+    expect(r[0]!.kind).toBe("camera");
+    expect(r[0]!.rate).toBe(0);
   });
 });

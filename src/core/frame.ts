@@ -110,6 +110,8 @@ export interface VjBridge {
   sendArtTimecode(bytes: Uint8Array, host: string): void;
   /** Mikrofon-Zugriff beim System anfragen (macOS). */
   askMicrophone(): Promise<boolean>;
+  /** Kamera-Zugriff beim System anfragen (macOS). */
+  askCamera(): Promise<boolean>;
   loadProject(): Promise<ProjectLoad>;
   /** Projektdatei: neu, öffnen, speichern, speichern unter (fragt bei ungespeicherten Änderungen nach). */
   projectFile(cmd: ProjectFileCmd, json: string, filePath?: string): Promise<{ ok: boolean; name?: string; message?: string }>;

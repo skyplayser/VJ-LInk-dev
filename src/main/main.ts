@@ -294,14 +294,20 @@ app.whenReady().then(async () => {
   // Nur das Hauptfenster: MIDI (ohne SysEx) und Audio-Eingang (Mikrofon/Line-In, keine Kamera).
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
     if (process.env.VJLINK_DEBUG) console.log("[perm request]", perm, wc === control?.webContents, JSON.stringify(details));
+    const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
+    // Ausgangsfenster: nur Kamera (sie zeigen Kamera-Clips selbst an)
+    const isOutput = [...outputs.values()].some(w => !w.isDestroyed() && w.webContents === wc);
+    if (isOutput) return cb(perm === "media" && types.length > 0 && types.every(t => t === "video"));
     if (wc !== control?.webContents) return cb(false);
     // Web MIDI: neuere Electron-Versionen fragen auch ohne SysEx als „midiSysex“ an
     if (perm === "midi" || perm === "midiSysex") return cb(true);
-    const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
-    cb(perm === "media" && types.length > 0 && types.every(t => t === "audio"));
+    // Hauptfenster: Audio-Eingang und Kamera
+    cb(perm === "media" && types.length > 0 && types.every(t => t === "audio" || t === "video"));
   });
   session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => {
     if (process.env.VJLINK_DEBUG) console.log("[perm check]", perm, wc === control?.webContents, origin);
+    const isOutput = [...outputs.values()].some(w => !w.isDestroyed() && w.webContents === wc);
+    if (isOutput) return perm === "media";
     return wc === control?.webContents && (perm === "midi" || perm === "midiSysex" || perm === "media");
   });
   storage = new Storage(app.getPath("userData"));
@@ -325,6 +331,12 @@ app.whenReady().then(async () => {
     if (process.platform !== "darwin") return true;
     if (systemPreferences.getMediaAccessStatus("microphone") === "granted") return true;
     return systemPreferences.askForMediaAccess("microphone");
+  });
+  ipcMain.handle("camera:ask", async e => {
+    if (e.sender !== control?.webContents) return false;
+    if (process.platform !== "darwin") return true;
+    if (systemPreferences.getMediaAccessStatus("camera") === "granted") return true;
+    return systemPreferences.askForMediaAccess("camera");
   });
   ipcMain.on("ui:scale", (e, v: unknown) => {
     if (e.sender !== control?.webContents) return;

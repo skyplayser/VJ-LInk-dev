@@ -151,7 +151,7 @@ export class TimelineView {
     }
     // Spuren
     const tracks = el("div", "tlv-tracks");
-    const vid = el("div", "tlv-video", c.kind === "video" ? `▶ ${c.name}` : c.kind === "image" ? "Bild" : "Schwarz");
+    const vid = el("div", "tlv-video", c.kind === "video" ? `▶ ${c.name}` : c.kind === "image" ? "Bild" : c.kind === "camera" ? "Kamera" : "Schwarz");
     const lane = el("div", "tlv-lane"); this.lane = lane;
     const pctOf = (t: number) => ((t - a) / len) * 100;
     const multi = d.multiImage();

@@ -1,4 +1,5 @@
 // Projektdatei: Szenen, Ebenen, Farben, Grafik-Liste. Wird automatisch gespeichert und beim Start geladen.
+import { defaultCam, isValidCamId, type CamSettings, type CameraSource } from "./camera";
 import type { ControlContext } from "./control";
 import { POST_BY_ID } from "./effects";
 import { isValidMediaId, type MediaItem } from "./media";
@@ -30,6 +31,8 @@ export interface ProjectFile {
   videos: VideoItem[];
   /** SHOW-Ablauf */
   cues: Cue[];
+  /** Kameras und Video-Eingänge */
+  cameras?: CameraSource[];
   /** Anordnung der Ausgänge */
   outputs: OutputLayout;
   /** Fehlt in alten Dateien: dann gilt die Standard-Tastenbelegung. */
@@ -49,6 +52,7 @@ export function serializeProject(c: ControlContext, media: readonly MediaItem[],
     media: [...media],
     videos: [...videos],
     cues: c.cues.list,
+    cameras: s.cameras,
     outputs,
     mappings: [...mappings],
     mods: [...(c.mods ?? [])],
@@ -68,6 +72,7 @@ const str = (v: unknown, d: string, max = 80): string => (typeof v === "string" 
 function clip(v: unknown): string | null {
   if (typeof v !== "string") return null;
   if (v.startsWith("img:") || v.startsWith("vid:")) return isValidMediaId(v.slice(4)) ? v : null;
+  if (v.startsWith("cam:")) return isValidCamId(v.slice(4)) ? v : null;
   return /^[a-z0-9-]{1,40}$/.test(v) ? v : null;
 }
 
@@ -97,9 +102,15 @@ function video(v: unknown): VideoSettings | undefined {
   };
 }
 
+function cam(v: unknown): CamSettings | undefined {
+  if (!isObj(v)) return undefined;
+  const d = defaultCam();
+  return { mirror: v.mirror === true, look: oneOf(v.look, ["normal", "silhouette"] as const, d.look), tol: clamp01(num(v.tol, d.tol)), bgStamp: num(v.bgStamp, 0, 0, 1e15) };
+}
+
 function cue(v: unknown): Cue | null {
   if (!isObj(v) || typeof v.id !== "string" || !/^[a-z0-9]{3,24}$/.test(v.id)) return null;
-  const kind = oneOf(v.kind, ["video", "image", "black", "scene", "tcsignal"] as const, "black");
+  const kind = oneOf(v.kind, ["video", "image", "camera", "black", "scene", "tcsignal"] as const, "black");
   const c = newCue(kind, str(v.name, "Cue", 60) || "Cue", clip(v.media), v.id);
   c.scene = num(v.scene, 1, 1, 999);
   if (v.timeline === true) c.timeline = true;
@@ -198,6 +209,7 @@ function partialLayer(v: unknown): Partial<LayerState> | null {
   const fx = effects(v.effects); if (fx) out.effects = fx;
   const md = media(v.media); if (md) out.media = md;
   const vd = video(v.video); if (vd) out.video = vd;
+  const cm = cam(v.cam); if (cm) out.cam = cm;
   return out;
 }
 
@@ -258,6 +270,8 @@ export function parseProject(json: string): ProjectFile | null {
       duration: num(m.duration, 0, 0, 86400), width: num(m.width, 0, 0, 16384), height: num(m.height, 0, 0, 16384),
     })),
     cues: (Array.isArray(raw.cues) ? raw.cues : []).map(cue).filter((x): x is Cue => !!x).slice(0, 500),
+    cameras: (Array.isArray(raw.cameras) ? raw.cameras : []).filter(isObj).filter(m => isValidCamId(m.id) && typeof m.deviceId === "string")
+      .slice(0, 16).map(m => ({ id: m.id as string, deviceId: (m.deviceId as string).slice(0, 200), label: str(m.label, "", 120) })),
     outputs: layout(raw.outputs),
     ...(Array.isArray(raw.images) ? { images: raw.images.filter(isObj).filter(i => typeof i.id === "string" && (i.id === "main" || okStackId(i.id))).slice(0, 5)
       .map(i => ({ id: i.id as string, name: str(i.name, "Bild", 30) || "Bild" })) } : {}),
@@ -288,6 +302,7 @@ export function applyProject(c: ControlContext, p: ProjectFile): void {
   s.scene = 0;
   s.transition = null;
   c.cues.list = p.cues;
+  s.cameras = p.cameras ?? [];
   c.cues.run = { active: [], next: 0, current: -1 };
   c.photos = p.photos ?? {};
   // An Ort und Stelle ersetzen (die Oberfläche hält die Liste)

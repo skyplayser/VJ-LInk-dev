@@ -68,7 +68,7 @@ export function clipVideoTime(v: VideoSettings, start: PlayStart, duration: numb
 
 // ---- SHOW-Ablauf ---------------------------------------------------------------------
 
-export type CueKind = "video" | "image" | "black" | "scene" | "tcsignal";
+export type CueKind = "video" | "image" | "camera" | "black" | "scene" | "tcsignal";
 export type TcAction = "start" | "stop" | "locate";
 export type CueStart = "manual" | "after" | "with" | "timecode";
 export type CueEnd = "hold" | "fade" | "next";
@@ -171,7 +171,7 @@ export const newCueState = (): CueState => ({ list: [], run: { active: [], next:
 /** Was ein Fenster zeichnen muss: Datei, Stelle, Deckkraft. */
 export interface CueRender {
   key: string;
-  kind: "video" | "image" | "black";
+  kind: "video" | "image" | "camera" | "black";
   media: string | null;
   t: number;
   rate: number;

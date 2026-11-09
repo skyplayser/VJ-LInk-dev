@@ -1,4 +1,6 @@
 // SHOW: der Ablauf eines Abends. Eine Liste von Cues, ein großer WEITER-Knopf, Details zum Einstellen.
+import { cameraDevices, pickCamera } from "./camchooser";
+import { camClip, ensureCamera } from "../core/camera";
 import type { ControlContext } from "../core/control";
 import { showBack, showGo, showStop } from "../core/control";
 import {
@@ -57,6 +59,14 @@ export class ShowTab {
     $("cue-add-media").addEventListener("click", () => file.click());
     file.addEventListener("change", () => { if (file.files?.length) void this.addFiles(Array.from(file.files)); file.value = ""; });
     $("cue-add-black").addEventListener("click", () => this.insert(newCue("black", "Schwarz")));
+    $("cue-add-cam").addEventListener("click", async () => {
+      const dev = await pickCamera($("cue-add-cam"), await cameraDevices());
+      if (!dev) return;
+      const cam = ensureCamera(d.ctx.show.cameras, dev.deviceId, dev.label);
+      const c = newCue("camera", dev.label || "Kamera", camClip(cam.id));
+      c.end = "hold"; c.hold = 0;
+      this.insert(c);
+    });
     $("cue-add-scene").addEventListener("click", () => {
       const c = newCue("scene", `VJ-Szene: ${d.ctx.scenes[0]?.name ?? "1"}`);
       this.insert(c);
@@ -106,6 +116,8 @@ export class ShowTab {
       if (p) { const cv = el("canvas"); cv.width = p.width; cv.height = p.height; cv.getContext("2d")!.drawImage(p, 0, 0); box.append(cv); }
     } else if (c.media?.startsWith("img:")) {
       box.textContent = "BILD";
+    } else if (c.kind === "camera") {
+      box.textContent = "CAM";
     } else box.textContent = c.kind === "scene" ? "VJ" : c.kind === "tcsignal" ? "TC" : "";
     return box;
   }
@@ -117,7 +129,7 @@ export class ShowTab {
       const a = c.trimIn, b = c.trimOut > 0 ? Math.min(c.trimOut, d) : d;
       return Math.max(0, b - a);
     }
-    if (c.kind === "image" || c.kind === "black") return c.hold > 0 ? c.hold : null;
+    if (c.kind === "image" || c.kind === "camera" || c.kind === "black") return c.hold > 0 ? c.hold : null;
     return null;
   }
 
@@ -126,7 +138,7 @@ export class ShowTab {
     if (c.kind === "video" && c.loop === "untilGo") return "Loop bis WEITER";
     if (c.kind === "video" && c.loop === "forever") return "Loop ∞";
     if (c.kind === "video" && c.loop === "count") return `${c.loopCount}× · ${END_LABEL[c.end]}`;
-    if ((c.kind === "image" || c.kind === "black") && c.hold === 0) return "bis WEITER";
+    if ((c.kind === "image" || c.kind === "camera" || c.kind === "black") && c.hold === 0) return "bis WEITER";
     return c.end === "fade" ? `ausblenden ${c.fadeOut} s` : END_LABEL[c.end];
   }
 
@@ -143,6 +155,7 @@ export class ShowTab {
       const nm = el("span", "cname"); nm.append(el("b", "", c.name));
       const sub = c.kind === "video" ? (this.d.videos.find(videoIdOf(c.media ?? "vid:"))?.name ?? "Datei fehlt")
         : c.kind === "image" ? (this.d.images.items.find(m => `img:${m.id}` === c.media)?.name ?? "Datei fehlt")
+        : c.kind === "camera" ? (this.d.ctx.show.cameras.find(k => `cam:${k.id}` === c.media)?.label || "Kamera")
         : c.kind === "scene" ? `Szene ${c.scene} „${this.d.ctx.scenes[c.scene - 1]?.name ?? "?"}“`
         : c.kind === "tcsignal" ? (c.tcAction === "stop" ? "Timecode anhalten" : `Timecode ${c.tcAction === "start" ? "starten ab" : "springen auf"} ${c.tcTarget}`) : "Bild aus";
       nm.append(el("small", (sub === "Datei fehlt" ? "missing" : ""), sub + (c.kind === "video" && c.volume > 0 ? " · Ton" : "")));
@@ -264,7 +277,7 @@ export class ShowTab {
       }
       box.append(el("p", "muted small", "Steuert die eigene Timecode-Uhr von VJ-Link. Ist unter Einstellungen → Timecode „Senden“ an, bekommt z. B. eine MA den Timecode und ihre Timecode-Show löst Befehle aus."));
     }
-    if (c.kind === "image" || c.kind === "black") num("Dauer", () => c.hold, v => { c.hold = v; }, "s · 0 = bis WEITER");
+    if (c.kind === "image" || c.kind === "camera" || c.kind === "black") num("Dauer", () => c.hold, v => { c.hold = v; }, "s · 0 = bis WEITER");
     if (c.kind !== "scene" && c.kind !== "tcsignal") {
       box.append(el("h4", "", "Ende und Blenden"));
       seg("Am Ende", END_LABEL, () => c.end, v => { c.end = v; });
@@ -287,7 +300,7 @@ export class ShowTab {
     mk("Als Nächstes", () => { cueSetNext(this.d.ctx.cues, this.selected); });
     mk("↑", () => this.move(-1)); mk("↓", () => this.move(1));
     // Timeline: Cue als Zeitleiste bearbeiten (großer Editor unter der Liste)
-    if (c.kind === "video" || c.kind === "image" || c.kind === "black") {
+    if (c.kind === "video" || c.kind === "image" || c.kind === "camera" || c.kind === "black") {
       mk(c.timeline ? "Timeline schließen" : "In Timeline umwandeln", () => {
         // Bild/Schwarz ohne Dauer: 30 s vorgeben (in der Timeline oben änderbar)
         if (!c.timeline && c.kind !== "video" && !(c.hold > 0)) { c.hold = 30; this.d.toast("Timeline mit 30 s Länge angelegt – oben in der Timeline änderbar."); }

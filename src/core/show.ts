@@ -1,4 +1,5 @@
 // Zustand der Show: wird vom Pult, von OSC, von LJ-Link und von der Oberfläche verändert.
+import { defaultCam, type CamSettings, type CameraSource } from "./camera";
 import { STARTER_CLIP_IDS } from "./effects";
 import { defaultVideo, type CueRender, type PlayStart, type VideoSettings } from "./video";
 export type BlendMode = "normal" | "add" | "screen" | "multiply";
@@ -65,6 +66,8 @@ export interface LayerState {
   media: MediaSettings;
   /** Loop-Bereich, Takt-Loop und Größe, wenn der Clip ein Video ist („vid:…“). */
   video: VideoSettings;
+  /** Kamera-Einstellungen, wenn der Clip eine Kamera ist („cam:…“). */
+  cam: CamSettings;
   /** Wann der aktuelle Clip startete (für Videos; setzt der Steuer-Kern). */
   videoStart: PlayStart;
 }
@@ -182,6 +185,8 @@ export interface ShowState {
   autoVj: boolean;
   /** Ebenen, die gerade bearbeitet und gesteuert werden (Hauptbild oder eine Leinwand, siehe `canvas`). */
   layers: LayerState[];
+  /** Kameras und Video-Eingänge, die im Projekt benutzt werden (jedes Fenster öffnet sie selbst). */
+  cameras: CameraSource[];
   /**
    * Alle Ebenen-Stapel: „main“ = Hauptbild, sonst Leinwand-ID (Projektionsmapping, eigene Ebenen je Leinwand).
    * `layers` ist immer derselbe Stapel wie `stacks[canvas]`.
@@ -224,12 +229,13 @@ export const defaultLayer = (): LayerState => ({
   speed: 1, effects: defaultEffects(), strobe: 0,
   media: defaultMedia(),
   video: defaultVideo(),
+  cam: defaultCam(),
   videoStart: { clip: null, ms: 0, beat: 0 },
 });
 
 /** Tiefe Kopie der Ebenen (Szenen und Überblendungen dürfen nichts teilen). */
 export const cloneLayer = (l: LayerState): LayerState =>
-  ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media }, video: { ...l.video }, videoStart: { ...l.videoStart },
+  ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media }, video: { ...l.video }, cam: { ...l.cam }, videoStart: { ...l.videoStart },
     colorSlots: [...(l.colorSlots ?? [0, 1])], laser: { ...(l.laser ?? defaultLaser()) } });
 
 /** Palette einer Ebene: die gewählten Slots (bei „multi“), sonst leer. */
@@ -288,6 +294,7 @@ export function defaultShow(): ShowState {
     master: 1, strobe: defaultStrobe(), blackout: false, scene: 0, transitionBeats: 1, transition: null, sceneStart: { beat: 0, ms: 0 }, fxMaster: 1, autoVj: false,
     layers,
     cues: [],
+    cameras: [],
     testCard: false,
     testPattern: "bars",
     slots: [[1, 0.1, 0.35], [1, 0.7, 0.1], [0.2, 0.9, 0.5], [0.1, 0.8, 1], [0.7, 0.35, 1]],

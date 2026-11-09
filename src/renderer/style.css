@@ -650,3 +650,5 @@ body.mapping [data-ctl][data-mapped][data-map-sel]{outline:3px solid #fff!import
 .img-tile:has(.img-rename) .img-gain{display:none}
 .lj-host{margin:4px 0 10px;gap:8px}
 .lj-host input{width:200px}
+.cell .vbadge.cam{background:#ff3b3b;color:#fff}
+.cam-menu{z-index:60;min-width:260px}

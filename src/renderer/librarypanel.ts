@@ -1,4 +1,7 @@
 // Bibliothek: Clips für eine Ebene an- und abwählen (Visuals nach Kategorie, eigene Grafiken).
+import { camClip, ensureCamera } from "../core/camera";
+import { cameraDevices } from "./camchooser";
+import type { CamDevice } from "./campool";
 import type { ControlContext } from "../core/control";
 import { EFFECTS, type EffectCategory } from "../core/effects";
 import { mediaClip } from "../core/media";
@@ -18,9 +21,13 @@ const CAT: Record<EffectCategory, string> = {
 export class LibraryPanel {
   private panel = el("div", "lib-panel");
   layer = 0;
+  /** Gefundene Kameras (erst nach „Kameras suchen“, damit nicht ungefragt die Kamera-Freigabe kommt). */
+  private camDevices: CamDevice[] = [];
+  private camHint = "";
   private armedDelete = "";
 
   constructor(private ctx: ControlContext, private lib: MediaLibrary, private videos: VideoLibrary, private onChange: () => void, private onImport: (layer: number) => void, private onText: (layer: number) => void = () => {}) {
+    navigator.mediaDevices?.addEventListener("devicechange", () => { if (this.camDevices.length) void cameraDevices().then(d => { this.camDevices = d; this.render(); }); });
     this.panel.setAttribute("role", "dialog");
     this.panel.setAttribute("aria-label", "Bibliothek");
     this.panel.hidden = true;
@@ -79,6 +86,31 @@ export class LibraryPanel {
       }
       body.append(grid);
     }
+
+    // Kameras und Video-Eingänge (Webcam, Capture-Karte, OBS Virtual Camera)
+    body.append(el("h4", "", "Kameras und Video-Eingänge"));
+    const cg = el("div", "lib-grid");
+    for (const d of this.camDevices) {
+      const known = this.ctx.show.cameras.find(c => c.deviceId === d.deviceId || (d.label && c.label === d.label));
+      const id = known ? camClip(known.id) : "";
+      const on = !!id && l.clips.includes(id);
+      const b = el("button", `lib-chip${on ? " on" : ""}`, d.label);
+      b.setAttribute("aria-pressed", String(on));
+      b.title = "Live-Bild als Clip in diese Ebene (Bild oder Silhouette)";
+      b.addEventListener("click", () => {
+        const cam = ensureCamera(this.ctx.show.cameras, d.deviceId, d.label);
+        const cid = camClip(cam.id);
+        if (on) removeClip(l, cid); else addClip(l, cid);
+        this.onChange(); this.render();
+      });
+      cg.append(b);
+    }
+    const find = el("button", "lib-chip add", this.camDevices.length ? "Kameras neu suchen" : "Kameras suchen");
+    find.title = "Fragt einmal nach der Kamera-Freigabe und listet alle Video-Eingänge";
+    find.addEventListener("click", async () => { this.camDevices = await cameraDevices(); if (!this.camDevices.length) this.camHint = "Keine Kamera gefunden. OBS: „Virtuelle Kamera starten“, dann neu suchen."; this.render(); });
+    cg.append(find);
+    if (this.camHint && !this.camDevices.length) cg.append(el("p", "lib-hint", this.camHint));
+    body.append(cg);
 
     body.append(el("h4", "", "Eigene Videos"));
     const vg = el("div", "lib-grid");

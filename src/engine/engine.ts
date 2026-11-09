@@ -2,6 +2,7 @@
 // Ablauf pro Bild: jede Ebene → Generator in eine Textur → Effekt-Stapel (Ping-Pong)
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
+import { camIdOf, isCamClip } from "../core/camera";
 import { WAVE_POINTS, bandsFrom, beatPulse, layerDrive, strobeGain, strobeGate, strobeWhite } from "../core/audio";
 import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
@@ -59,6 +60,10 @@ export class Engine {
   private bpm = 120;
   /** Videobilder kommen aus dem Fenster (siehe VideoPool). */
   videoSource: VideoProvider | null = null;
+  /** Kamerabilder kommen aus dem Fenster (siehe CameraPool). */
+  camSource: ((camId: string) => { el: TexImageSource; w: number; h: number } | null) | null = null;
+  /** Gemerkter Hintergrund je Kamera (für die Silhouette). */
+  private camRef = new Map<string, { tex: WebGLTexture; stamp: number }>();
   /** Länge eines Videos in Sekunden (aus der Bibliothek). */
   videoDuration: (id: string) => number = () => 0;
   private vao: WebGLVertexArrayObject;
@@ -214,6 +219,15 @@ export class Engine {
         if (fade <= 0) return null;
       }
     }
+    let camLayer = false;
+    if (isCamClip(l.clip)) {
+      const cid = camIdOf(l.clip);
+      const src = this.camSource?.(cid) ?? null;
+      if (!src) return null;
+      media = this.uploadVideo("cam:" + cid, src);
+      if (l.cam.bgStamp > 0) this.captureRef(cid, src.el, l.cam.bgStamp);
+      isVideo = true; camLayer = true;
+    }
     if (isVideoClip(l.clip)) {
       const id = videoIdOf(l.clip);
       const dur = this.videoDuration(id);
@@ -252,6 +266,16 @@ export class Engine {
       gl.uniform1f(this.loc(im, "uRot"), tf.rotation);
       gl.uniform1i(this.loc(im, "uKeyMode"), isVideo ? 0 : l.media.keyMode === "white" ? 1 : l.media.keyMode === "black" ? 2 : 0);
       gl.uniform1f(this.loc(im, "uKeyTol"), l.media.keyTol ?? 0.25);
+      // Kamera: spiegeln, Silhouette (Farbe der Ebene, bei „Original“ schwarz)
+      const ref = camLayer && l.cam.bgStamp > 0 ? this.camRef.get(camIdOf(l.clip!)) : undefined;
+      gl.uniform1i(this.loc(im, "uMirror"), camLayer && l.cam.mirror ? 1 : 0);
+      gl.uniform1i(this.loc(im, "uLook"), camLayer && l.cam.look === "silhouette" ? 1 : 0);
+      gl.uniform1f(this.loc(im, "uSilTol"), l.cam.tol);
+      gl.uniform1i(this.loc(im, "uHasRef"), ref ? 1 : 0);
+      gl.uniform1i(this.loc(im, "uRef"), 1);
+      const fig = l.colorSource === "original" ? [0, 0, 0] : ca;
+      gl.uniform3f(this.loc(im, "uFig"), fig[0]!, fig[1]!, fig[2]!);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ref?.tex ?? media.tex);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, media.tex);
       this.bindTarget(this.work[0]);
       this.draw();
@@ -532,6 +556,21 @@ export class Engine {
   }
 
   // ---- Videos und SHOW-Ablauf ---------------------------------------------------------
+  /** Aktuelles Kamerabild als Hintergrund merken (einmal je Druck auf „Hintergrund merken“). */
+  private captureRef(camId: string, el: TexImageSource, stamp: number): void {
+    const cur = this.camRef.get(camId);
+    if (cur?.stamp === stamp) return;
+    const gl = this.gl;
+    const tex = cur?.tex ?? gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, el);
+    this.camRef.set(camId, { tex, stamp });
+  }
+
   private uploadVideo(key: string, src: { el: TexImageSource; w: number; h: number }): { tex: WebGLTexture; w: number; h: number } {
     const gl = this.gl;
     let tex = this.videoTex.get(key);
@@ -665,6 +704,11 @@ export class Engine {
       if (c.kind === "image" && isMediaClip(c.media)) {
         const m = this.media.get(mediaIdOf(c.media));
         if (m) this.drawFlat(m.tex, m.w, m.h, c.fit, c.opacity, w, h, dest);
+      } else if (c.kind === "camera" && isCamClip(c.media)) {
+        const src = this.camSource?.(camIdOf(c.media)) ?? null;
+        if (!src) continue;
+        const v = this.uploadVideo("cam:" + camIdOf(c.media), src);
+        this.drawFlat(v.tex, v.w, v.h, c.fit, c.opacity, w, h, dest);
       } else if (c.kind === "video" && isVideoClip(c.media)) {
         const t = c.t + (c.rate > 0 ? ((nowMs - c.atMs) / 1000) * c.rate : 0);
         const src = this.videoSource?.("cue:" + c.key, videoIdOf(c.media), t, c.rate, { sound: true, volume: c.volume, ...(c.loop ? { loop: c.loop } : {}) }) ?? null;

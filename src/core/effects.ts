@@ -61,7 +61,7 @@ export const EFFECTS: readonly EffectDef[] = [
   e(32, "moire", "Moiré-Strahlen", "optical", "generator", "ready", "Überlagerte Reflexionen mit Moiré-Mustern."),
   e(33, "flower", "Blumen-Strahlen", "optical", "generator", "ready", "Gegenläufig drehende Strahlenkränze.", ["beat"]),
   e(34, "co2-jet", "CO2-Stoß", "optical", "generator", "ready", "Weiße Vertikal-Stöße, die sofort verfliegen.", ["beat"]),
-  e(35, "silhouette", "Silhouette", "optical", "post", "planned", "Gegenlicht: Personen als schwarze Umrisse."),
+  e(35, "silhouette", "Silhouette", "optical", "post", "ready", "Kamera-Clip → Darstellung „Silhouette“: Personen als Umriss vor den Visuals (Gegenlicht oder gemerkter Hintergrund)."),
   // Laser: Beamer als Showlaser in Nebel/Hazer. Ein Punkt im Bild wird ein Strahl, eine Linie eine Lichtfläche,
   // ein Kreis ein Kegel. Darum: dünne, satte Punkte und Linien auf reinem Schwarz, wie ein Laserprojektor.
   e(36, "laser-beams", "Strahlen-Fächer", "laser", "generator", "ready", "Reihe aus Punkten: im Nebel ein Fächer aus Einzelstrahlen. Schwenkt, öffnet sich, Lauflicht im Takt.", ["beat"]),
