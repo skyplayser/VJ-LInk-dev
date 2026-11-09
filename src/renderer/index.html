@@ -23,7 +23,7 @@
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="visuals" class="on">VISUALS</button>
     <button role="tab" data-tab="show">SHOW</button>
-    <button role="tab" data-tab="build">BAUEN</button>
+    <button role="tab" data-tab="build">GALERIE</button>
     <button role="tab" data-tab="output">AUSGABE</button>
     <button role="tab" data-tab="connect">VERBINDEN</button>
   </nav>
@@ -130,12 +130,7 @@
   <input type="file" id="cue-file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple hidden>
 </section>
 
-<section id="tab-build" class="tab">
-  <h2>Effekt-Katalog</h2>
-  <p class="muted">Die 35 Visuals der Wunschliste. „Bereit“ heißt: spielbar im Clip-Raster. „Geplant“ folgt mit dem Effekt-Editor.</p>
-  <div class="filters" id="cat-filters"></div>
-  <div class="table-wrap"><table id="catalog"><thead><tr><th>Nr.</th><th>Name</th><th>Kategorie</th><th>Art</th><th>Reagiert auf</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-</section>
+<section id="tab-build" class="tab"><div id="gallery" class="gallery"></div></section>
 
 <section id="tab-output" class="tab">
   <div class="out-grid">

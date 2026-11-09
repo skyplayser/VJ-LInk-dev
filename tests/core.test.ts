@@ -155,10 +155,11 @@ describe("Steuerung", () => {
 });
 
 describe("Effekt-Katalog", () => {
-  it("enthält die 35 Visuals der Wunschliste und 7 Laser mit eindeutigen IDs", () => {
-    expect(EFFECTS.length).toBe(52);
-    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(52);
-    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 52 }, (_, i) => i + 1));
+  it("enthält die 35 Visuals der Wunschliste, Laser, LJ-Link und 30 moderne Visuals mit eindeutigen IDs", () => {
+    expect(EFFECTS.length).toBe(82);
+    expect(new Set(EFFECTS.map(e => e.id)).size).toBe(82);
+    expect(EFFECTS.map(e => e.no)).toEqual(Array.from({ length: 82 }, (_, i) => i + 1));
+    for (const c of ["minimal", "space3d", "data", "opart", "organic"]) expect(EFFECTS.filter(e => e.category === c).length).toBeGreaterThanOrEqual(5);
     expect(EFFECTS.filter(e => e.category === "lj").map(e => e.id)).toEqual(["now-playing", "dj-waveform"]);
     expect(EFFECTS.filter(e => e.category === "laser").length).toBe(16);
   });
@@ -734,7 +735,7 @@ describe("Bibliothek der Visuals", () => {
   it("jeder fertige Generator existiert im Shader, Start-Clips stehen vorn", () => {
     for (const g of READY_GENERATORS) expect(GEN_IDS as readonly string[]).toContain(g.id);
     expect(READY_GENERATORS.slice(0, 8).map(g => g.id)).toEqual([...STARTER_CLIP_IDS]);
-    expect(READY_GENERATORS.length).toBe(44);
+    expect(READY_GENERATORS.length).toBe(74);
     expect(EFFECTS.filter(e => e.status === "planned").map(e => e.id)).toEqual([]);
   });
 });

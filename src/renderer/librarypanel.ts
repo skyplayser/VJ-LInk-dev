@@ -3,7 +3,7 @@ import { CAM_LOOKS, CAM_LOOK_INFO, CAM_LOOK_LABEL, camClip, ensureCamera, isCamC
 import { cameraDevices, cameraHelp } from "./camchooser";
 import type { CamDevice } from "./campool";
 import type { ControlContext } from "../core/control";
-import { EFFECTS, type EffectCategory } from "../core/effects";
+import { CATEGORY_LABEL, EFFECTS, type EffectCategory } from "../core/effects";
 import { mediaClip } from "../core/media";
 import { addClip, forgetClip, removeClip } from "../core/show";
 import type { MediaLibrary } from "./medialib";
@@ -14,9 +14,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
 }
 
-const CAT: Record<EffectCategory, string> = {
-  audio: "Audio und Equalizer", geometry: "Geometrie und Tunnel", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Licht und Raum", laser: "Laser (Beamer im Nebel)", lj: "LJ-Link (DJ)", tools: "Werkzeuge",
-};
+const CAT: Record<EffectCategory, string> = CATEGORY_LABEL;
 
 export class LibraryPanel {
   private panel = el("div", "lib-panel");

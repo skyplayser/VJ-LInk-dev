@@ -1,4 +1,5 @@
 // Hauptfenster: Show-Zustand, Eingänge und Oberfläche.
+import { Gallery } from "./gallery";
 import { isCamClip, camIdOf } from "../core/camera";
 import { CameraPool } from "./campool";
 import { CamPanel } from "./campanel";
@@ -8,7 +9,7 @@ import { TempoClock } from "../core/tempo";
 import { DmxDecoder, DMX_MODE_STANDARD_CHANNELS, CH, channelListCsv } from "../core/dmx";
 import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, tickVideoStarts, type ControlContext } from "../core/control";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
-import { EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
+import { CATEGORY_LABEL, EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
 import { BLEND_MODES, COLOR_SOURCES_ALL, DRIVES, type Drive, MAX_LAYERS, addClip, addLayer, defaultScenes, removeClip, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
 import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
 import { MapMode } from "./mapmode";
@@ -696,7 +697,7 @@ function buildSidebar(): void {
 }
 
 // ---- Bauen: Katalog -------------------------------------------------------------------
-const CAT_LABEL: Record<EffectCategory, string> = { audio: "Audio und Equalizer", geometry: "Geometrie", particles: "Partikel und Natur", retro: "Retro und Analog", optical: "Optische Raumeffekte", laser: "Laser-Effekte", lj: "LJ-Link (DJ)", tools: "Werkzeuge" };
+const CAT_LABEL: Record<EffectCategory, string> = CATEGORY_LABEL;
 const KIND_LABEL = { generator: "Generator", post: "Effekt", master: "Master" } as const;
 const REACT_LABEL = { beat: "Beat", bass: "Bass", mid: "Mitten", high: "Höhen", wave: "Wellenform" } as const;
 function buildCatalog(): void {
@@ -983,6 +984,7 @@ function frame(): void {
   engine?.render(showForImage(shown, cv), beat, now, ctx.tempo.bpm, null, lt);
   if (mappingOn()) tileCanvases.get(cv)?.getContext("2d")?.drawImage(preview, 0, 0, 384, 216);
   thumbs.draw(now);
+  gallery.tick(now);
 
   if (now - lastPublish > 33 && bridge) {
     lastPublish = now;
@@ -1067,9 +1069,14 @@ const showTab = new ShowTab({
   multiImage: () => multiImage(),
 });
 const scenePanel = new ScenePanel(ctx, $("scenes"), $<HTMLButtonElement>("scene-auto"), $<HTMLButtonElement>("scene-add"));
-rebuildGrid(); buildSidebar(); buildCatalog(); bindSettings();
+rebuildGrid(); buildSidebar(); bindSettings();
 fxPanel.select(0);
 const thumbs = new ThumbView($("grid"), () => ({ cells: clipCells, clips: rowClips }), ctx);
+// GALERIE: Visuals, Effekte und Medien verwalten
+const gallery = new Gallery({
+  ctx, images: library, videos: videoLib, importFiles: f => importToLibrary(f), toast,
+  changed: () => rebuildGrid(), currentLayer: () => fxPanel.layer, selectLayer: l => fxPanel.select(l),
+}, $("gallery"));
 if (engine) library.attach(engine);
 if (thumbs.gl) {
   library.attach(thumbs.gl);

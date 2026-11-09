@@ -4,7 +4,9 @@ export const GEN_IDS = ["bar-spectrum", "radial-eq", "oscilloscope", "pulse-ring
   "laser-beams", "laser-sky", "laser-cone", "laser-wave", "laser-matrix", "laser-propeller", "laser-scan",
   "beam-moonflower", "beam-derby", "beam-scanner", "beam-spots", "beam-snow", "beam-polygon", "beam-burst", "beam-scanner-v",
   // Eigene Wege in der Engine (kein Generator-Shader): Bauchbinde und DJ-Wellenform aus LJ-Link
-  "now-playing", "dj-waveform"] as const;
+  "now-playing", "dj-waveform",
+  // Moderne Techno-Visuals
+  "mono-bars", "strobe-grid", "line-scan", "rotor", "split-flash", "pulse-square", "cube-tunnel", "gyroid", "chrome-blobs", "neon-corridor", "point-sphere", "terrain", "ring-stack", "code-rain", "barcode", "data-blocks", "hud", "glitch-wall", "truchet", "riley-waves", "checker-warp", "voronoi", "hex-pulse", "interference", "hypno-spiral", "ink", "aurora", "iridescent", "smoke", "nebula"] as const;
 export type GenId = typeof GEN_IDS[number];
 
 export const VERT = `#version 300 es
@@ -795,6 +797,330 @@ vec3 beamBurst(vec2 uv){
   return lzCol(0.0, 0.0) * min(acc, 1.0) * (1.0 - smoothstep(0.45, 1.0, fract(uBeat)));
 }
 
+
+// ==== Moderne Techno-Visuals ===========================================================
+float sdBox3(vec3 p, vec3 b){ vec3 q = abs(p) - b; return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0); }
+
+// -- Minimal / Monochrom --
+vec3 monoBars(vec2 uv){
+  float bt = floor(uBeat);
+  float n = 6.0 + floor(hash(vec2(bt, 1.0)) * 4.0) * 4.0;
+  float on = step(0.5, hash(vec2(floor(uv.x * n), bt)));
+  return vec3(on) * (0.55 + 0.45 * uPulse);
+}
+vec3 strobeGrid(vec2 uv){
+  vec2 g = vec2(floor(8.0 * uRes.x / uRes.y), 8.0);
+  vec2 id = floor(uv * g), f = fract(uv * g);
+  float st = floor(uBeat * 2.0);
+  float lit = step(0.72, hash(id + st * 1.37)) * pow(1.0 - fract(uBeat * 2.0), 2.0);
+  float frame = step(0.04, f.x) * step(f.x, 0.96) * step(0.04, f.y) * step(f.y, 0.96);
+  return vec3(lit * frame + 0.04 * frame);
+}
+vec3 lineScan(vec2 uv){
+  float acc = 0.0;
+  for (int i = 0; i < 9; i++) {
+    float fi = float(i);
+    float y = fract(uTime * (0.08 + 0.12 * hash(vec2(fi, 2.0))) + hash(vec2(fi, 5.0)));
+    if (mod(fi, 2.0) > 0.5) y = 1.0 - y;
+    acc += glowLine(abs(uv.y - y), 0.0015, 0.0008) * (0.5 + 0.5 * hash(vec2(fi, 9.0)));
+  }
+  return vec3(acc) * (0.7 + 0.5 * uPulse);
+}
+vec3 rotor(vec2 uv){
+  vec2 p = cp(uv);
+  float r = length(p), a = atan(p.y, p.x);
+  float sw = fract(a / 6.2832 - uBeat * 0.25);
+  float trail = pow(1.0 - sw, 10.0) * smoothstep(0.55, 0.05, r);
+  float bars = pow(abs(cos((a - uTime * 0.6) * 2.0)), 80.0) * smoothstep(0.6, 0.0, r);
+  float rings = smoothstep(0.004, 0.0, abs(fract(r * 8.0) - 0.5) - 0.46) * 0.15 * step(r, 0.55);
+  return vec3(trail + bars * 0.8 + rings);
+}
+vec3 splitFlash(vec2 uv){
+  float k = mod(floor(uBeat * 2.0), 4.0);
+  vec2 q = step(0.5, uv);
+  float idx = q.x + q.y * 2.0;
+  float order = k == 0.0 ? 0.0 : k == 1.0 ? 3.0 : k == 2.0 ? 1.0 : 2.0;
+  float lit = step(abs(idx - order), 0.1) * pow(1.0 - fract(uBeat * 2.0), 1.5);
+  float gap = step(0.004, abs(uv.x - 0.5)) * step(0.006, abs(uv.y - 0.5));
+  return vec3(lit * gap);
+}
+vec3 pulseSquare(vec2 uv){
+  vec2 p = cp(uv);
+  float d = max(abs(p.x) * 0.75, abs(p.y));
+  float ring = smoothstep(0.035, 0.0, abs(fract(d * 4.0 - uBeat * 0.5) - 0.5) - 0.44);
+  return vec3(ring) * (0.5 + 0.7 * uPulse) * smoothstep(0.75, 0.05, d);
+}
+
+// -- 3D und Raum --
+vec3 cubeTunnel(vec2 uv){
+  vec2 p = cp(uv);
+  vec3 ro = vec3(0.0, 0.0, uTime * 2.0);
+  vec3 rd = normalize(vec3(p, 1.1));
+  rd.xy = rot(uTime * 0.12) * rd.xy;
+  float t = 0.0, glow = 0.0;
+  for (int i = 0; i < 64; i++) {
+    vec3 q = ro + rd * t;
+    vec3 r = q; r.z = mod(r.z, 2.0) - 1.0;
+    r.xy = rot(floor(q.z * 0.5) * 0.35) * r.xy;
+    float frame = max(sdBox3(r, vec3(1.5, 0.95, 0.04)), -sdBox3(r, vec3(1.32, 0.78, 0.3)));
+    float walls = -sdBox3(vec3(r.xy, 0.0), vec3(1.7, 1.1, 1.0));
+    glow += 0.01 / (0.015 + abs(frame));
+    float d = min(walls, frame);
+    if (d < 0.001 || t > 30.0) break;
+    t += max(d * 0.8, 0.02);
+  }
+  return vec3(glow * 0.12) * (0.7 + 0.5 * uPulse);
+}
+// Gyroid als leuchtendes Gitter (Volumen-Leuchten statt Fläche: wirkt wie Neon-Struktur im Raum)
+vec3 gyroid(vec2 uv){
+  vec2 p = cp(uv);
+  vec3 ro = vec3(0.0, 0.0, uTime * 0.5);
+  vec3 rd = normalize(vec3(p, 1.0));
+  rd.xy = rot(uTime * 0.07) * rd.xy;
+  vec3 col = vec3(0.0);
+  float t = 0.1;
+  for (int i = 0; i < 56; i++) {
+    vec3 q = ro + rd * t;
+    float g = abs(dot(sin(q * 3.0), cos(q.zxy * 3.0)));
+    float w = exp(-g * 14.0) * exp(-t * 0.35);
+    col += hsv(0.55 + 0.15 * sin(q.z * 0.5), 0.6, 1.0) * w * 0.35;
+    t += 0.09;
+  }
+  return col * (0.8 + 0.5 * uPulse);
+}
+float mbField(vec2 p){
+  float f = 0.0;
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    vec2 c = vec2(sin(uTime * 0.5 * (0.7 + 0.1 * fi) + fi * 2.0) * 0.55, cos(uTime * 0.4 * (0.6 + 0.13 * fi) + fi) * 0.3);
+    f += (0.03 + 0.015 * uBands[0]) / max(dot(p - c, p - c), 1e-4);
+  }
+  return f;
+}
+vec3 chromeBlobs(vec2 uv){
+  vec2 p = cp(uv);
+  float f = mbField(p), e = 0.004;
+  // Normale aus 1/f (verhält sich wie ein Abstand): gleichmäßige Wölbung statt Spitzen in den Zentren
+  float F0 = 1.0 / f;
+  vec2 g = vec2(1.0 / mbField(p + vec2(e, 0.0)) - F0, 1.0 / mbField(p + vec2(0.0, e)) - F0) / e;
+  vec3 n = normalize(vec3(g * 0.6, 1.0));
+  float inside = smoothstep(0.95, 1.1, f);
+  float env = 0.5 + 0.5 * sin(n.x * 5.0 + n.y * 3.0 + uTime * 0.8);
+  vec3 chrome = mix(vec3(0.03, 0.04, 0.08), vec3(1.0), env * env);
+  chrome += vec3(0.4, 0.6, 1.0) * pow(1.0 - n.z, 1.5) * 0.7 + pow(max(0.0, dot(n, normalize(vec3(-0.4, 0.5, 0.8)))), 30.0);
+  return chrome * inside;
+}
+vec3 neonCorridor(vec2 uv){
+  vec2 p = cp(uv);
+  float a = uRes.x / uRes.y;
+  vec3 c = vec3(0.0);
+  for (int i = 0; i < 12; i++) {
+    float z = fract(float(i) / 12.0 - uTime * 0.25);
+    float s = 0.06 / (z + 0.03);
+    vec2 q = abs(p) - vec2(0.9 * a, 0.9) * s * 0.5;
+    float d = abs(max(q.x, q.y));
+    c += hsv(0.62 + 0.25 * sin(float(i) * 0.7 + uBeat * 0.25), 0.8, 1.0) * smoothstep(0.004 * s + 0.002, 0.0, d) * smoothstep(1.0, 0.6, z) * smoothstep(0.0, 0.12, z);
+  }
+  return c * (0.8 + 0.4 * uPulse);
+}
+vec3 pointSphere(vec2 uv){
+  vec2 p = cp(uv);
+  float acc = 0.0, R = 0.4 * (1.0 + 0.12 * uPulse);
+  for (int i = 0; i < 160; i++) {
+    float fi = float(i) + 0.5;
+    float y = 1.0 - 2.0 * fi / 160.0, r = sqrt(1.0 - y * y), th = fi * 2.39996;
+    vec3 v = vec3(cos(th) * r, y, sin(th) * r);
+    v.xz = rot(uTime * 0.4) * v.xz; v.yz = rot(uTime * 0.23) * v.yz;
+    float pers = 1.0 / (2.2 - v.z);
+    acc += smoothstep(0.013 * pers, 0.0, length(p - v.xy * R * pers * 2.0)) * (0.35 + 0.65 * (v.z * 0.5 + 0.5));
+  }
+  return vec3(acc * 1.6);
+}
+vec3 terrain(vec2 uv){
+  vec2 p = cp(uv);
+  float s = uTime * 0.6, acc = 0.0;
+  for (int k = 1; k <= 28; k++) {
+    float z = float(k) * 0.35 - fract(s) * 0.35;
+    float zw = z + floor(s) * 0.35;
+    float h = fbm(vec2(p.x * z * 1.3, zw * 0.8)) * (0.8 + 0.5 * uBands[0]);
+    float y = 0.1 - (0.45 - h * 0.6) / max(z, 0.05);
+    acc += smoothstep(0.0035, 0.0, abs(p.y - y)) * smoothstep(10.0, 2.5, z) * smoothstep(0.0, 0.4, z);
+  }
+  return vec3(0.35, 0.9, 1.0) * acc;
+}
+vec3 ringStack(vec2 uv){
+  vec2 p = cp(uv);
+  float acc = 0.0;
+  for (int i = 0; i < 8; i++) {
+    float fi = float(i), r = 0.08 + fi * 0.045;
+    float tilt = cos(uTime * (0.3 + 0.07 * fi) + fi);
+    vec2 q = rot(uTime * 0.1 * (mod(fi, 2.0) * 2.0 - 1.0)) * p;
+    float d = abs(length(vec2(q.x, q.y / max(abs(tilt), 0.06))) - r) * max(abs(tilt), 0.06);
+    acc += smoothstep(0.003, 0.0, d) * (0.5 + 0.5 * abs(tilt));
+  }
+  return vec3(acc) * (0.8 + 0.4 * uPulse);
+}
+
+// -- Daten und Glitch --
+vec3 codeRain(vec2 uv){
+  vec2 g = vec2(floor(30.0 * uRes.x / uRes.y), 30.0);
+  vec2 id = floor(uv * g), f = fract(uv * g);
+  float sp = 0.5 + hash(vec2(id.x, 3.0)) * 1.5;
+  float head = fract(uTime * sp * 0.15 + hash(vec2(id.x, 9.0)));
+  float dist = fract(head - (1.0 - uv.y) + 1.0);
+  float tr = pow(1.0 - dist, 6.0) * step(dist, 0.6);
+  vec2 bit = floor(f * vec2(3.0, 5.0));
+  float on = step(0.45, hash(id * vec2(1.3, 2.1) + bit + floor(uTime * 4.0 + hash(id) * 10.0)));
+  float gl = on * step(0.15, f.x) * step(f.x, 0.85) * step(0.1, f.y) * step(f.y, 0.9);
+  return vec3(0.2, 1.0, 0.4) * gl * tr + vec3(0.85, 1.0, 0.9) * gl * smoothstep(0.035, 0.0, dist);
+}
+vec3 barcode(vec2 uv){
+  float bt = floor(uBeat);
+  float w = step(0.5, hash(vec2(floor(uv.x * 140.0), bt))) * step(0.3, hash(vec2(floor(uv.x * 37.0), bt + 3.0)));
+  float band = step(0.18, uv.y) * step(uv.y, 0.82);
+  float scan = smoothstep(0.004, 0.0, abs(uv.x - fract(uBeat * 0.25)));
+  return vec3(w * band) * (0.7 + 0.3 * uPulse) + vec3(1.0, 0.1, 0.1) * scan;
+}
+vec3 dataBlocks(vec2 uv){
+  vec3 c = vec3(0.0);
+  for (int l = 0; l < 3; l++) {
+    float fl = float(l);
+    vec2 g = vec2(6.0, 4.0) * pow(2.0, fl) * vec2(uRes.x / uRes.y / 1.78, 1.0);
+    vec2 id = floor(uv * g), f = fract(uv * g);
+    float on = step(0.86, hash(id + fl * 7.0 + floor(uTime * (3.0 + fl * 2.0))));
+    float edge = step(0.06, f.x) * step(f.x, 0.94) * step(0.08, f.y) * step(f.y, 0.92);
+    float lines = step(0.5, fract(f.y * 6.0)) * step(0.3, hash(id + floor(f.y * 6.0)));
+    c += vec3(on * edge * (0.35 + 0.65 * lines)) * (0.5 / (fl + 1.0));
+  }
+  return c * (0.8 + 0.5 * uPulse);
+}
+vec3 hud(vec2 uv){
+  vec2 p = cp(uv);
+  float r = length(p), a = atan(p.y, p.x), c = 0.0;
+  for (int i = 0; i < 5; i++) {
+    float fi = float(i), R = 0.12 + fi * 0.07;
+    float seg = step(0.5, fract((a / 6.2832) * (4.0 + fi * 3.0) + uTime * 0.05 * (mod(fi, 2.0) * 2.0 - 1.0) * (1.0 + fi)));
+    c += smoothstep(0.0025, 0.0, abs(r - R)) * mix(0.25, 1.0, seg);
+    c += smoothstep(0.003, 0.0, abs(r - R - 0.015)) * step(0.85, fract(a / 6.2832 * 60.0 + fi)) * 0.7;
+  }
+  c += (smoothstep(0.002, 0.0, abs(p.x)) + smoothstep(0.002, 0.0, abs(p.y))) * step(r, 0.5) * 0.4;
+  c += pow(fract(a / 6.2832 - uTime * 0.2), 12.0) * step(r, 0.45) * 0.6;
+  return vec3(0.4, 0.9, 1.0) * c * (0.8 + 0.3 * uPulse);
+}
+vec3 glitchWall(vec2 uv){
+  float row = floor(uv.y * 36.0), bt = floor(uTime * 8.0);
+  float shift = (hash(vec2(row, bt)) - 0.5) * 0.4 * step(0.6, hash(vec2(row, bt + 1.0)));
+  vec2 q = vec2(uv.x + shift, uv.y);
+  vec2 id = floor(q * vec2(18.0, 36.0));
+  float h = hash(id + floor(uBeat) * 3.0);
+  vec3 col = h > 0.92 ? vec3(1.0, 0.1, 0.4) : h > 0.84 ? vec3(0.1, 0.9, 1.0) : h > 0.7 ? vec3(0.9) : vec3(0.0);
+  float noise = hash(uv * uRes + uTime) * 0.12;
+  return col * (0.7 + 0.5 * uPulse) + noise;
+}
+
+// -- Op-Art und Muster --
+vec3 truchet(vec2 uv){
+  vec2 p = cp(uv) * 8.0;
+  vec2 id = floor(p), f = fract(p) - 0.5;
+  if (hash(id + floor(uBeat / 4.0) * 1.7) > 0.5) f.x = -f.x;
+  float d = min(abs(length(f - 0.5) - 0.5), abs(length(f + 0.5) - 0.5));
+  float flow = 0.5 + 0.5 * sin((f.x + f.y) * 12.0 - uTime * 3.0);
+  return vec3(smoothstep(0.07, 0.035, d)) * (0.55 + 0.45 * flow);
+}
+vec3 rileyWaves(vec2 uv){
+  vec2 p = cp(uv);
+  float v = sin((p.y + 0.09 * sin(p.x * 5.0 + uTime) * (1.0 + 0.5 * uBands[0])) * 70.0);
+  return vec3(smoothstep(-0.15, 0.15, v));
+}
+vec3 checkerWarp(vec2 uv){
+  vec2 p = cp(uv) * (1.0 + 0.15 * uPulse);
+  vec2 q = p + 0.15 * vec2(sin(p.y * 4.0 + uTime), cos(p.x * 4.0 + uTime * 0.8));
+  vec2 g = floor(q * 10.0);
+  return vec3(mod(g.x + g.y, 2.0));
+}
+vec3 voronoiCells(vec2 uv){
+  vec2 p = cp(uv) * 6.0;
+  vec2 i = floor(p), f = fract(p);
+  float d1 = 8.0, d2 = 8.0; vec2 cid = vec2(0.0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 g = vec2(float(x), float(y));
+    vec2 o = 0.5 + 0.4 * sin(uTime * 0.7 + 6.2831 * vec2(hash(i + g), hash(i + g + 5.3)));
+    float d = length(g + o - f);
+    if (d < d1) { d2 = d1; d1 = d; cid = i + g; } else if (d < d2) d2 = d;
+  }
+  float edge = smoothstep(0.08, 0.0, d2 - d1);
+  float fill = step(0.85, hash(cid + floor(uBeat))) * pow(1.0 - fract(uBeat), 2.0);
+  return vec3(edge) * 0.9 + hsv(hash(cid), 0.6, 1.0) * fill * 0.7;
+}
+vec3 hexPulse(vec2 uv){
+  vec2 p = cp(uv) * 10.0;
+  vec2 s = vec2(1.0, 1.7320508), hh = s * 0.5;
+  vec2 a = mod(p, s) - hh, b = mod(p - hh, s) - hh;
+  vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+  vec2 id = p - gv;
+  float edge = smoothstep(0.05, 0.0, abs(sdHex(gv, 0.45)));
+  float r = length(id) / 10.0;
+  float wave = pow(1.0 - abs(fract(r * 1.5 - uBeat * 0.5) - 0.5) * 2.0, 8.0);
+  return vec3(0.2, 0.8, 1.0) * edge * (0.25 + wave) + vec3(1.0) * wave * 0.25 * step(sdHex(gv, 0.4), 0.0);
+}
+vec3 interference(vec2 uv){
+  vec2 p = cp(uv);
+  vec2 c1 = vec2(sin(uTime * 0.3) * 0.35, cos(uTime * 0.21) * 0.2), c2 = -c1;
+  float v = sin(length(p - c1) * 70.0 - uTime * 4.0) + sin(length(p - c2) * 70.0 - uTime * 4.0);
+  return vec3(smoothstep(0.0, 0.4, v)) * (0.8 + 0.3 * uPulse);
+}
+vec3 hypnoSpiral(vec2 uv){
+  vec2 p = cp(uv);
+  float r = length(p) + 1e-4, a = atan(p.y, p.x);
+  float v = fract(a / 6.2832 * 4.0 + log(r) * 2.5 - uTime * 0.5);
+  return vec3(step(0.5, v)) * smoothstep(0.0, 0.05, r);
+}
+
+// -- Organisch und Flüssig --
+vec3 ink(vec2 uv){
+  vec2 p = cp(uv) * 2.0;
+  vec2 q = vec2(fbm(p + uTime * 0.05), fbm(p + vec2(3.1, 1.7) + uTime * 0.04));
+  vec2 r = vec2(fbm(p + 4.0 * q + vec2(1.7, 9.2) + uTime * 0.08), fbm(p + 4.0 * q + vec2(8.3, 2.8) - uTime * 0.06));
+  float f = fbm(p + 4.0 * r);
+  vec3 c = mix(vec3(0.02, 0.0, 0.08), vec3(0.9, 0.1, 0.5), clamp(f * f * 2.0, 0.0, 1.0));
+  c = mix(c, vec3(0.1, 0.8, 1.0), clamp(length(q) * 0.6, 0.0, 1.0) * smoothstep(0.4, 0.9, f));
+  return c * smoothstep(0.25, 0.7, f) * 1.5;
+}
+vec3 aurora(vec2 uv){
+  vec2 p = cp(uv);
+  vec3 c = vec3(0.0);
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float off = (fbm(vec2(p.x * 1.5 + fi * 3.0, uTime * 0.1)) - 0.5) * 0.5;
+    float band = exp(-abs(p.y - 0.12 - fi * 0.08 - off) * 9.0);
+    float rays = 0.5 + 0.5 * fbm(vec2(p.x * 18.0 + fi, uTime * 0.3));
+    c += mix(vec3(0.1, 1.0, 0.5), vec3(0.6, 0.2, 1.0), fi / 2.0) * band * rays * 0.7;
+  }
+  return c * (0.85 + 0.3 * uBands[1]);
+}
+vec3 iridescent(vec2 uv){
+  vec2 p = cp(uv);
+  float n = fbm(p * 1.5 + uTime * 0.05) * 5.0 + length(p) * 2.0 + uTime * 0.1;
+  vec3 c = 0.5 + 0.5 * cos(6.2832 * (n + vec3(0.0, 0.33, 0.67)));
+  float blob = smoothstep(0.3, 0.7, fbm(p * 2.0 - uTime * 0.07));
+  return c * (0.3 + 0.9 * blob);
+}
+vec3 smoke(vec2 uv){
+  vec2 p = cp(uv);
+  float n = fbm(vec2(p.x * 2.0, p.y * 2.0 - uTime * 0.5) + fbm(vec2(p.x * 3.0 + uTime * 0.1, p.y * 3.0)) * 1.5);
+  float v = smoothstep(0.45, 0.85, n) * smoothstep(0.6, -0.2, p.y);
+  return vec3(v) * 0.9;
+}
+vec3 nebula(vec2 uv){
+  vec2 p = rot(uTime * 0.02) * cp(uv);
+  float n = fbm(p * 2.0 + fbm(p * 3.0 + uTime * 0.03));
+  vec3 c = mix(vec3(0.05, 0.0, 0.15), vec3(0.8, 0.2, 0.6), smoothstep(0.35, 0.8, n));
+  c += vec3(0.1, 0.5, 1.0) * smoothstep(0.6, 0.95, fbm(p * 4.0 - uTime * 0.02)) * 0.6;
+  vec2 sg = floor(uv * uRes / 3.0);
+  c += vec3(step(0.997, hash(sg))) * (0.5 + 0.5 * sin(uTime * 3.0 + hash(sg) * 30.0));
+  return c;
+}
+
 void main(){
   vec2 uv = vUv;
   vec3 c;
@@ -851,6 +1177,36 @@ void main(){
   else if (uGen == 40) c = beamPolygon(uv);
   else if (uGen == 41) c = beamBurst(uv);
   else if (uGen == 42) c = beamScan(uv, true);
+  else if (uGen == 45) c = monoBars(uv);
+  else if (uGen == 46) c = strobeGrid(uv);
+  else if (uGen == 47) c = lineScan(uv);
+  else if (uGen == 48) c = rotor(uv);
+  else if (uGen == 49) c = splitFlash(uv);
+  else if (uGen == 50) c = pulseSquare(uv);
+  else if (uGen == 51) c = cubeTunnel(uv);
+  else if (uGen == 52) c = gyroid(uv);
+  else if (uGen == 53) c = chromeBlobs(uv);
+  else if (uGen == 54) c = neonCorridor(uv);
+  else if (uGen == 55) c = pointSphere(uv);
+  else if (uGen == 56) c = terrain(uv);
+  else if (uGen == 57) c = ringStack(uv);
+  else if (uGen == 58) c = codeRain(uv);
+  else if (uGen == 59) c = barcode(uv);
+  else if (uGen == 60) c = dataBlocks(uv);
+  else if (uGen == 61) c = hud(uv);
+  else if (uGen == 62) c = glitchWall(uv);
+  else if (uGen == 63) c = truchet(uv);
+  else if (uGen == 64) c = rileyWaves(uv);
+  else if (uGen == 65) c = checkerWarp(uv);
+  else if (uGen == 66) c = voronoiCells(uv);
+  else if (uGen == 67) c = hexPulse(uv);
+  else if (uGen == 68) c = interference(uv);
+  else if (uGen == 69) c = hypnoSpiral(uv);
+  else if (uGen == 70) c = ink(uv);
+  else if (uGen == 71) c = aurora(uv);
+  else if (uGen == 72) c = iridescent(uv);
+  else if (uGen == 73) c = smoke(uv);
+  else if (uGen == 74) c = nebula(uv);
   else c = vec3(0.0);
 
   // Laser: Helligkeit = stärkster Kanal (ein blauer Strahl ist voll hell, nicht dunkel)

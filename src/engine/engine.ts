@@ -254,7 +254,8 @@ export class Engine {
       const im = this.img;
       const tf = isVideo
         ? { x: 0, y: 0, rotation: 0, scale: fitScale(l.video.fit, w / h, media.w / Math.max(1, media.h), media.h, h) }
-        : mediaTransform(l.media, drv.beat, time);
+        // Antrieb „Statisch“: Grafiken (auch Now Playing) stehen still, nur Lage, Größe und Drehung gelten
+        : mediaTransform(l.drive === "static" ? { ...l.media, anim: "none" } : l.media, drv.beat, time);
       gl.useProgram(im.p);
       gl.uniform1f(this.loc(im, "uOpacity"), fade);
       gl.uniform1i(this.loc(im, "uImg"), 0);

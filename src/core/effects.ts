@@ -1,5 +1,13 @@
 // Katalog der Visuals. `status: "ready"` heißt: die Engine hat dafür einen Generator.
-export type EffectCategory = "audio" | "geometry" | "particles" | "retro" | "optical" | "laser" | "lj" | "tools";
+export type EffectCategory = "audio" | "geometry" | "particles" | "retro" | "optical" | "laser" | "lj" | "tools"
+  | "minimal" | "space3d" | "data" | "opart" | "organic";
+
+/** Anzeigenamen der Kategorien (Galerie, Bibliothek), in dieser Reihenfolge. */
+export const CATEGORY_LABEL: Record<EffectCategory, string> = {
+  minimal: "Minimal und Monochrom", space3d: "3D und Raum", data: "Daten und Glitch", opart: "Op-Art und Muster", organic: "Organisch und Flüssig",
+  audio: "Audio und Equalizer", geometry: "Geometrie und Tunnel", particles: "Partikel und Natur", retro: "Retro und Analog",
+  optical: "Licht und Raum", laser: "Laser (Beamer im Nebel)", lj: "LJ-Link (DJ)", tools: "Werkzeuge",
+};
 export type EffectKind = "generator" | "post" | "master";
 export type EffectStatus = "ready" | "planned";
 
@@ -83,6 +91,37 @@ export const EFFECTS: readonly EffectDef[] = [
   // LJ-Link: Daten vom DJ-Pult
   e(51, "now-playing", "Now Playing", "lj", "generator", "ready", "Bauchbinde mit Titel, Artist und Cover des Master-Decks aus LJ-Link. Erscheint beim Trackwechsel (Dauer unter VERBINDEN → LJ-Link). Im Privatsphäre-Modus leer."),
   e(52, "dj-waveform", "DJ-Waveform", "lj", "generator", "ready", "Scrollende Wellenform des Master-Decks aus LJ-Link, wie auf dem CDJ, mit Abspielkopf in der Mitte.", ["beat"]),
+  // Moderne Techno-Visuals (Recherche 2026: generativ, monochrom, 3D, Daten/Glitch, Op-Art, organisch)
+  e(53, "mono-bars", "Mono-Balken", "minimal", "generator", "ready", "Schwarz-weiße Balken, jeder Beat ein neues Muster.", ["beat"]),
+  e(54, "strobe-grid", "Strobe-Raster", "minimal", "generator", "ready", "Raster aus Feldern, zufällige Felder blitzen im Achtel-Takt.", ["beat"]),
+  e(55, "line-scan", "Linien-Scan", "minimal", "generator", "ready", "Feine Linien wandern in verschiedenen Tempi über das Bild.", ["beat"]),
+  e(56, "rotor", "Rotor", "minimal", "generator", "ready", "Radar-Wischer mit Nachleuchten, ein Umlauf pro Takt.", ["beat"]),
+  e(57, "split-flash", "Split-Flash", "minimal", "generator", "ready", "Vier Bildviertel blitzen reihum im Achtel-Takt.", ["beat"]),
+  e(58, "pulse-square", "Quadrat-Puls", "minimal", "generator", "ready", "Rechteck-Rahmen laufen im Takt nach außen.", ["beat"]),
+  e(59, "cube-tunnel", "Würfel-Tunnel", "space3d", "generator", "ready", "Fahrt durch einen Gang aus leuchtenden Rahmen (3D).", ["beat"]),
+  e(60, "gyroid", "Gyroid", "space3d", "generator", "ready", "Flug durch eine endlose, verschlungene 3D-Fläche."),
+  e(61, "chrome-blobs", "Chrom-Blobs", "space3d", "generator", "ready", "Flüssige Chrom-Tropfen, die verschmelzen und sich trennen.", ["bass"]),
+  e(62, "neon-corridor", "Neon-Korridor", "space3d", "generator", "ready", "Endloser Korridor aus farbigen Neonrahmen.", ["beat"]),
+  e(63, "point-sphere", "Punkt-Kugel", "space3d", "generator", "ready", "Drehende Kugel aus Lichtpunkten, pulsiert im Takt.", ["beat"]),
+  e(64, "terrain", "Wireframe-Terrain", "space3d", "generator", "ready", "Fliegen über eine Gitter-Landschaft, Bass hebt die Berge.", ["bass"]),
+  e(65, "ring-stack", "Ring-Stapel", "space3d", "generator", "ready", "Kippende Ringe in verschiedenen Größen.", ["beat"]),
+  e(66, "code-rain", "Code-Regen", "data", "generator", "ready", "Fallende Zeichenkolonnen."),
+  e(67, "barcode", "Barcode", "data", "generator", "ready", "Strichcode, jeder Beat neu, mit rotem Scan.", ["beat"]),
+  e(68, "data-blocks", "Datenblöcke", "data", "generator", "ready", "Flackernde Felder wie eine Datenoberfläche.", ["beat"]),
+  e(69, "hud", "HUD", "data", "generator", "ready", "Drehende Messringe, Skalen und Fadenkreuz.", ["beat"]),
+  e(70, "glitch-wall", "Glitch-Wand", "data", "generator", "ready", "Datamosh-Blöcke mit springenden Zeilen.", ["beat"]),
+  e(71, "truchet", "Truchet", "opart", "generator", "ready", "Kachelmuster aus Bögen, alle 4 Beats neu gelegt.", ["beat"]),
+  e(72, "riley-waves", "Op-Art-Wellen", "opart", "generator", "ready", "Schwarz-weiße Wellenlinien, die flimmern.", ["bass"]),
+  e(73, "checker-warp", "Schachbrett-Warp", "opart", "generator", "ready", "Verbogenes Schachbrett.", ["beat"]),
+  e(74, "voronoi", "Zellen", "opart", "generator", "ready", "Wandernde Zellen mit leuchtenden Kanten, Zellen blitzen im Takt.", ["beat"]),
+  e(75, "hex-pulse", "Hex-Puls", "opart", "generator", "ready", "Wabenraster, Wellen laufen aus der Mitte.", ["beat"]),
+  e(76, "interference", "Interferenz", "opart", "generator", "ready", "Überlagerte Kreiswellen aus zwei Quellen."),
+  e(77, "hypno-spiral", "Hypno-Spirale", "opart", "generator", "ready", "Drehende Schwarz-Weiß-Spirale."),
+  e(78, "ink", "Tinte", "organic", "generator", "ready", "Tinte, die sich in Wasser verteilt."),
+  e(79, "aurora", "Polarlicht", "organic", "generator", "ready", "Leuchtende Vorhänge am Himmel.", ["mid"]),
+  e(80, "iridescent", "Irisierend", "organic", "generator", "ready", "Schillernde Farben wie Öl auf Wasser."),
+  e(81, "smoke", "Rauch", "organic", "generator", "ready", "Aufsteigende Rauchschwaden."),
+  e(82, "nebula", "Nebel-Galaxie", "organic", "generator", "ready", "Kosmischer Nebel mit funkelnden Sternen."),
 ];
 
 export const EFFECT_BY_ID: ReadonlyMap<string, EffectDef> = new Map(EFFECTS.map(x => [x.id, x]));
