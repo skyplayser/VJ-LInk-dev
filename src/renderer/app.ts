@@ -1,4 +1,5 @@
 // Hauptfenster: Show-Zustand, Eingänge und Oberfläche.
+import { StartScreen } from "./startscreen";
 import { Gallery } from "./gallery";
 import { isCamClip, camIdOf } from "../core/camera";
 import { CameraPool } from "./campool";
@@ -1130,6 +1131,19 @@ bridge?.onMenu((cmd, arg) => {
 });
 if (!bridge) projBtn.hidden = true;
 
+// ---- Startbildschirm --------------------------------------------------------------------
+const startScreen = new StartScreen({
+  projectName: () => projName,
+  recent: async () => (bridge ? bridge.projectRecent() : []),
+  clearRecent: async () => { await bridge?.clearRecent(); projRecent = []; showProjName(); },
+  file: (cmd, p) => runFileCmd(cmd, p),
+  goTab: tab => document.querySelector<HTMLButtonElement>(`.tabs [data-tab="${tab}"]`)?.click(),
+  openSettings: () => openSettings(),
+  openMapping: () => { mapMenu.hidden = false; mapBtn.setAttribute("aria-expanded", "true"); },
+  version: "0.1",
+});
+$("proj-start").addEventListener("click", () => { closeProjMenu(); void startScreen.show(); });
+
 function autosave(now: number): void {
   if (!loaded || now - lastSaveCheck < 2000) return;
   lastSaveCheck = now;
@@ -1404,7 +1418,7 @@ void (async () => { if (bridge) displays = await bridge.listDisplays(); renderDi
 let updateDeck = buildDeck(ctx, $("deck"));
 function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck")); }
 // Erst laden, wenn alle Teile der Oberfläche stehen (im Browser läuft das Laden ohne Wartezeit durch).
-void loadProject();
+void loadProject().then(() => { if (StartScreen.shouldShow()) void startScreen.show(); });
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.
 for (const g of READY_GENERATORS) if (!GEN_IDS.includes(g.id as typeof GEN_IDS[number]) || !EFFECT_BY_ID.has(g.id)) console.error("Generator fehlt in der Engine:", g.id);
 requestAnimationFrame(frame);

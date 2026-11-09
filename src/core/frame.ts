@@ -121,6 +121,10 @@ export interface VjBridge {
   projectFile(cmd: ProjectFileCmd, json: string, filePath?: string): Promise<{ ok: boolean; name?: string; message?: string }>;
   projectDirty(dirty: boolean): void;
   projectBaseline(hash: string): void;
+  /** Zuletzt geöffnete Projekte mit Datum; fehlende Dateien sind markiert. */
+  projectRecent(): Promise<RecentProject[]>;
+  /** Liste „Zuletzt geöffnet“ leeren. */
+  clearRecent(): Promise<void>;
   /** Befehle aus dem App-Menü (Ablage, Einstellungen). */
   onMenu(cb: (cmd: string, arg?: string) => void): void;
   platform: string;
@@ -133,3 +137,5 @@ export interface VjBridge {
   /** Weboberfläche von LJ-Link im Browser öffnen. */
   openLj(): void;
 }
+
+export interface RecentProject { path: string; name: string; folder: string; exists: boolean; modified: number }

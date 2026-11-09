@@ -1,3 +1,4 @@
+import { promises as fsp } from "node:fs";
 import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, protocol, screen, session, shell, systemPreferences, type Display, type MenuItemConstructorOptions } from "electron";
 import path from "node:path";
 import { Network } from "./network";
@@ -405,6 +406,18 @@ app.whenReady().then(async () => {
     if (await storage!.removeMedia(id)) for (const w of outputs.values()) if (!w.isDestroyed()) w.webContents.send("media", { type: "remove", id });
   });
   ipcMain.on("project:save", (e, json: unknown) => { if (fromControl(e) && !switching) void storage!.saveProject(json); });
+  // Startbildschirm: zuletzt geöffnete Projekte mit Änderungsdatum (fehlende Dateien markiert)
+  ipcMain.handle("project:recent", async e => {
+    if (!fromControl(e) || !files) return [];
+    const out = [];
+    for (const p of files.recent.slice(0, 5)) {
+      let exists = false, modified = 0;
+      try { const st = await fsp.stat(p); exists = st.isFile(); modified = st.mtimeMs; } catch { /* verschoben oder gelöscht */ }
+      out.push({ path: p, name: path.basename(p).replace(/\.vjlink$/i, ""), folder: path.dirname(p), exists, modified });
+    }
+    return out;
+  });
+  ipcMain.handle("project:clearRecent", async e => { if (fromControl(e) && files) await files.clearRecent(); });
   ipcMain.handle("project:file", async (e, cmd: unknown, json: unknown, filePath: unknown) => {
     if (!fromControl(e) || typeof json !== "string" || !["new", "open", "save", "saveAs", "openPath"].includes(cmd as string)) return { ok: false };
     return fileCommand(cmd as FileCmd, json, typeof filePath === "string" ? filePath : undefined);

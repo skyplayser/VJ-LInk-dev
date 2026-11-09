@@ -26,6 +26,8 @@ const bridge: VjBridge = {
   projectFile: (cmd, json, filePath) => ipcRenderer.invoke("project:file", cmd, json, filePath),
   projectDirty: dirty => { ipcRenderer.send("project:dirty", dirty); },
   projectBaseline: hash => { ipcRenderer.send("project:baseline", hash); },
+  projectRecent: () => ipcRenderer.invoke("project:recent"),
+  clearRecent: () => ipcRenderer.invoke("project:clearRecent"),
   onMenu: cb => { ipcRenderer.on("menu", (_e, cmd: string, arg?: string) => cb(cmd, arg)); },
   platform: process.platform,
   liveMedia: e => { ipcRenderer.send("media:live", e); },
