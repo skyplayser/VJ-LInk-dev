@@ -345,7 +345,7 @@ export class Engine {
     const mapping = !view && !!warps;
     const dest = view || mapping ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
     // Hauptbild (bei Leinwänden mit eigenen Ebenen rechnet jede ihren Stapel unten selbst)
-    this.composeStack(show, mainLayers(show), show.transition?.from ?? null, key, dest, w, h, beat, sec, bpm, nowMs);
+    this.composeStack(show, mainLayers(show), show.transition?.from ?? null, key, dest, w, h, beat, sec, bpm, nowMs, show.stackGain?.main ?? 1);
     // SHOW-Ablauf: im Projektionsmapping auf dem gewählten Bild, sonst auf dem Hauptbild
     const cueImg = mapping ? (show.cueImage ?? "main") : "main";
     if (!show.blackout && show.cues.length && cueImg === "main") this.drawCues(show.cues, nowMs, w, h, dest);
@@ -373,7 +373,7 @@ export class Engine {
         if (!wp.stack || !own || srcOf.has(wp.stack)) continue;
         const st = this.target(this.surfT.get(wp.stack) ?? null, w, h);
         this.surfT.set(wp.stack, st);
-        this.composeStack(show, own, show.transition?.fromStacks?.[wp.stack] ?? null, `S${wp.stack}:`, st, w, h, beat, sec, bpm, nowMs);
+        this.composeStack(show, own, show.transition?.fromStacks?.[wp.stack] ?? null, `S${wp.stack}:`, st, w, h, beat, sec, bpm, nowMs, show.stackGain?.[wp.stack] ?? 1);
         if (!show.blackout && show.cues.length && cueImg === wp.stack) this.drawCues(show.cues, nowMs, w, h, st);
         if (show.testCard && !spanTest) this.drawTestCard(show, beat, nowMs, w, h, st);
         srcOf.set(wp.stack, st);
@@ -488,7 +488,7 @@ export class Engine {
 
   /** Einen Ebenen-Stapel mischen (mit Überblendung, Master, Strobe) und nach `dest` (null = Bildschirm) zeichnen. */
   private composeStack(show: ShowState, layers: readonly LayerState[], fromLayers: readonly LayerState[] | null, key: string,
-    dest: Target | null, w: number, h: number, beat: number, sec: number, bpm: number, nowMs: number): void {
+    dest: Target | null, w: number, h: number, beat: number, sec: number, bpm: number, nowMs: number, gain = 1): void {
     const gl = this.gl;
     if (show.blackout) { this.bindTarget(dest, 0, 0, w, h); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); return; }
     const pulse = beatPulse(beat);
@@ -509,9 +509,9 @@ export class Engine {
     gl.uniform1i(this.loc(this.fin, "uTo"), 1);
     gl.uniform1f(this.loc(this.fin, "uMix"), mix);
     gl.uniform1i(this.loc(this.fin, "uDip"), show.transition?.style === "black" ? 1 : 0);
-    gl.uniform1f(this.loc(this.fin, "uGain"), show.master * strobeGain(show.strobe, beat, sec, bpm));
-    // Strobe White wirkt auch bei Master 0, aber nicht bei Blackout
-    gl.uniform1f(this.loc(this.fin, "uWhite"), strobeWhite(show.strobe, beat, sec, bpm));
+    gl.uniform1f(this.loc(this.fin, "uGain"), show.master * gain * strobeGain(show.strobe, beat, sec, bpm));
+    // Strobe White und Blinder wirken auch bei Master 0, aber nicht bei Blackout
+    gl.uniform1f(this.loc(this.fin, "uWhite"), Math.max(strobeWhite(show.strobe, beat, sec, bpm), show.blinder ?? 0));
     this.bindTex(0, from); this.bindTex(1, t.to);
     this.bindTarget(dest, 0, 0, w, h);
     this.draw();

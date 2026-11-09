@@ -102,7 +102,12 @@ function cue(v: unknown): Cue | null {
   if (v.timeline === true) c.timeline = true;
   if (Array.isArray(v.marks)) c.marks = v.marks.filter(isObj).slice(0, 200)
     .map(m => ({ t: num(m.t, 0, 0, 86400), scene: Math.round(num(m.scene, 1, 1, 999)), others: m.others !== false,
-      ...(typeof m.len === "number" && m.len > 0 ? { len: num(m.len, 1, 0.05, 86400) } : {}) }));
+      ...(typeof m.len === "number" && m.len > 0 ? { len: num(m.len, 1, 0.05, 86400) } : {}),
+      ...(typeof m.level === "number" ? { level: num(m.level, 1, 0, 1) } : {}) }));
+  if (Array.isArray(v.fx)) c.fx = v.fx.filter(isObj).slice(0, 400).map(b => ({
+    t: num(b.t, 0, 0, 86400), len: num(b.len, 1, 0.05, 86400),
+    kind: oneOf(b.kind, ["strobe", "flash", "white", "wflash", "blinder", "blackout"] as const, "strobe"),
+  }));
   c.start = oneOf(v.start, ["manual", "after", "with", "timecode"] as const, "manual");
   c.wait = num(v.wait, 0, 0, 3600);
   c.trimIn = num(v.trimIn, 0, 0, 86400); c.trimOut = num(v.trimOut, 0, 0, 86400);

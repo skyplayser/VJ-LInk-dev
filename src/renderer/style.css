@@ -600,3 +600,18 @@ body.mapping .cell-edit,body.modding .cell-edit{display:none}
 .tlv-drop{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;box-shadow:0 0 6px #fff;pointer-events:none;z-index:4}
 .tlv-ghost{position:fixed;z-index:80;pointer-events:none;background:color-mix(in srgb,var(--c) 40%,#0c0e13);border-left:3px solid var(--c);color:#fff;border-radius:4px;padding:5px 9px;font:600 11px system-ui,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.5)}
 .tlv-scene{touch-action:none;user-select:none}
+/* Timeline: Effekt-Spur */
+.tlv-fxlane{height:34px}
+.tlv-fx{--c:#ffb020}
+.tlv-fx.k-strobe,.tlv-fxchip.k-strobe{--c:#ffb020}
+.tlv-fx.k-flash,.tlv-fxchip.k-flash{--c:#ffd27a}
+.tlv-fx.k-white,.tlv-fxchip.k-white{--c:#e8eef8}
+.tlv-fx.k-wflash,.tlv-fxchip.k-wflash{--c:#bfe4ff}
+.tlv-fx.k-blinder,.tlv-fxchip.k-blinder{--c:#ffffff}
+.tlv-fx.k-blackout,.tlv-fxchip.k-blackout{--c:#ff3b3b}
+.tlv-ghost.k-strobe,.tlv-ghost.k-flash,.tlv-ghost.k-white,.tlv-ghost.k-wflash,.tlv-ghost.k-blinder{--c:#ffb020}
+.tlv-ghost.k-blackout{--c:#ff3b3b}
+.tlv-level{width:110px}
+.cp-nm{background:transparent;border:1px solid transparent;border-radius:3px;color:var(--text);font:700 12px system-ui,sans-serif;padding:1px 3px;margin-left:-4px;min-width:0}
+.cp-nm:hover{border-color:var(--line)}
+.cp-nm:focus{border-color:#22c8f0;background:var(--raise);outline:none}

@@ -84,6 +84,7 @@ export class MappingEditor {
       const name = svg("text", { x: P([cx, cy])[0], y: P([cx, cy])[1], class: "mp-name", "text-anchor": "middle" }); name.textContent = s.name;
       g.append(name);
       poly.addEventListener("pointerdown", e => this.drag(e, s, null));
+
       s.corners.forEach((c, i) => {
         const h = svg("circle", { cx: P(c)[0], cy: P(c)[1], r: sel ? 8 : 6, class: `mp-corner${sel && this.selCorner === i ? " sel" : ""}` });
         h.addEventListener("pointerdown", e => this.drag(e, s, i));
@@ -97,8 +98,18 @@ export class MappingEditor {
   }
 
   /** Ecke (corner) oder ganze Leinwand (null) ziehen. */
+  private lastDown = { id: "", at: 0 };
+
   private drag(e: PointerEvent, s: Surface, corner: number | null): void {
     e.preventDefault(); e.stopPropagation();
+    // Doppelklick auf die Leinwand (Mitte): umbenennen
+    const now = performance.now();
+    if (corner === null && this.lastDown.id === s.id && now - this.lastDown.at < 350) {
+      this.lastDown = { id: "", at: 0 };
+      setTimeout(() => { const n = document.getElementById("mp-name") as HTMLInputElement | null; n?.focus(); n?.select(); }, 30);
+      return;
+    }
+    this.lastDown = { id: corner === null ? s.id : "", at: now };
     const first = this.sel !== s.id;
     this.sel = s.id; this.selCorner = corner;
     this.stage?.focus();
@@ -171,7 +182,11 @@ export class MappingEditor {
     tools.append(add, grid, snap);
     const s = this.cur();
     if (!s) return;
+    const nameLab = el("label", "", "Name");
     const name = el("input", "mp-nm"); name.value = s.name; name.maxLength = 40; name.setAttribute("aria-label", "Name der Leinwand");
+    name.id = "mp-name";
+    name.addEventListener("keydown", e => { if (e.key === "Enter") name.blur(); });
+    nameLab.append(name);
     name.addEventListener("change", () => { s.name = name.value.trim() || s.name; this.changed(); this.drawStage(); });
     const full = s.src.x === 0 && s.src.y === 0 && s.src.w === 1 && s.src.h === 1;
     // Welches Bild (Tab VISUALS unter „Ausgang“), ganz oder als Ausschnitt
@@ -187,7 +202,7 @@ export class MappingEditor {
       s.src = content.value === "full" ? { x: 0, y: 0, w: 1, h: 1 } : { x: 0, y: 0, w: 0.5, h: 0.5 };
       this.changed(); this.drawTools(tools);
     });
-    tools.append(name, img, content);
+    tools.append(nameLab, img, content);
     if (!full) {
       const num = (label: string, key: "x" | "y" | "w" | "h") => {
         const lab = el("label", "", label);

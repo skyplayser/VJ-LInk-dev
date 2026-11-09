@@ -113,6 +113,8 @@ export interface Cue {
   marks?: SceneMark[];
   /** Als Timeline bearbeitet (großer Editor unter der Cue-Liste). */
   timeline?: boolean;
+  /** Timeline-Effekte: Strobe, Flash, White, W-Flash, Blinder, Blackout für eine Dauer. */
+  fx?: FxBlock[];
 }
 
 /** Szenen-Marker in einem Video: Zeit in der Datei (s), Szene (1…), nur die anderen Bilder oder alle. */
@@ -120,7 +122,15 @@ export interface SceneMark {
   t: number; scene: number; others: boolean;
   /** Länge in Sekunden (Block wie im Schnittprogramm). Fehlt sie, gilt die Szene bis zur nächsten. Danach: Ausgangsszene. */
   len?: number;
+  /** Helligkeit der betroffenen Bilder, solange der Block läuft (0–1, fehlt = 1). */
+  level?: number;
 }
+
+/** Effekte auf der Timeline (zweite Spur). */
+export type FxKind = "strobe" | "flash" | "white" | "wflash" | "blinder" | "blackout";
+export const FX_KINDS: readonly FxKind[] = ["strobe", "flash", "white", "wflash", "blinder", "blackout"];
+export const FX_LABEL: Record<FxKind, string> = { strobe: "Strobe", flash: "Flash", white: "White", wflash: "W-Flash", blinder: "Blinder", blackout: "Blackout" };
+export interface FxBlock { t: number; len: number; kind: FxKind }
 
 export function newCue(kind: CueKind, name: string, media: string | null = null, id = newCueId()): Cue {
   return {
@@ -507,4 +517,38 @@ export function cueSeek(s: CueState, cueId: string, t: number, nowMs: number, du
   ac.endHandled = false;
   ac.lastT = undefined;
   return true;
+}
+
+/** Szenen-Block, der zur Zeit t läuft (der zuletzt begonnene, dessen Ende noch nicht erreicht ist). */
+export function activeSceneBlock(marks: readonly SceneMark[], t: number): SceneMark | null {
+  const sorted = [...marks].sort((a, b) => a.t - b.t);
+  let hit: SceneMark | null = null;
+  sorted.forEach((m, k) => {
+    const end = m.len !== undefined && m.len > 0 ? m.t + m.len : sorted[k + 1]?.t ?? Infinity;
+    if (m.t <= t && t < end) hit = m;
+  });
+  return hit;
+}
+
+/** Was laufende Timelines gerade bewirken: Effekte und Helligkeit je Bild. */
+export interface TimelineOverride { fx: Set<FxKind>; gains: Record<string, number> }
+
+export function timelineOverride(s: CueState, nowMs: number, env: CueEnv, stacks: readonly string[], showImage: string): TimelineOverride | null {
+  let out: TimelineOverride | null = null;
+  for (const ac of s.run.active) {
+    if (ac.fadeOutMs !== null || nowMs < ac.startMs) continue;
+    const c = byId(s, ac.cueId);
+    if (!c || (!c.fx?.length && !c.marks?.some(m => m.level !== undefined && m.level < 1))) continue;
+    const t = cueTime(c, ac, nowMs, env.duration(c.media)).t;
+    out ??= { fx: new Set(), gains: {} };
+    for (const b of c.fx ?? []) if (t >= b.t && t < b.t + b.len) out.fx.add(b.kind);
+    const blk = activeSceneBlock(c.marks ?? [], t);
+    if (blk && blk.level !== undefined && blk.level < 1) {
+      for (const id of stacks) {
+        if (blk.others && id === showImage) continue;
+        out.gains[id] = Math.min(out.gains[id] ?? 1, Math.max(0, blk.level));
+      }
+    }
+  }
+  return out;
 }

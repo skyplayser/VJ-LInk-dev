@@ -49,6 +49,7 @@ import { DRIVE_LABEL } from "../core/controls";
 const DRIVE_ICON: Record<Drive, string> = { auto: "◎", bpm: "♩", audio: "∿", static: "—" };
 import { ModMode } from "./modmode";
 import { modulatedShow } from "../core/modulation";
+import { timelineOverride } from "../core/video";
 import { KickDetector, liveBands } from "../core/audio";
 const kickDet = new KickDetector();
 import { LayerClock, TEST_IDS, TEST_PATTERNS, stepTestPattern, transitionProgress } from "../core/show";
@@ -896,7 +897,18 @@ function frame(): void {
   const beat = ctx.tempo.beatAt(now);
   const lt = layerClock.tick(now, ctx.show.layers);
   // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert
-  const shown = modulatedShow(ctx, ctx.mods ?? [], beat, liveBands(ctx.show.audio, beat, now / 1000));
+  let shown = modulatedShow(ctx, ctx.mods ?? [], beat, liveBands(ctx.show.audio, beat, now / 1000));
+  // Timeline: Effekt-Blöcke (Strobe, Flash, White, W-Flash, Blinder, Blackout) und Helligkeit je Bild
+  const tlo = timelineOverride(ctx.cues, now, cueEnv, imageList(ctx.show).map(im => im.id), showImage());
+  if (tlo) {
+    const f = tlo.fx;
+    shown = { ...shown,
+      strobe: { ...shown.strobe, on: shown.strobe.on || f.has("strobe"), flash: shown.strobe.flash || f.has("flash"),
+        white: shown.strobe.white || f.has("white"), whiteFlash: shown.strobe.whiteFlash || f.has("wflash") },
+      blackout: shown.blackout || f.has("blackout"),
+      blinder: Math.max(shown.blinder ?? 0, f.has("blinder") ? 1 : 0),
+      stackGain: tlo.gains };
+  }
   // Projektionsmapping: Live-Vorschauen der Bilder (je Bild abwechselnd eins pro Durchlauf), dann das bearbeitete groß
   const cv = shown.canvas ?? MAIN_STACK;
   if (engine && mappingOn() && tileCanvases.size > 1) {
@@ -1185,7 +1197,12 @@ function syncCanvases(): void {
   for (const sf of surfaces) {
     const row = el("div", "cp-row");
     const scr = displays.find(d => d.id === sf.screen)?.label ?? "Ausgang";
-    const t = el("div", "cp-name"); t.append(el("b", "", sf.name), el("small", "", scr));
+    const t = el("div", "cp-name");
+    // Name direkt hier ändern (Enter oder Klick daneben übernimmt)
+    const nm = el("input", "cp-nm"); nm.value = sf.name; nm.maxLength = 40; nm.setAttribute("aria-label", "Name der Leinwand");
+    nm.addEventListener("keydown", e => { if (e.key === "Enter") nm.blur(); if (e.key === "Escape") { nm.value = sf.name; nm.blur(); } });
+    nm.addEventListener("change", () => { const v = nm.value.trim(); if (v) sf.name = v; canvasSig = ""; cueImgSig = ""; if ($("tab-output").classList.contains("on")) outputTab.render(); });
+    t.append(nm, el("small", "", scr));
     const sel = el("select"); sel.setAttribute("aria-label", `Bild für ${sf.name}`);
     for (const im of images) sel.append(new Option(im.name, im.id));
     sel.value = images.some(im => im.id === sf.image) ? sf.image! : MAIN_STACK;
@@ -1215,10 +1232,11 @@ function showImage(): string {
 /** Bild-Zustand für eine Vorschau: dessen Ebenen als Hauptbild; Cues nur auf dem Bild des SHOW-Ablaufs. */
 function showForImage(sh: ShowState, id: string): ShowState {
   const cues = showImage() === id ? sh.cues : [];
-  if (id === MAIN_STACK) return { ...sh, cues, layers: sh.stacks?.[MAIN_STACK] ?? sh.layers };
+  const stackGain = { [MAIN_STACK]: sh.stackGain?.[id] ?? 1 };
+  if (id === MAIN_STACK) return { ...sh, cues, stackGain, layers: sh.stacks?.[MAIN_STACK] ?? sh.layers };
   const layers = sh.stacks?.[id];
   if (!layers) return sh;
-  return { ...sh, cues, layers, stacks: { ...sh.stacks, [MAIN_STACK]: layers },
+  return { ...sh, cues, stackGain, layers, stacks: { ...sh.stacks, [MAIN_STACK]: layers },
     transition: sh.transition ? { ...sh.transition, from: sh.transition.fromStacks?.[id] ?? sh.transition.from } : null };
 }
 

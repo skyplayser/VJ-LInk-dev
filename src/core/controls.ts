@@ -60,6 +60,8 @@ export function buildControls(): ControlDef[] {
       get: c => (c.show.strobe.white ? 1 : 0), set: (c, v) => { c.show.strobe.white = on(v); } },
     { id: "strobe.whiteFlash", label: "W-Flash", group: "Strobe", kind: "hold", quick: true,
       get: c => (c.show.strobe.whiteFlash ? 1 : 0), set: (c, v) => { c.show.strobe.whiteFlash = on(v); } },
+    { id: "blinder", label: "Blinder", group: "Strobe", kind: "hold", quick: true,
+      get: c => (c.show.blinder ?? 0) >= 0.5 ? 1 : 0, set: (c, v) => { c.show.blinder = on(v) ? 1 : 0; } },
     { id: "strobe.sync", label: "Takt", group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.strobe.sync ? 1 : 0), set: (c, v) => { c.show.strobe.sync = on(v); } },
     { id: "fx.master", label: "Effekte", group: "Effekt", kind: "fader", quick: true,

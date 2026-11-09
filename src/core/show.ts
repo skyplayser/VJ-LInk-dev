@@ -189,6 +189,10 @@ export interface ShowState {
   stacks?: Record<string, LayerState[]>;
   /** Welcher Stapel gerade bearbeitet wird („main“ oder Bild-ID). */
   canvas?: string;
+  /** Blinder: ganzes Bild statisch weiß (0–1), z. B. Taste oder Timeline. */
+  blinder?: number;
+  /** Helligkeit je Bild (0–1), z. B. aus der Timeline; fehlt = 1. */
+  stackGain?: Record<string, number>;
   /** SHOW-Ablauf läuft auf diesem Bild (Projektionsmapping), sonst auf Bild 1. */
   cueImage?: string;
   /** Projektionsmapping: Bilder (bis 5), jedes mit eigenem Ebenen-Stapel; „main“ ist Bild 1. Leinwände wählen ein Bild. */

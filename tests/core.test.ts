@@ -1287,3 +1287,30 @@ describe("Timeline-Blöcke überlappend", () => {
     expect(ev.map(e => [Math.round(e.t * 100) / 100, e.scene])).toEqual([[1, 2], [5.2, 3], [6.8, 0]]);
   });
 });
+
+describe("Timeline: Effekte und Helligkeit", () => {
+  it("Effekt-Blöcke wirken nur während ihrer Dauer, Helligkeit nur auf die betroffenen Bilder", async () => {
+    const { newCue, timelineOverride } = await import("../src/core/video");
+    const c = ctx();
+    const cue = newCue("image", "Stand", "img:a1b2c3d4e5f60708"); cue.hold = 30;
+    cue.fx = [{ t: 2, len: 1, kind: "blinder" }, { t: 5, len: 2, kind: "strobe" }];
+    cue.marks = [{ t: 0, scene: 1, others: true, len: 10, level: 0.4 }];
+    c.cues.list = [cue];
+    c.cues.run.active = [{ uid: "u", cueId: cue.id, startMs: 0, releasedMs: null, fadeOutMs: null, fadeOutDur: 0, endHandled: false, fired: false }];
+    const env = { duration: () => 0, recallScene: () => {} };
+    const at = (s: number) => timelineOverride(c.cues, s * 1000, env, ["main", "b2"], "main")!;
+    expect([...at(2.5).fx]).toEqual(["blinder"]);
+    expect([...at(6).fx]).toEqual(["strobe"]);
+    expect(at(4).fx.size).toBe(0);
+    expect(at(4).gains).toEqual({ b2: 0.4 });           // SHOW-Bild (main) bleibt hell
+    expect(at(12).gains).toEqual({});
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.cues[0]!.fx).toEqual(cue.fx);
+    expect(p.cues[0]!.marks![0]!.level).toBe(0.4);
+  });
+  it("Blinder ist ein Bedienelement", () => {
+    const c = ctx();
+    setControl(c, "blinder", 1);
+    expect(c.show.blinder).toBe(1);
+  });
+});
