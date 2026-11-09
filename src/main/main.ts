@@ -236,12 +236,17 @@ app.commandLine.appendSwitch("force-color-profile", "srgb");
 app.whenReady().then(async () => {
   // Nur das Hauptfenster: MIDI (ohne SysEx) und Audio-Eingang (Mikrofon/Line-In, keine Kamera).
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
+    if (process.env.VJLINK_DEBUG) console.log("[perm request]", perm, wc === control?.webContents, JSON.stringify(details));
     if (wc !== control?.webContents) return cb(false);
-    if (perm === "midi") return cb(true);
+    // Web MIDI: neuere Electron-Versionen fragen auch ohne SysEx als „midiSysex“ an
+    if (perm === "midi" || perm === "midiSysex") return cb(true);
     const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
     cb(perm === "media" && types.length > 0 && types.every(t => t === "audio"));
   });
-  session.defaultSession.setPermissionCheckHandler((wc, perm) => wc === control?.webContents && (perm === "midi" || perm === "media"));
+  session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => {
+    if (process.env.VJLINK_DEBUG) console.log("[perm check]", perm, wc === control?.webContents, origin);
+    return wc === control?.webContents && (perm === "midi" || perm === "midiSysex" || perm === "media");
+  });
   storage = new Storage(app.getPath("userData"));
   await storage.init();
   files = new ProjectFiles(storage, path.join(app.getPath("userData"), "state.json"));
