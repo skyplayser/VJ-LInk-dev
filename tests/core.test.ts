@@ -1443,3 +1443,18 @@ describe("LJ-Link PRO: Stand und Positionen", () => {
     expect(snap.map(m => m.t)).toEqual(["hello", "deck"]);
   });
 });
+
+describe("LJ-Link PRO: eigener Endpunkt /vjlink", () => {
+  it("nimmt VJ-Link-Protokoll direkt, erst nach hello; merkt den Stand", async () => {
+    const { LjNativeTracker } = await import("../src/core/ljpro");
+    const t = new LjNativeTracker();
+    const deck = JSON.stringify({ t: "deck", deck: { deck: 1, playing: true, onAir: true, master: true, bpm: 126 } });
+    expect(t.feed(deck)).toEqual([]);
+    expect(t.feed(JSON.stringify({ t: "hello", version: 1, privacy: false }))).toHaveLength(1);
+    expect(t.feed(deck)).toHaveLength(1);
+    expect(t.feed(JSON.stringify({ t: "tempo", bpm: 126, beat: 12.5 }))[0]).toMatchObject({ t: "tempo", beat: 12.5 });
+    expect(t.snapshot().map(m => m.t)).toEqual(["hello", "deck"]);
+    expect(t.clear()).toEqual([{ t: "gone", deck: 1 }]);
+    expect(t.feed("{kaputt")).toEqual([]);
+  });
+});

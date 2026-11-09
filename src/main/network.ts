@@ -6,7 +6,7 @@ import { parseArtTimecode } from "../core/timecode";
 import { SACN_PORT, parseSacn, sacnMulticastAddress } from "../core/sacn";
 import { parseOsc } from "../core/osc";
 import { LJ_DEFAULT_PORT, parseLjMessage, type LjMessage } from "../core/ljlink";
-import { LJ_PRO_PATH, LJ_PRO_PORT, LjProAdapter } from "../core/ljpro";
+import { LJ_NATIVE_PATH, LJ_PRO_PATH, LJ_PRO_PORT, LjNativeTracker, LjProAdapter, type LjSource } from "../core/ljpro";
 import type { ControlEvent, NetStatus } from "../core/frame";
 
 export const OSC_PORT = 8000;
@@ -21,7 +21,9 @@ export class Network {
   private pro?: WsClient;
   private proHost = "127.0.0.1";
   private proTimer?: NodeJS.Timeout;
-  private proAdapter?: LjProAdapter;
+  private proAdapter?: LjSource;
+  /** Welcher Endpunkt als Nächstes versucht wird: zuerst der eigene (/vjlink), sonst die Weboberfläche (/ws). */
+  private proNative = true;
   private sockets: dgram.Socket[] = [];
   private artnet?: dgram.Socket;
   private wss?: WebSocketServer;
@@ -120,7 +122,7 @@ export class Network {
   setLjHost(host: string): void {
     const h = host.trim() || "127.0.0.1";
     if (h === this.proHost) return;
-    this.proHost = h; this.status.lj.pro = { host: h, connected: false };
+    this.proHost = h; this.proNative = true; this.status.lj.pro = { host: h, connected: false };
     clearTimeout(this.proTimer);
     const old = this.pro; this.pro = undefined; old?.terminate();
     this.connectPro();
@@ -132,30 +134,37 @@ export class Network {
    */
   private connectPro(): void {
     const host = this.proHost;
-    const adapter = new LjProAdapter();
+    const native = this.proNative;
+    const adapter: LjSource = native ? new LjNativeTracker() : new LjProAdapter();
     this.proAdapter = adapter;
     const send = (list: LjMessage[]) => { for (const m of list) this.emit({ type: "lj", raw: JSON.stringify(m) }); };
     let sock: WsClient;
-    try { sock = new WsClient(`ws://${host.includes(":") && !host.startsWith("[") ? `[${host}]` : host}:${LJ_PRO_PORT}${LJ_PRO_PATH}`, { handshakeTimeout: 2500, maxPayload: 1024 * 1024 }); }
+    try { sock = new WsClient(`ws://${host.includes(":") && !host.startsWith("[") ? `[${host}]` : host}:${LJ_PRO_PORT}${native ? LJ_NATIVE_PATH : LJ_PRO_PATH}`, { handshakeTimeout: 2500, maxPayload: 1024 * 1024 }); }
     catch { this.proTimer = setTimeout(() => this.connectPro(), 3000); this.proTimer.unref(); return; }
     this.pro = sock;
     sock.on("message", data => {
       const was = adapter.recognized;
       send(adapter.feed(data.toString()));
       if (!was && adapter.recognized && this.pro === sock) {
-        this.status.lj.pro = { host, connected: true };
+        this.status.lj.pro = { host, connected: true, native };
         this.emit({ type: "lj-connection", clients: this.ljClients() });
       }
     });
+    // Ohne Erkennung nach kurzer Zeit: falscher Endpunkt oder fremder Dienst
+    const probe = setTimeout(() => { if (!adapter.recognized && this.pro === sock) sock.terminate(); }, 4000);
     sock.on("error", () => { /* LJ-Link PRO läuft nicht: still neu versuchen */ });
     sock.on("close", () => {
+      clearTimeout(probe);
       if (this.pro !== sock) return; // Rechner gewechselt
+      // Nicht erkannt: beim nächsten Mal den anderen Endpunkt versuchen (ältere LJ-Link-Versionen haben kein /vjlink)
+      if (!adapter.recognized) this.proNative = !native;
       if (adapter.recognized) {
         send(adapter.clear());
         this.status.lj.pro = { host, connected: false };
         this.emit({ type: "lj-connection", clients: this.ljClients() });
       }
-      this.proTimer = setTimeout(() => this.connectPro(), 3000); this.proTimer.unref();
+      // Gleich den anderen Endpunkt versuchen, sonst in 3 s neu
+      this.proTimer = setTimeout(() => this.connectPro(), !adapter.recognized && native ? 200 : 3000); this.proTimer.unref();
     });
   }
 

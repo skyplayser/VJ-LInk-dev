@@ -1,9 +1,38 @@
 // LJ-Link PRO: VJ-Link meldet sich selbst an dessen Weboberfläche an (WebSocket „/ws“, Port 8080) und übersetzt
 // die Nachrichten in das VJ-Link-Protokoll (siehe ljlink.ts). So reicht es, LJ-Link PRO zu starten – ohne Einstellung dort.
-import { LJ_PROTOCOL_VERSION, type LjDeck, type LjMessage } from "./ljlink";
+import { LJ_PROTOCOL_VERSION, parseLjMessage, type LjDeck, type LjMessage } from "./ljlink";
 
 export const LJ_PRO_PORT = 8080;
+/** Weboberfläche von LJ-Link PRO (wird übersetzt). */
 export const LJ_PRO_PATH = "/ws";
+/** Eigener Endpunkt für VJ-Link (spricht direkt das VJ-Link-Protokoll); wird zuerst versucht. */
+export const LJ_NATIVE_PATH = "/vjlink";
+
+/** Quelle für LJ-Link-Nachrichten: erkennt die Gegenstelle, liefert Nachrichten und den Stand zum Nachreichen. */
+export interface LjSource {
+  recognized: boolean;
+  feed(raw: string, nowMs?: number): LjMessage[];
+  clear(): LjMessage[];
+  snapshot(): LjMessage[];
+}
+
+/** Endpunkt „/vjlink“: Nachrichten sind schon im VJ-Link-Protokoll; nur prüfen und den Stand merken. */
+export class LjNativeTracker implements LjSource {
+  recognized = false;
+  private hello: LjMessage | null = null;
+  private decks = new Map<number, LjMessage>();
+  feed(raw: string): LjMessage[] {
+    const m = parseLjMessage(raw);
+    if (!m) return [];
+    if (m.t === "hello") { this.recognized = true; this.hello = m; }
+    if (!this.recognized) return [];
+    if (m.t === "deck") this.decks.set(m.deck.deck, m);
+    if (m.t === "gone") this.decks.delete(m.deck);
+    return [m];
+  }
+  clear(): LjMessage[] { const out = [...this.decks.keys()].map(deck => ({ t: "gone" as const, deck })); this.decks.clear(); return out; }
+  snapshot(): LjMessage[] { return this.hello ? [this.hello, ...this.decks.values()] : []; }
+}
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -11,7 +40,7 @@ const num = (v: unknown): number | undefined => typeof v === "number" && Number.
 const str = (v: unknown, max = 200): string | undefined => typeof v === "string" && v ? v.slice(0, max) : undefined;
 
 /** Übersetzer mit Gedächtnis (Trackwechsel, Loop, Master-Wechsel erkennen). */
-export class LjProAdapter {
+export class LjProAdapter implements LjSource {
   /** Erste Nachricht war ein LJ-Link-Zustand: die Gegenstelle ist wirklich LJ-Link PRO. */
   recognized = false;
   private tracks = new Map<number, string>();

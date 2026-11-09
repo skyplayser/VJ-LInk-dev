@@ -811,7 +811,7 @@ function drawConnect(now: number): void {
       card("sACN", s.sacn.error ? "err" : s.sacn.listening ? "ok" : "off", [`UDP 5568 · Universe ${settings.sacn}`, `${s.sacn.packets} Pakete`, s.sacn.error ?? "wartet"]),
       card("OSC", s.osc.error ? "err" : s.osc.listening ? "ok" : "off", [`UDP ${s.osc.port}`, `${s.osc.packets} Pakete`, s.osc.error ?? "/vjlink/…"]),
       card("LJ-Link", s.lj.clients > 0 || s.lj.pro?.connected ? "ok" : s.lj.error ? "err" : "off", [
-        s.lj.pro?.connected ? `LJ-Link PRO verbunden (${proWhere(s.lj.pro.host)})` : `sucht LJ-Link PRO (${proWhere(s.lj.pro?.host ?? "")})`,
+        s.lj.pro?.connected ? `LJ-Link PRO verbunden (${proWhere(s.lj.pro.host)}${s.lj.pro.native ? ", direkt" : ", über Weboberfläche"})` : `sucht LJ-Link PRO (${proWhere(s.lj.pro?.host ?? "")})`,
         s.lj.clients > 0 ? `WebSocket ${s.lj.port}: ${s.lj.clients} verbunden` : `WebSocket ${s.lj.port} offen`, s.lj.error ?? ""].filter(Boolean)),
     );
     void dmxLive;

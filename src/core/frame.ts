@@ -38,7 +38,7 @@ export interface NetStatus {
   osc: { listening: boolean; port: number; packets: number; error?: string };
   lj: { listening: boolean; port: number; clients: number; error?: string;
     /** LJ-Link PRO: VJ-Link verbindet sich selbst (Rechner, verbunden). */
-    pro?: { host: string; connected: boolean } };
+    pro?: { host: string; connected: boolean; native?: boolean } };
 }
 
 export interface DisplayInfo {
