@@ -969,7 +969,7 @@ describe("Mehrere Farb-Slots", () => {
     const back = parseProject(JSON.parse(JSON.stringify(serializeProject(c, []))));
     const b = back!.layers[0]!;
     expect(b.drive).toBe("static"); expect(b.colorSource).toBe("multi"); expect(b.colorSlots).toEqual([3, 1, 4]);
-    expect(b.laser).toEqual({ x: -0.2, y: 0.5, size: 1.5, thick: 2.5, override: false });
+    expect(b.laser).toEqual({ x: -0.2, y: 0.5, size: 1.5, thick: 2.5, rot: 0, override: false });
   });
 });
 
@@ -1072,5 +1072,33 @@ describe("Bass-Schläge", () => {
     expect(kickRings(k.kicks, 1600)[0]).toBeCloseTo(0.5, 5);
     expect(layerDrive("audio", { bass: 0, mid: 0, high: 0 }, "pulse-rings", 1, 1, 1).rings.every(r => r < 0)).toBe(true);
     expect(layerDrive("bpm", { bass: 0, mid: 0, high: 0 }, "pulse-rings", 1, 1, 1).rings.every(r => r >= 0)).toBe(true);
+  });
+});
+
+describe("Lage für alle Visuals", () => {
+  it("Drehung per Mapping, alte Laser-Vorgabe Y 0,3 wird 0", () => {
+    const c = ctx();
+    setControl(c, "layer.2.laser.rot", 0.75);
+    expect(c.show.layers[1]!.laser.rot).toBeCloseTo(90, 6);
+    const json = JSON.parse(serializeProject(c, []));
+    json.layers[0].laser = { x: 0, y: 0.3, size: 1, thick: 1 };
+    const p = parseProject(JSON.stringify(json))!;
+    expect(p.layers[0]!.laser.y).toBe(0);
+    expect(p.layers[1]!.laser.rot).toBeCloseTo(90, 6);
+  });
+});
+
+describe("Text-Clips", () => {
+  it("Angaben werden geprüft und mit dem Projekt gespeichert", async () => {
+    const { defaultText, parseTextSpec, textName } = await import("../src/core/text");
+    const t = { ...defaultText(), text: "Hallo\nWelt", size: 99999, color: "rot" };
+    const parsed = parseTextSpec(t)!;
+    expect(parsed.size).toBe(900);
+    expect(parsed.color).toBe("#ffffff");
+    expect(parseTextSpec({ size: 3 })).toBeNull();
+    expect(textName(parsed)).toBe("Hallo");
+    const c = ctx();
+    const json = serializeProject(c, [{ id: "a1b2c3d4e5f60708", name: "Hallo", width: 1920, height: 1080, text: defaultText() }]);
+    expect(parseProject(json)!.media[0]!.text).toEqual(defaultText());
   });
 });

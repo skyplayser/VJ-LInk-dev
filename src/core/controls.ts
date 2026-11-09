@@ -7,7 +7,7 @@ import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAX_LAYERS, SLOT_NAME
 import { EFFECT_BY_ID } from "./effects";
 
 export const DRIVE_LABEL = { auto: "Auto", bpm: "Takt", audio: "Audio", static: "Statisch" } as const;
-const LASER_LABEL = { y: "Y (Höhe)", x: "X (Seite)", size: "Größe", thick: "Stärke" } as const;
+const LASER_LABEL = { y: "Y (Höhe)", x: "X (Seite)", size: "Größe", thick: "Stärke", rot: "Drehung" } as const;
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
 export const SCENE_SLOTS = 32;
@@ -97,9 +97,9 @@ export function buildControls(): ControlDef[] {
         get: c => Math.max(0, DRIVES.indexOf(c.show.layers[i]?.drive ?? "auto")) / (DRIVES.length - 1),
         set: (c, v) => { const l = c.show.layers[i]; if (l) l.drive = DRIVES[stepIndex(v, DRIVES.length)]!; },
         format: c => DRIVE_LABEL[c.show.layers[i]?.drive ?? "auto"] },
-      ...(["y", "x", "size", "thick"] as const).map(k => ({
-        id: `layer.${i + 1}.laser.${k}`, label: `E${i + 1} Laser ${LASER_LABEL[k]}`, group: "Ebenen" as const, kind: "fader" as const, quick: false,
-        get: (c: ControlContext) => { const z = c.show.layers[i]?.laser ?? defaultLaser(); const [lo, hi] = LASER_LIMITS[k]; return clamp01((z[k] - lo) / (hi - lo)); },
+      ...(["y", "x", "size", "thick", "rot"] as const).map(k => ({
+        id: `layer.${i + 1}.laser.${k}`, label: `E${i + 1} ${k === "thick" ? "Laser " : ""}${LASER_LABEL[k]}`, group: "Ebenen" as const, kind: "fader" as const, quick: false,
+        get: (c: ControlContext) => { const z = c.show.layers[i]?.laser ?? defaultLaser(); const [lo, hi] = LASER_LIMITS[k]; return clamp01(((z[k] ?? 0) - lo) / (hi - lo)); },
         set: (c: ControlContext, v: number) => {
           const l = c.show.layers[i]; if (!l) return;
           const [lo, hi] = LASER_LIMITS[k]; l.laser = { ...(l.laser ?? defaultLaser()), [k]: lo + clamp01(v) * (hi - lo) } as LaserSettings;

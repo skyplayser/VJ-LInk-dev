@@ -228,6 +228,7 @@ export class Engine {
     const lz = l.laser ?? defaultLaser();
     gl.uniform4f(this.loc(g, "uLz"), lz.x, lz.y, lz.size, lz.thick);
     gl.uniform1f(this.loc(g, "uLzOv"), lz.override ? 1 : 0);
+    gl.uniform1f(this.loc(g, "uLzRot"), ((lz.rot ?? 0) * Math.PI) / 180);
     // Bänder und Wellenform aus dem Antrieb der Ebene
     gl.uniform1fv(this.loc(g, "uBands"), new Float32Array(drv.bands));
     gl.uniform1fv(this.loc(g, "uRings"), new Float32Array(drv.rings));

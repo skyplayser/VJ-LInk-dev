@@ -29,8 +29,9 @@ uniform int   uTest;      // Testbild-Muster
 uniform vec3  uPal[5];    // mehrere Slots: Palette
 uniform int   uPalN;      // Anzahl Farben in der Palette (0 = keine)
 uniform vec4  uLz;        // Laser: x, y (-1 … 1), Größe, Stärke
-uniform float uLzOv;
-uniform float uRings[4];  // Pulsierende Ringe: Phase 0–1 je Ring, -1 = keiner (Takt oder echte Bass-Schläge)      // XY-Override: 1 = keine Eigenbewegung, nur X/Y bestimmen die Lage
+uniform float uLzOv;      // XY-Override: 1 = keine Eigenbewegung, nur X/Y bestimmen die Lage
+uniform float uLzRot;     // Drehung (Bogenmaß)
+uniform float uRings[4];  // Pulsierende Ringe: Phase 0–1 je Ring, -1 = keiner (Takt oder echte Bass-Schläge)
 uniform int   uColorMode; // 0 original, 1 Slot, 2 Verlauf A→B, 3 Regenbogen
 uniform vec3  uColA;
 uniform vec3  uColB;
@@ -532,7 +533,14 @@ vec3 laserColor(float k){
 // Stärke in Pixeln bezogen auf 1080 Zeilen: auf 4K-Beamern wachsen Linien mit, sonst würden die Strahlen dunkler.
 float lzK(){ return max(1.0, uRes.y / 1080.0) * clamp(uLz.w, 0.25, 6.0); }
 /** Laser-Koordinaten: Lage und Größe der Ebene (Regler Höhe, Seite, Größe). */
-vec2 lzP(vec2 uv){ return (cp(uv) - vec2(uLz.x * 0.5 * uRes.x / uRes.y, uLz.y * 0.5)) / max(uLz.z, 0.05); }
+// Ohne XY-Override liegen Laser von sich aus im oberen Drittel (Y = 0 → +0,15), mit Override zählt nur X/Y.
+vec2 lzOff(){ return vec2(uLz.x * 0.5 * uRes.x / uRes.y, uLz.y * 0.5 + 0.15 * (1.0 - uLzOv)); }
+vec2 lzP(vec2 uv){
+  vec2 p = cp(uv) - lzOff();
+  float c = cos(uLzRot), s = sin(uLzRot);
+  p = mat2(c, s, -s, c) * p;
+  return p / max(uLz.z, 0.05);
+}
 /** Pixel pro Laser-Einheit (für Abstände in Pixeln). */
 float lzPx(){ return uRes.y * max(uLz.z, 0.05); }
 /** Farbe eines Elements: mehrere Slots → jedes Element eine andere, alle 8 Beats weiter; sonst Laserfarben. */
@@ -790,6 +798,17 @@ vec3 beamBurst(vec2 uv){
 void main(){
   vec2 uv = vUv;
   vec3 c;
+  // Lage, Größe, Drehung für alle Visuals außer Lasern (die rechnen sie selbst, damit Linien dünn bleiben).
+  // Was aus dem Rahmen fällt, bleibt schwarz.
+  bool isLz = uGen >= 28 || uGen == 22;
+  if (!isLz && uGen != 27) {
+    float asp = uRes.x / uRes.y;
+    vec2 p = (vUv - 0.5) * vec2(asp, 1.0) - vec2(uLz.x * 0.5 * asp, uLz.y * 0.5);
+    float co = cos(uLzRot), si = sin(uLzRot);
+    p = mat2(co, si, -si, co) * p / max(uLz.z, 0.05);
+    uv = p / vec2(asp, 1.0) + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { outColor = vec4(0.0); return; }
+  }
   if (uGen == 0) c = barSpectrum(uv);
   else if (uGen == 1) c = radialEq(uv);
   else if (uGen == 2) c = oscilloscope(uv);

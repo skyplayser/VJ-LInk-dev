@@ -7,6 +7,8 @@ export interface MediaItem {
   name: string;
   width: number;
   height: number;
+  /** Nur bei Text-Clips: die Angaben, aus denen das Bild entstand (zum Bearbeiten). */
+  text?: import("./text").TextSpec;
 }
 
 /** Bilddaten zum Übertragen zwischen Fenstern und zum Speichern. */

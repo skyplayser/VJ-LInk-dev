@@ -489,3 +489,28 @@ body.modding [data-mod-sel]{box-shadow:0 0 0 3px #19d3c5,0 0 14px rgba(25,211,19
 .lname{grid-template-columns:repeat(6,minmax(0,1fr))}
 .lname > b,.lname > input[type=range]{grid-column:span 3}
 .lname > select{grid-column:span 2;font-size:10.5px;padding-left:3px;padding-right:2px}
+/* Text-Clips */
+.cell-edit{position:absolute;top:3px;left:25px;z-index:2;width:18px;height:18px;display:grid;place-items:center;border-radius:4px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;line-height:1;opacity:0;transition:opacity .12s;cursor:pointer}
+.cell:hover .cell-edit,.cell:focus-visible .cell-edit{opacity:1}
+.cell-edit:hover{background:var(--accent)}
+body.mapping .cell-edit,body.modding .cell-edit{display:none}
+.text-dlg{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.6);display:grid;place-items:center}
+.text-dlg[hidden]{display:none}
+.text-box{width:min(1180px,94vw);max-height:92vh;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6);display:flex;flex-direction:column;overflow:hidden}
+.text-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.text-head .grow{flex:1}
+.text-body{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:14px;padding:14px;overflow:auto}
+.text-form{display:flex;flex-direction:column;gap:6px}
+.tf-text{width:100%;box-sizing:border-box;background:var(--raise);border:1px solid var(--line);border-radius:6px;color:var(--text);font:600 15px system-ui,sans-serif;padding:8px;resize:vertical}
+.tf-sub{margin:8px 0 0;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.tf-row{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:8px;font-size:12px}
+.tf-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+.tf-ctl select{min-width:0;flex:1}
+.tf-range{display:flex;align-items:center;gap:6px;flex:1;min-width:120px}
+.tf-range input{flex:1;min-width:0}
+.tf-val{font:10.5px var(--mono);color:var(--dim);min-width:44px;text-align:right}
+.tf-tog{background:var(--raise);border:1px solid var(--line);border-radius:4px;color:var(--text);padding:4px 9px;font:600 11px system-ui,sans-serif;cursor:pointer}
+.tf-tog.on{background:var(--text);color:var(--bg)}
+.tf-ctl input[type=color]{width:34px;height:24px;padding:0;border:1px solid var(--line);border-radius:4px;background:none}
+.text-view{display:flex;flex-direction:column;gap:6px;min-width:0}
+.text-preview{width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--line);border-radius:6px}

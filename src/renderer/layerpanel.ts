@@ -18,13 +18,14 @@ const DRIVE_HINT: Record<Drive, string> = {
   static: "Kein Pulsieren: gleichmäßige Bewegung, unabhängig von Takt und Audio.",
 };
 
-type NumKey = "x" | "y" | "size" | "thick";
-interface LaserField { key: NumKey; label: string; scale: number; unit: string }
+type NumKey = "x" | "y" | "size" | "thick" | "rot";
+interface LaserField { key: NumKey; label: string; scale: number; unit: string; laserOnly?: boolean }
 const LASER_FIELDS: LaserField[] = [
   { key: "y", label: "Y · Höhe", scale: 100, unit: "" },
   { key: "x", label: "X · Seite", scale: 100, unit: "" },
   { key: "size", label: "Größe", scale: 100, unit: " %" },
-  { key: "thick", label: "Stärke", scale: 100, unit: " %" },
+  { key: "rot", label: "Drehung", scale: 1, unit: "°" },
+  { key: "thick", label: "Stärke", scale: 100, unit: " %", laserOnly: true },
 ];
 
 const rgbCss = (c: readonly number[]) => `rgb(${c.map(v => Math.round(v * 255)).join(",")})`;
@@ -42,18 +43,21 @@ export class LayerPanel {
     if (!l) { this.root.hidden = true; return; }
     this.root.hidden = false;
     const isLaser = !!l.clip && EFFECT_BY_ID.get(l.clip)?.category === "laser";
+    // Lage gibt es für jedes Visual (Grafiken und Videos haben ihre eigene Lage im Panel „Grafik“/„Video“)
+    const isGen = !!l.clip && EFFECT_BY_ID.get(l.clip)?.kind === "generator";
     const slots = this.ctx.show.slots.map(rgbCss).join(";");
-    const sig = `${this.layerOf()}|${l.laser?.override ? 1 : 0}|${l.drive}|${l.colorSource}|${(l.colorSlots ?? []).join(",")}|${isLaser}|${slots}`;
-    if (force || sig !== this.sig) { this.sig = sig; this.build(l, isLaser); }
+    const sig = `${this.layerOf()}|${l.laser?.override ? 1 : 0}|${l.drive}|${l.colorSource}|${(l.colorSlots ?? []).join(",")}|${isLaser}|${isGen}|${slots}`;
+    if (force || sig !== this.sig) { this.sig = sig; this.build(l, isLaser, isGen); }
     const z = l.laser ?? defaultLaser();
     for (const f of LASER_FIELDS) {
       const r = this.ranges.get(f.key); if (!r) continue;
-      if (document.activeElement !== r.input) r.input.value = String(Math.round(z[f.key] * f.scale));
-      r.val.textContent = `${Math.round(z[f.key] * f.scale)}${f.unit}`;
+      const v = z[f.key] ?? 0;
+      if (document.activeElement !== r.input) r.input.value = String(Math.round(v * f.scale));
+      r.val.textContent = `${Math.round(v * f.scale)}${f.unit}`;
     }
   }
 
-  private build(l: LayerState, isLaser: boolean): void {
+  private build(l: LayerState, isLaser: boolean, isGen: boolean): void {
     const n = this.layerOf();
     this.root.replaceChildren();
     this.ranges.clear();
@@ -102,11 +106,11 @@ export class LayerPanel {
         : `${chosen.length} Farben: Verlauf durch alle gewählten Slots in dieser Reihenfolge.`));
     }
 
-    // Laser: Lage, Größe, Stärke
-    if (!isLaser) return;
-    this.root.append(el("h4", "lp-sub", "Laser"));
-    // XY-Override: Eigenbewegung aus, Lage nur über X/Y (z. B. MA per DMX)
+    // Lage, Größe, Drehung (jedes Visual); Stärke und XY-Override nur bei Lasern
+    if (!isGen) return;
+    this.root.append(el("h4", "lp-sub", isLaser ? "Lage · Laser" : "Lage"));
     const ov = !!l.laser?.override;
+    if (isLaser) {
     const ovRow = el("div", "lp-row");
     ovRow.append(el("span", "lp-lab", "XY-Override"));
     const ovBtn = el("button", `btn small-btn${ov ? " on" : ""}`, ov ? "An: X/Y steuern die Lage" : "Aus: Effekt bewegt sich selbst");
@@ -115,14 +119,16 @@ export class LayerPanel {
     ovBtn.addEventListener("click", () => { l.laser = { ...(l.laser ?? defaultLaser()), override: !ov }; this.update(true); });
     ovRow.append(ovBtn);
     this.root.append(ovRow);
-    if (ov) this.root.append(el("p", "muted small lp-hint", "Die Eigenbewegung ist aus: X und Y setzen die Lage direkt (-100 bis 100 = Bildrand). Per Mapping auf Kanäle der MA legen (MAPPING → DMX), auch Größe und den Schalter selbst."));
+    if (ov) this.root.append(el("p", "muted small lp-hint", "Die Eigenbewegung ist aus: X und Y setzen die Lage direkt (0 = Mitte, ±100 = Bildrand). Per Mapping auf Kanäle der MA legen (MAPPING → DMX), auch Größe, Drehung und den Schalter selbst."));
+    }
     for (const f of LASER_FIELDS) {
+      if (f.laserOnly && !isLaser) continue;
       const [lo, hi] = LASER_LIMITS[f.key];
       const row = el("label", "mrow"); row.append(el("span", "", f.label));
       const input = el("input"); input.type = "range";
       input.min = String(Math.round(lo * f.scale)); input.max = String(Math.round(hi * f.scale)); input.step = "1";
       input.dataset.ctl = `layer.${n + 1}.laser.${f.key}`;
-      input.setAttribute("aria-label", `Laser ${f.label}`);
+      input.setAttribute("aria-label", f.label);
       input.addEventListener("input", () => { l.laser = { ...(l.laser ?? defaultLaser()), [f.key]: Number(input.value) / f.scale }; });
       input.addEventListener("dblclick", () => { l.laser = { ...(l.laser ?? defaultLaser()), [f.key]: defaultLaser()[f.key] }; });
       const val = el("span", "mval");
@@ -130,9 +136,10 @@ export class LayerPanel {
       this.root.append(row);
       this.ranges.set(f.key, { input, val });
     }
-    const reset = el("button", "btn small-btn", "Laser zurücksetzen");
-    reset.addEventListener("click", () => { l.laser = defaultLaser(); });
-    this.root.append(reset, el("p", "muted small lp-hint",
-      "Beamer auf der Bühne: Höhe nach oben schiebt die Strahlen über das Publikum. Stärke macht Linien und Punkte dicker, damit sie im Nebel mehr Licht tragen. Doppelklick setzt einen Regler zurück."));
+    const reset = el("button", "btn small-btn", "Lage zurücksetzen");
+    reset.addEventListener("click", () => { l.laser = { ...defaultLaser(), override: l.laser?.override ?? false }; });
+    this.root.append(reset, el("p", "muted small lp-hint", isLaser
+      ? "Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt von dort. Stärke macht Linien und Punkte dicker, damit sie im Nebel mehr Licht tragen. Alles auch per Mapping. Doppelklick setzt einen Regler zurück."
+      : "Verschieben, vergrößern, drehen; was aus dem Rahmen fällt, bleibt schwarz. Alles auch per Mapping (MIDI, DMX, OSC). Doppelklick setzt einen Regler zurück."));
   }
 }

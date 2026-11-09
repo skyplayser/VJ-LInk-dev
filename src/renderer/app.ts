@@ -39,6 +39,8 @@ import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
 import { LayerPanel } from "./layerpanel";
 import { ShowLock } from "./lock";
+import { TextEditor } from "./texteditor";
+import { textName } from "../core/text";
 import { DRIVE_LABEL } from "../core/controls";
 const DRIVE_ICON: Record<Drive, string> = { auto: "◎", bpm: "♩", audio: "∿", static: "—" };
 import { ModMode } from "./modmode";
@@ -214,7 +216,44 @@ const cueEnv: CueEnv = {
 };
 ctx.cueEnv = cueEnv;
 
-const libraryPanel = new LibraryPanel(ctx, library, videoLib, () => rebuildGrid(), l => { importTarget = l; $<HTMLInputElement>("file-input").click(); });
+const libraryPanel = new LibraryPanel(ctx, library, videoLib, () => rebuildGrid(), l => { importTarget = l; $<HTMLInputElement>("file-input").click(); }, l => { libraryPanel.close(); addText(l); });
+
+// ---- Text-Clips: gestalten, als Grafik ablegen, später bearbeiten ---------------------
+const textEditor = new TextEditor();
+function newMediaId(): string { const b = new Uint8Array(8); crypto.getRandomValues(b); return Array.from(b, x => x.toString(16).padStart(2, "0")).join(""); }
+/** Neuen Text gestalten und auf die Ebene legen. */
+function addText(layer: number): void {
+  textEditor.show(null, "Text hinzufügen", async (spec, dataUrl) => {
+    const p = { id: newMediaId(), name: textName(spec), dataUrl };
+    const item = await library.load(p);
+    if (!item) { toast("Text ließ sich nicht anlegen."); return; }
+    item.text = spec; item.name = p.name;
+    bridge?.addMedia(p);
+    const l = ctx.show.layers[layer]!;
+    const id = mediaClip(p.id);
+    addClip(l, id);
+    l.clip = id;
+    // Text-Rahmen ist bildschirmfüllend: ganze Höhe, ohne Animation
+    Object.assign(l.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
+    if (layer > 0 && l.opacity < 0.05) l.opacity = 1;
+    rebuildGrid(); libraryPanel.render(); fxPanel.select(layer);
+    toast(`Text „${p.name}“ liegt auf Ebene ${layer + 1}. Bearbeiten: Bleistift am Clip.`);
+  });
+}
+/** Vorhandenen Text-Clip bearbeiten (gleiche ID: alle Ebenen, Szenen und Cues zeigen die neue Fassung). */
+function editText(mediaId: string): void {
+  const item = library.items.find(i => i.id === mediaId);
+  if (!item?.text) return;
+  textEditor.show(item.text, "Text bearbeiten", async (spec, dataUrl) => {
+    const p = { id: mediaId, name: textName(spec), dataUrl };
+    await library.load(p);
+    item.text = spec; item.name = p.name;
+    bridge?.addMedia(p);
+    rebuildGrid(); libraryPanel.render();
+    toast("Text aktualisiert.");
+  });
+}
+$("text-add").addEventListener("click", () => addText(fxPanel.layer));
 
 function rebuildGrid(): void {
   const grid = $("grid");
@@ -282,11 +321,20 @@ function rebuildGrid(): void {
       b.dataset.ctl = `clip.${l + 1}.${clip.id}`;
       b.title = `${clip.name} · Klick startet/stoppt`;
       b.addEventListener("click", ev => {
-        if ((ev.target as HTMLElement).closest(".cell-x")) return;
+        if ((ev.target as HTMLElement).closest(".cell-x, .cell-edit")) return;
         const layer = ctx.show.layers[l]!;
         layer.clip = layer.clip === clip.id ? null : clip.id;
         if (clip.id.startsWith("img:") && layer.clip) fxPanel.select(l);
       });
+      // Text-Clips: Bleistift zum Bearbeiten (erscheint beim Darüberfahren neben dem ×)
+      const textItem = clip.id.startsWith("img:") ? library.items.find(i => i.id === clip.id.slice(4) && i.text) : undefined;
+      if (textItem) {
+        b.classList.add("text-cell");
+        const pen = el("span", "cell-edit", "✎");
+        pen.setAttribute("role", "button"); pen.title = "Text bearbeiten";
+        pen.addEventListener("click", ev => { ev.stopPropagation(); editText(textItem.id); });
+        b.append(pen);
+      }
       // × entfernt den Clip nur aus dieser Zeile (die Grafik bleibt in der Bibliothek)
       const x = el("span", "cell-x", "×");
       x.setAttribute("role", "button"); x.title = "Aus dieser Ebene entfernen";
@@ -1000,6 +1048,8 @@ async function loadProject(): Promise<void> {
       // Nur die Grafiken dieses Projekts (die Bibliothek im App-Ordner kann mehr enthalten)
       const want = new Set((pv?.media ?? []).map(m => m.id));
       for (const m of r.media) if (want.has(m.id)) await library.load(m);
+      // Text-Clips: Angaben zum Bearbeiten aus dem Projekt
+      for (const pm of pv?.media ?? []) if (pm.text) { const it = library.items.find(i => i.id === pm.id); if (it) it.text = pm.text; }
       projName = r.file?.name ?? "Unbenannt"; projRecent = r.recent ?? [];
       baseline = r.fresh ? "" : r.savedHash ?? "";
       fresh = !!r.fresh;

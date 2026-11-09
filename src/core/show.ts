@@ -16,19 +16,22 @@ export const COLOR_SOURCES_ALL: readonly ColorSource[] = [...COLOR_SOURCES, "mul
 export type Drive = "auto" | "bpm" | "audio" | "static";
 export const DRIVES: readonly Drive[] = ["auto", "bpm", "audio", "static"];
 
-/** Lage und Stärke der Laser-Visuals (Beamer als Showlaser). */
+/** Lage, Größe und Drehung eines Visuals (alle Generatoren); Stärke und XY-Override nur bei Lasern. */
 export interface LaserSettings {
   /** Verschiebung -1 bis 1 (Bildrand); positiv = rechts bzw. oben. */
   x: number; y: number;
   /** Größe bzw. Breite, 1 = normal. */
   size: number;
+  /** Drehung in Grad (-180 … 180). */
+  rot?: number;
   /** Linien- und Punktstärke, 1 = normal (ca. 4 px Linie, 10 px Punkt bei 1080 Zeilen). */
   thick: number;
   /** XY-Override: Eigenbewegung aus, nur X/Y bestimmen die Lage (z. B. von der MA). Aus = wie gewohnt. */
   override?: boolean;
 }
-export const defaultLaser = (): LaserSettings => ({ x: 0, y: 0.3, size: 1, thick: 1, override: false });
-export const LASER_LIMITS = { x: [-1, 1], y: [-1, 1], size: [0.2, 2.5], thick: [0.5, 4] } as const;
+// Y = 0 ist die Bildmitte. Laser liegen ohne XY-Override von sich aus im oberen Drittel (über dem Publikum).
+export const defaultLaser = (): LaserSettings => ({ x: 0, y: 0, size: 1, thick: 1, rot: 0, override: false });
+export const LASER_LIMITS = { x: [-1, 1], y: [-1, 1], size: [0.2, 2.5], thick: [0.5, 4], rot: [-180, 180] } as const;
 export type Rgb = readonly [number, number, number]; // 0–1
 
 /** Ebenen beim Start. Weitere lassen sich bis MAX_LAYERS hinzufügen. */

@@ -10,7 +10,7 @@ const ALLOW = [
   ".mon", "#toast",
 ].join(",");
 /** Ausnahmen innerhalb erlaubter Bereiche. */
-const DENY = [".layer-del", ".cell-x", ".cell.add", "#layer-add", "#cue-details", ".lib-panel", ".map-panel"].join(",");
+const DENY = [".layer-del", ".cell-x", ".cell-edit", "#text-add", ".cell.add", "#layer-add", "#cue-details", ".lib-panel", ".map-panel"].join(",");
 
 const HOLD_MS = 1000;
 const KEY = "vjlink.locked";

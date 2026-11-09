@@ -20,7 +20,7 @@ export class LibraryPanel {
   layer = 0;
   private armedDelete = "";
 
-  constructor(private ctx: ControlContext, private lib: MediaLibrary, private videos: VideoLibrary, private onChange: () => void, private onImport: (layer: number) => void) {
+  constructor(private ctx: ControlContext, private lib: MediaLibrary, private videos: VideoLibrary, private onChange: () => void, private onImport: (layer: number) => void, private onText: (layer: number) => void = () => {}) {
     this.panel.setAttribute("role", "dialog");
     this.panel.setAttribute("aria-label", "Bibliothek");
     this.panel.hidden = true;
@@ -131,7 +131,10 @@ export class LibraryPanel {
     const imp = el("button", "lib-chip add", "+ Datei laden");
     imp.title = "Video (MP4, MOV, WebM) oder Bild (PNG, JPG, WebP, GIF, SVG) laden";
     imp.addEventListener("click", () => this.onImport(this.layer));
-    mg.append(imp);
+    const txt = el("button", "lib-chip add", "+ Text");
+    txt.title = "Text-Clip gestalten (Schrift, Farbe, Leuchten, Kasten …)";
+    txt.addEventListener("click", () => this.onText(this.layer));
+    mg.append(imp, txt);
     body.append(mg);
     box.append(body);
   }

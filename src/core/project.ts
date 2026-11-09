@@ -6,6 +6,7 @@ import { parseMappings, type Mapping } from "./mapping";
 import { FITS, newCue, type Cue, type VideoItem, type VideoSettings } from "./video";
 import { defaultLayout, type OutputLayout } from "./layout";
 import { parseMods, type Modulation } from "./modulation";
+import { parseTextSpec } from "./text";
 import {
   BLEND_MODES, COLOR_SOURCES_ALL, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
   type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
@@ -138,7 +139,12 @@ function partialLayer(v: unknown): Partial<LayerState> | null {
   if ("drive" in v) out.drive = oneOf(v.drive, DRIVES, "auto");
   if (isObj(v.laser)) {
     const L = LASER_LIMITS, z = v.laser;
-    out.laser = { x: num(z.x, 0, L.x[0], L.x[1]), y: num(z.y, 0.3, L.y[0], L.y[1]), size: num(z.size, 1, L.size[0], L.size[1]), thick: num(z.thick, 1, L.thick[0], L.thick[1]), override: z.override === true };
+    // Ältere Projekte: Y 0,3 war die Vorgabe für „oberes Drittel“; das ist jetzt eingebaut, also 0
+    const oldDefault = !("rot" in z) && z.y === 0.3;
+    out.laser = {
+      x: num(z.x, 0, L.x[0], L.x[1]), y: oldDefault ? 0 : num(z.y, 0, L.y[0], L.y[1]), size: num(z.size, 1, L.size[0], L.size[1]),
+      thick: num(z.thick, 1, L.thick[0], L.thick[1]), rot: num(z.rot, 0, L.rot[0], L.rot[1]), override: z.override === true,
+    };
   }
   if ("speed" in v) out.speed = num(v.speed, 1, -4, 4);
   if ("strobe" in v) out.strobe = num(v.strobe, 0, 0, 8);
@@ -190,6 +196,7 @@ export function parseProject(json: string): ProjectFile | null {
   const mediaList: MediaItem[] = (Array.isArray(raw.media) ? raw.media : []).filter(isObj)
     .filter(m => isValidMediaId(m.id)).map(m => ({
       id: m.id as string, name: str(m.name, "Grafik", 80), width: num(m.width, 512, 1, 16384), height: num(m.height, 512, 1, 16384),
+      ...(parseTextSpec(m.text) ? { text: parseTextSpec(m.text)! } : {}),
     }));
   return {
     version: PROJECT_VERSION, layers, scenes, slots,
