@@ -1393,3 +1393,53 @@ describe("Ausgabe und Mapping: Masken, Bühnenfoto, feste Bild-Kanäle", () => {
     expect(c.show.stacks![b]![0]!.opacity).toBe(1);
   });
 });
+
+describe("LJ-Link PRO", () => {
+  const deck = (o: Record<string, unknown>) => JSON.stringify({ type: "deck", deck: 1, name: "CDJ-3000", playing: true, onAir: true, master: true,
+    effectiveBpm: 126, key: "8A", title: "Eins", artist: "A", trackNumber: 1, durationMs: 240000, hasTrack: true, loop: null, loopBeats: 0, ...o });
+  it("erst nach dem LJ-Link-Zustand wird übersetzt; Decks, Tempo, Privatsphäre", async () => {
+    const { LjProAdapter } = await import("../src/core/ljpro");
+    const a = new LjProAdapter();
+    expect(a.feed(deck({}))).toEqual([]); // fremder Dienst auf Port 8080: nichts
+    const hello = a.feed(JSON.stringify({ type: "state", phase: "monitoring", privacy: true }));
+    expect(hello[0]).toMatchObject({ t: "hello", privacy: true });
+    const d = a.feed(deck({}));
+    expect(d[0]).toMatchObject({ t: "deck", deck: { deck: 1, bpm: 126, master: true, key: "8A", title: "Eins" } });
+    const c = ctx();
+    for (const m of [...hello, ...d]) handleLj(c, m, 1000);
+    expect(c.lj.connected).toBe(true);
+    expect(c.lj.decks.get(1)?.title).toBeUndefined(); // Privatsphäre-Modus
+    expect(c.lj.masterDeck).toBe(1);
+  });
+  it("erkennt Trackwechsel, Master-Wechsel, Loop und verschwundene Decks", async () => {
+    const { LjProAdapter } = await import("../src/core/ljpro");
+    const a = new LjProAdapter();
+    a.feed(JSON.stringify({ type: "state", phase: "monitoring" }));
+    a.feed(deck({}));
+    expect(a.feed(deck({})).filter(m => m.t === "event")).toEqual([]);
+    expect(a.feed(deck({ title: "Zwei", trackNumber: 2 })).find(m => m.t === "event")).toMatchObject({ kind: "track", deck: 1 });
+    expect(a.feed(deck({ title: "Zwei", trackNumber: 2, loop: { start: 1 }, loopBeats: 4 })).find(m => m.t === "event")).toMatchObject({ kind: "loop", active: true, beats: 4 });
+    a.feed(deck({ master: false }));
+    expect(a.feed(deck({ deck: 2, master: true, title: "Drei" })).find(m => m.t === "event")).toMatchObject({ kind: "track", deck: 2 });
+    expect(a.feed(JSON.stringify({ type: "deckGone", deck: 2 }))).toEqual([{ t: "gone", deck: 2 }]);
+    const c = ctx();
+    handleLj(c, { t: "deck", deck: { deck: 2, playing: true, onAir: true, master: true, bpm: 120 } }, 0);
+    handleLj(c, { t: "gone", deck: 2 }, 0);
+    expect(c.lj.decks.size).toBe(0);
+    expect(a.clear().map(m => m.t)).toEqual(["gone"]);
+  });
+});
+
+describe("LJ-Link PRO: Stand und Positionen", () => {
+  it("Positionen halten den Master-Deck lebendig (höchstens 4× pro Sekunde), Stand lässt sich nachreichen", async () => {
+    const { LjProAdapter } = await import("../src/core/ljpro");
+    const a = new LjProAdapter();
+    a.feed(JSON.stringify({ type: "state", phase: "monitoring" }), 0);
+    a.feed(JSON.stringify({ type: "deck", deck: 1, master: true, playing: true, effectiveBpm: 128, durationMs: 200000, title: "X" }), 0);
+    expect(a.feed(JSON.stringify({ type: "pos", deck: 1, p: 100000, v: 1 }), 100)).toEqual([]);
+    const out = a.feed(JSON.stringify({ type: "pos", deck: 1, p: 100000, v: 1 }), 300);
+    expect(out[0]).toMatchObject({ t: "deck", deck: { bpm: 128, position: 0.5 } });
+    const snap = a.snapshot();
+    expect(snap.map(m => m.t)).toEqual(["hello", "deck"]);
+  });
+});

@@ -30,7 +30,9 @@ export type LjMessage =
   | { t: "event"; kind: "phrase"; deck: number; phrase: Phrase }
   | { t: "event"; kind: "cue"; deck: number; cue: string }
   | { t: "event"; kind: "loop"; deck: number; active: boolean; beats?: number }
-  | { t: "wave"; deck: number; bass: number; mid: number; high: number };
+  | { t: "wave"; deck: number; bass: number; mid: number; high: number }
+  /** Deck ist weg (Player aus dem Netz). */
+  | { t: "gone"; deck: number };
 
 export interface LjState {
   connected: boolean;
@@ -54,6 +56,7 @@ export function parseLjMessage(raw: string): LjMessage | null {
     case "deck": return msg.deck && typeof msg.deck.deck === "number" ? msg : null;
     case "event": return typeof msg.kind === "string" ? msg : null;
     case "wave": return Number.isFinite(msg.bass) ? msg : null;
+    case "gone": return typeof msg.deck === "number" ? msg : null;
   }
   return null;
 }
@@ -70,6 +73,10 @@ export function reduceLj(s: LjState, m: LjMessage): LjState {
       if (d.master) s.masterDeck = d.deck;
       break;
     }
+    case "gone":
+      s.decks.delete(m.deck);
+      if (s.masterDeck === m.deck) s.masterDeck = null;
+      break;
     case "event":
       if (m.kind === "phrase") { const d = s.decks.get(m.deck); if (d) d.phrase = m.phrase; }
       if (m.kind === "loop") s.loopActive = m.active;

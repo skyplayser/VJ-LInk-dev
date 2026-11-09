@@ -25,7 +25,7 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 | Takt | Quellen-Rangfolge LJ-Link → Ableton Link → OSC → MIDI → Audio → Tap, Tap-Tempo, Rückfall bei Ausfall ohne Phasensprung |
 | Pult | Art-Net und sACN als Eingang, DMX-Belegung „Standard“ (91 Kanäle, 71–91 für die Bilder im Projektionsmapping), nur geänderte Kanäle wirken, Kanalliste als CSV |
 | OSC | Eingang auf Port 8000, Adressen `/vjlink/…` |
-| LJ-Link | WebSocket-Eingang auf Port 9099, Deck-Zustand, Regeln „Wenn … dann …“, Privatsphäre-Modus |
+| LJ-Link | LJ-Link PRO wird automatisch gefunden: VJ-Link meldet sich an dessen Weboberfläche an (ws://…:8080/ws, alle 3 s neuer Versuch), übernimmt Decks, Master-Tempo, Tonart, Titel, Trackwechsel und Loops; anderer Rechner unter VERBINDEN → LJ-Link. Zusätzlich WebSocket-Eingang auf Port 9099 (eigenes Protokoll), Regeln „Wenn … dann …“, Privatsphäre-Modus |
 | Ausgänge | Tab AUSGABE: ein Vollbild-Fenster pro Bildschirm, gemeinsame Takt-Uhr. Anordnung „Gleiches Bild auf allen“ oder „Leinwand“: Bildschirme frei anordnen (ziehen, einrasten, Werte eintippen, nebeneinander/untereinander), jeder Ausgang zeigt seinen Ausschnitt, Visuals, Videos und Cues laufen nahtlos über alle |
 | Mapping | Wie Daslight: MAPPING → Tastatur, MIDI, DMX/Art-Net oder OSC (⇧⌘K/M/D/O). Alle zuweisbaren Elemente leuchten lila, anklicken, Eingang bewegen. Liste der Zuweisungen je Art, wird mit dem Projekt gespeichert. Clips, Szenen, Fader, Effekte, BPM |
 | Lage | Jedes Visual in jeder Ebene: X, Y, Größe, Drehung; das Visual füllt dabei weiter den ganzen Bildschirm (Ebenen-Panel „Lage“, auch per Mapping für MA, MIDI, OSC). Laser rechnen die Lage selbst (Linien bleiben dünn), dazu Stärke und XY-Override |

@@ -64,9 +64,11 @@ interface Settings {
   universe: number; sacn: number; address: number; uiScale: "auto" | number;
   audioDevice: string; audioGain: number; audioScope: "audio" | "all"; audioOut: string;
   tc: TcSettings;
+  /** Rechner mit LJ-Link PRO; leer = dieser Rechner. */
+  ljHost: string;
 }
 function loadSettings(): Settings {
-  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings() };
+  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "" };
   try {
     const raw = JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") as Partial<Settings>;
     return { ...d, ...raw, tc: { ...d.tc, ...(raw.tc ?? {}) } };
@@ -808,7 +810,9 @@ function drawConnect(now: number): void {
       card("Art-Net", s.artnet.error ? "err" : s.artnet.listening ? "ok" : "off", [`UDP 6454 · Universe ${settings.universe}`, `${s.artnet.packets} Pakete`, s.artnet.lastFrom ? `von ${s.artnet.lastFrom}` : (s.artnet.error ?? "wartet")]),
       card("sACN", s.sacn.error ? "err" : s.sacn.listening ? "ok" : "off", [`UDP 5568 · Universe ${settings.sacn}`, `${s.sacn.packets} Pakete`, s.sacn.error ?? "wartet"]),
       card("OSC", s.osc.error ? "err" : s.osc.listening ? "ok" : "off", [`UDP ${s.osc.port}`, `${s.osc.packets} Pakete`, s.osc.error ?? "/vjlink/…"]),
-      card("LJ-Link", s.lj.error ? "err" : s.lj.clients > 0 ? "ok" : "off", [`WebSocket ${s.lj.port}`, s.lj.clients > 0 ? `${s.lj.clients} verbunden` : "wartet auf LJ-Link", s.lj.error ?? ""].filter(Boolean)),
+      card("LJ-Link", s.lj.clients > 0 || s.lj.pro?.connected ? "ok" : s.lj.error ? "err" : "off", [
+        s.lj.pro?.connected ? `LJ-Link PRO verbunden (${proWhere(s.lj.pro.host)})` : `sucht LJ-Link PRO (${proWhere(s.lj.pro?.host ?? "")})`,
+        s.lj.clients > 0 ? `WebSocket ${s.lj.port}: ${s.lj.clients} verbunden` : `WebSocket ${s.lj.port} offen`, s.lj.error ?? ""].filter(Boolean)),
     );
     void dmxLive;
   }
@@ -828,18 +832,27 @@ function drawConnect(now: number): void {
         `${d.onAir ? "ON AIR " : ""}${d.master ? "MASTER " : ""}${d.phrase ? d.phrase.toUpperCase() : ""}`.trim() || "–"], d.onAir));
   }
 }
+/** „dieser Mac“ statt 127.0.0.1. */
+const proWhere = (h: string): string => !h || h === "127.0.0.1" || h === "localhost" ? (bridge?.platform === "darwin" ? "dieser Mac" : "dieser Rechner") : h;
 function bindSettings(): void {
   const u = $<HTMLInputElement>("cfg-universe"), s = $<HTMLInputElement>("cfg-sacn"), a = $<HTMLInputElement>("cfg-address");
   u.value = String(settings.universe); s.value = String(settings.sacn); a.value = String(settings.address);
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number.isFinite(v) ? v : lo)));
   u.addEventListener("change", () => { settings.universe = clamp(Number(u.value), 0, 32767); saveSettings(); });
-  s.addEventListener("change", () => { settings.sacn = clamp(Number(s.value), 1, 63999); saveSettings(); bridge?.configure({ sacnUniverse: settings.sacn }); });
+  s.addEventListener("change", () => { settings.sacn = clamp(Number(s.value), 1, 63999); saveSettings(); bridge?.configure({ sacnUniverse: settings.sacn, ljHost: settings.ljHost }); });
+  const lh = $<HTMLInputElement>("cfg-ljhost");
+  lh.value = settings.ljHost;
+  lh.addEventListener("change", () => {
+    const v = lh.value.trim();
+    if (v && !/^[A-Za-z0-9.:\[\]-]{1,253}$/.test(v)) { lh.value = settings.ljHost; toast("Bitte nur IP-Adresse oder Rechnername eingeben."); return; }
+    settings.ljHost = v; saveSettings(); bridge?.configure({ sacnUniverse: settings.sacn, ljHost: v });
+  });
   a.addEventListener("change", () => { settings.address = clamp(Number(a.value), 1, 512 - DMX_MODE_STANDARD_CHANNELS + 1); decoder.startAddress = settings.address; saveSettings(); });
   $("dl-channels").addEventListener("click", () => {
     const url = URL.createObjectURL(new Blob([channelListCsv(settings.address)], { type: "text/csv" }));
     const link = el("a"); link.href = url; link.download = "vj-link-kanalliste.csv"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-  bridge?.configure({ sacnUniverse: settings.sacn });
+  bridge?.configure({ sacnUniverse: settings.sacn, ljHost: settings.ljHost });
   const sc = $<HTMLSelectElement>("ui-scale");
   sc.value = String(settings.uiScale);
   if (sc.value === "") sc.value = "auto";

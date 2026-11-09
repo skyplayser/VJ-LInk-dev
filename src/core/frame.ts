@@ -36,7 +36,9 @@ export interface NetStatus {
   artnet: { listening: boolean; packets: number; lastFrom?: string; error?: string };
   sacn: { listening: boolean; packets: number; error?: string };
   osc: { listening: boolean; port: number; packets: number; error?: string };
-  lj: { listening: boolean; port: number; clients: number; error?: string };
+  lj: { listening: boolean; port: number; clients: number; error?: string;
+    /** LJ-Link PRO: VJ-Link verbindet sich selbst (Rechner, verbunden). */
+    pro?: { host: string; connected: boolean } };
 }
 
 export interface DisplayInfo {
@@ -56,7 +58,11 @@ export const WINDOW_OUTPUT = -1;
 /** Wählbare Größen des Fenster-Ausgangs (Pixel). */
 export const WINDOW_SIZES: [number, number][] = [[1280, 720], [1920, 1080], [2560, 1440], [3840, 2160], [1080, 1920], [1024, 768], [1920, 1200]];
 
-export interface NetConfig { sacnUniverse: number }
+export interface NetConfig {
+  sacnUniverse: number;
+  /** Rechner mit LJ-Link PRO (IP oder Name); leer = dieser Rechner. */
+  ljHost?: string;
+}
 
 export type MediaEvent = { type: "add"; item: MediaPayload } | { type: "remove"; id: string };
 

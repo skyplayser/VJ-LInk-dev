@@ -646,3 +646,7 @@ body.mapping [data-ctl][data-mapped][data-map-sel]{outline:3px solid #fff!import
 .img-tile .img-gain{position:absolute;left:6px;right:6px;bottom:4px;width:calc(100% - 12px);height:12px;margin:0;opacity:.55;accent-color:#22c8f0}
 .img-tile:hover .img-gain,.img-tile .img-gain:focus{opacity:1}
 .img-tile .img-name{bottom:20px}
+/* Beim Umbenennen den Helligkeitsregler ausblenden, damit das Eingabefeld frei liegt */
+.img-tile:has(.img-rename) .img-gain{display:none}
+.lj-host{margin:4px 0 10px;gap:8px}
+.lj-host input{width:200px}

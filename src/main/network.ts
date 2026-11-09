@@ -1,11 +1,12 @@
 // Netzwerk-Eingänge: Art-Net, sACN, OSC (UDP) und LJ-Link (WebSocket). Alles nur Empfang.
 import dgram from "node:dgram";
-import { WebSocketServer, type WebSocket } from "ws";
+import { WebSocket as WsClient, WebSocketServer, type WebSocket } from "ws";
 import { ARTNET_PORT, parseArtDmx } from "../core/artnet";
 import { parseArtTimecode } from "../core/timecode";
 import { SACN_PORT, parseSacn, sacnMulticastAddress } from "../core/sacn";
 import { parseOsc } from "../core/osc";
-import { LJ_DEFAULT_PORT, parseLjMessage } from "../core/ljlink";
+import { LJ_DEFAULT_PORT, parseLjMessage, type LjMessage } from "../core/ljlink";
+import { LJ_PRO_PATH, LJ_PRO_PORT, LjProAdapter } from "../core/ljpro";
 import type { ControlEvent, NetStatus } from "../core/frame";
 
 export const OSC_PORT = 8000;
@@ -15,8 +16,12 @@ export class Network {
     artnet: { listening: false, packets: 0 },
     sacn: { listening: false, packets: 0 },
     osc: { listening: false, port: OSC_PORT, packets: 0 },
-    lj: { listening: false, port: LJ_DEFAULT_PORT, clients: 0 },
+    lj: { listening: false, port: LJ_DEFAULT_PORT, clients: 0, pro: { host: "127.0.0.1", connected: false } },
   };
+  private pro?: WsClient;
+  private proHost = "127.0.0.1";
+  private proTimer?: NodeJS.Timeout;
+  private proAdapter?: LjProAdapter;
   private sockets: dgram.Socket[] = [];
   private artnet?: dgram.Socket;
   private wss?: WebSocketServer;
@@ -49,6 +54,7 @@ export class Network {
       }
     });
     this.ws(LJ_DEFAULT_PORT);
+    this.connectPro();
     setInterval(() => this.emit({ type: "status", status: this.status }), 500).unref();
   }
 
@@ -89,15 +95,67 @@ export class Network {
     wss.on("error", err => { this.status.lj.error = err.message; this.status.lj.listening = false; });
     wss.on("connection", (sock: WebSocket) => {
       this.status.lj.clients = wss.clients.size;
-      this.emit({ type: "lj-connection", clients: wss.clients.size });
+      this.emit({ type: "lj-connection", clients: this.ljClients() });
       sock.on("message", data => {
         const raw = data.toString();
         if (parseLjMessage(raw)) this.emit({ type: "lj", raw });
       });
       sock.on("close", () => {
         this.status.lj.clients = wss.clients.size;
-        this.emit({ type: "lj-connection", clients: wss.clients.size });
+        this.emit({ type: "lj-connection", clients: this.ljClients() });
       });
+    });
+  }
+
+  /** Stand von LJ-Link PRO erneut schicken (die Oberfläche hat neu geladen und kennt ihn nicht). */
+  replayLj(): void {
+    if (!this.status.lj.pro?.connected || !this.proAdapter) return;
+    for (const m of this.proAdapter.snapshot()) this.emit({ type: "lj", raw: JSON.stringify(m) });
+  }
+
+  /** Verbundene Gegenstellen insgesamt (LJ-Link mit eigenem Ausgang plus LJ-Link PRO). */
+  private ljClients(): number { return (this.wss?.clients.size ?? 0) + (this.status.lj.pro?.connected ? 1 : 0); }
+
+  /** Rechner mit LJ-Link PRO ändern (leer = dieser Rechner) und neu verbinden. */
+  setLjHost(host: string): void {
+    const h = host.trim() || "127.0.0.1";
+    if (h === this.proHost) return;
+    this.proHost = h; this.status.lj.pro = { host: h, connected: false };
+    clearTimeout(this.proTimer);
+    const old = this.pro; this.pro = undefined; old?.terminate();
+    this.connectPro();
+  }
+
+  /**
+   * LJ-Link PRO automatisch finden: VJ-Link meldet sich an dessen Weboberfläche an (ws://Rechner:8080/ws),
+   * versucht es alle 3 Sekunden neu und übersetzt Decks, Tempo, Trackwechsel und Loops.
+   */
+  private connectPro(): void {
+    const host = this.proHost;
+    const adapter = new LjProAdapter();
+    this.proAdapter = adapter;
+    const send = (list: LjMessage[]) => { for (const m of list) this.emit({ type: "lj", raw: JSON.stringify(m) }); };
+    let sock: WsClient;
+    try { sock = new WsClient(`ws://${host.includes(":") && !host.startsWith("[") ? `[${host}]` : host}:${LJ_PRO_PORT}${LJ_PRO_PATH}`, { handshakeTimeout: 2500, maxPayload: 1024 * 1024 }); }
+    catch { this.proTimer = setTimeout(() => this.connectPro(), 3000); this.proTimer.unref(); return; }
+    this.pro = sock;
+    sock.on("message", data => {
+      const was = adapter.recognized;
+      send(adapter.feed(data.toString()));
+      if (!was && adapter.recognized && this.pro === sock) {
+        this.status.lj.pro = { host, connected: true };
+        this.emit({ type: "lj-connection", clients: this.ljClients() });
+      }
+    });
+    sock.on("error", () => { /* LJ-Link PRO läuft nicht: still neu versuchen */ });
+    sock.on("close", () => {
+      if (this.pro !== sock) return; // Rechner gewechselt
+      if (adapter.recognized) {
+        send(adapter.clear());
+        this.status.lj.pro = { host, connected: false };
+        this.emit({ type: "lj-connection", clients: this.ljClients() });
+      }
+      this.proTimer = setTimeout(() => this.connectPro(), 3000); this.proTimer.unref();
     });
   }
 
@@ -110,5 +168,7 @@ export class Network {
   stop(): void {
     for (const s of this.sockets) { try { s.close(); } catch { /* schon zu */ } }
     this.wss?.close();
+    clearTimeout(this.proTimer);
+    const p = this.pro; this.pro = undefined; p?.terminate();
   }
 }

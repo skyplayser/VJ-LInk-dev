@@ -63,7 +63,11 @@ function createControl(): void {
     width, height, minWidth: 900, minHeight: 600, title: "VJ-Link",
   });
   control.loadFile(rendererFile("index.html"));
-  control.webContents.on("did-finish-load", () => { applyScale(); switching = false; updateTitle(); });
+  control.webContents.on("did-finish-load", () => {
+    applyScale(); switching = false; updateTitle();
+    // LJ-Link PRO meldet Decks nur bei Änderungen: den bekannten Stand nachreichen
+    setTimeout(() => net?.replayLj(), 500);
+  });
   control.on("resize", applyScale);
   control.on("closed", () => { control = null; for (const w of outputs.values()) w.close(); });
 }
@@ -325,6 +329,7 @@ app.whenReady().then(async () => {
   ipcMain.on("configure", (e, c: NetConfig) => {
     if (e.sender !== control?.webContents) return;
     if (Number.isFinite(c?.sacnUniverse)) net?.joinSacn(c.sacnUniverse);
+    if (typeof c?.ljHost === "string" && /^[A-Za-z0-9.:\[\]-]{0,253}$/.test(c.ljHost)) net?.setLjHost(c.ljHost);
   });
   const fromControl = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => e.sender === control?.webContents;
   ipcMain.on("media:add", async (e, p: unknown) => {
