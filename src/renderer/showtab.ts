@@ -8,6 +8,7 @@ import {
 import type { MediaLibrary } from "./medialib";
 import { formatFrames, formatTc, parseTc, type TcFps, type TcNow } from "../core/timecode";
 import type { VideoLibrary } from "./videolib";
+import { TimelineView } from "./timelineview";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
@@ -43,6 +44,7 @@ export class ShowTab {
   /** Timeline: Abspielposition und gewählter Marker im Detail-Bereich. */
   private playhead: HTMLElement | null = null;
   private selMark = -1;
+  private tl: TimelineView | null = null;
 
   constructor(private d: ShowDeps) {
     const $ = (id: string) => document.getElementById(id)!;
@@ -244,7 +246,9 @@ export class ShowTab {
           range("Loop bis", () => c.loopOut || c.trimOut || d, v => { c.loopOut = v; }, d);
         }
       }
-      if (d > 0) this.timeline(box, c, d);
+      // Kleine Timeline in den Details; als Timeline umgewandelte Cues haben den großen Editor unter der Liste
+      if (d > 0 && !c.timeline) this.timeline(box, c, d);
+      if (c.timeline) box.append(el("p", "muted small", "Timeline: Szenen im großen Editor unter der Cue-Liste setzen."));
     }
     if (c.kind === "tcsignal") {
       seg("Befehl", { start: "Start ab", stop: "Stopp", locate: "Springen auf" } as Record<"start" | "stop" | "locate", string>, () => c.tcAction, v => {
@@ -280,6 +284,13 @@ export class ShowTab {
     const mk = (t: string, fn: () => void, cls = "btn small-btn") => { const b = el("button", cls, t); b.addEventListener("click", fn); act.append(b); return b; };
     mk("Als Nächstes", () => { cueSetNext(this.d.ctx.cues, this.selected); });
     mk("↑", () => this.move(-1)); mk("↓", () => this.move(1));
+    // Timeline: Cue als Zeitleiste bearbeiten (großer Editor unter der Liste)
+    if (c.kind === "video" || c.kind === "image" || c.kind === "black") {
+      mk(c.timeline ? "Timeline schließen" : "In Timeline umwandeln", () => {
+        if (!c.timeline && c.kind !== "video" && !(c.hold > 0)) { this.d.toast("Für eine Timeline braucht der Cue eine Dauer (oben „Dauer“ einstellen)."); return; }
+        c.timeline = !c.timeline; this.update(true);
+      });
+    }
     mk("Kopieren", () => { const cp = { ...c, id: newCueId(), name: `${c.name} (Kopie)` }; this.list.splice(this.selected + 1, 0, cp); this.selected++; this.update(true); });
     const del = mk(this.armedDelete ? "Wirklich löschen?" : "Löschen", () => {
       if (!this.armedDelete) { this.armedDelete = true; this.update(true); return; }
@@ -366,6 +377,12 @@ export class ShowTab {
       const focusInDetails = document.activeElement && document.getElementById("cue-details")!.contains(document.activeElement) && (document.activeElement as HTMLElement).tagName !== "BUTTON";
       if (!focusInDetails || force) { this.detSig = dsig; this.buildDetails(); }
     }
+    // Timeline-Editor des gewählten Cues
+    this.tl ??= new TimelineView(document.getElementById("cue-timeline")!, {
+      ctx: this.d.ctx, env: this.d.env, toast: m => this.d.toast(m),
+      indexOf: cc => this.d.ctx.cues.list.indexOf(cc), changed: () => this.update(true),
+    });
+    this.tl.update(s.list[this.selected] ?? null, force);
     // Timeline: Abspielposition des gewählten Videos
     const selC = s.list[this.selected];
     if (this.playhead && selC?.kind === "video") {

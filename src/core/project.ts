@@ -99,6 +99,7 @@ function cue(v: unknown): Cue | null {
   const kind = oneOf(v.kind, ["video", "image", "black", "scene", "tcsignal"] as const, "black");
   const c = newCue(kind, str(v.name, "Cue", 60) || "Cue", clip(v.media), v.id);
   c.scene = num(v.scene, 1, 1, 999);
+  if (v.timeline === true) c.timeline = true;
   if (Array.isArray(v.marks)) c.marks = v.marks.filter(isObj).slice(0, 200)
     .map(m => ({ t: num(m.t, 0, 0, 86400), scene: Math.round(num(m.scene, 1, 1, 999)), others: m.others !== false }));
   c.start = oneOf(v.start, ["manual", "after", "with", "timecode"] as const, "manual");

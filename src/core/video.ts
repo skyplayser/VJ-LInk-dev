@@ -109,8 +109,10 @@ export interface Cue {
   /** Timecode-Befehl: eigene Uhr starten (ab Zeit), anhalten oder auf eine Zeit springen. */
   tcAction: TcAction;
   tcTarget: string;
-  /** Timeline (nur Video): an diesen Stellen im Video eine Szene abrufen. */
+  /** Timeline: an diesen Stellen (Video-Zeit bzw. Sekunden seit Start) eine Szene abrufen. */
   marks?: SceneMark[];
+  /** Als Timeline bearbeitet (großer Editor unter der Cue-Liste). */
+  timeline?: boolean;
 }
 
 /** Szenen-Marker in einem Video: Zeit in der Datei (s), Szene (1…), nur die anderen Bilder oder alle. */
@@ -209,7 +211,8 @@ export function cueTime(c: Cue, ac: ActiveCue, nowMs: number, duration: number):
   const el = (nowMs - ac.startMs) / 1000;
   if (c.kind !== "video") {
     const ended = c.hold > 0 && el >= c.hold;
-    return { t: 0, ended, looping: false, endMs: c.hold > 0 ? ac.startMs + c.hold * 1000 : null };
+    // t = Sekunden seit Start (für die Timeline von Bild- und Schwarz-Cues)
+    return { t: Math.max(0, c.hold > 0 ? Math.min(c.hold, el) : el), ended, looping: false, endMs: c.hold > 0 ? ac.startMs + c.hold * 1000 : null };
   }
   const [a, b] = trimmed(c, duration);
   const la = c.loopRange ? clampNum(c.loopIn || a, a, b - 0.05) : a;
@@ -393,7 +396,7 @@ export function cueTick(s: CueState, nowMs: number, env: CueEnv): void {
       if (ac.fired) { ac.endHandled = true; ac.fadeOutMs ??= nowMs; ac.fadeOutDur = 0; }
     } else if (!ac.endHandled && nowMs >= ac.startMs) {
       const tm = cueTime(c, ac, nowMs, env.duration(c.media));
-      if (c.kind === "video" && c.marks?.length && !ac.frozen) fireMarks(c, ac, tm.t, tm.looping, env);
+      if (c.marks?.length && !ac.frozen) fireMarks(c, ac, tm.t, tm.looping, env);
       if (tm.ended) {
         ac.endHandled = true;
         const isCurrent = s.list[s.run.current]?.id === c.id;
@@ -455,4 +458,23 @@ export function fireMarks(c: Cue, ac: ActiveCue, t: number, looping: boolean, en
   else { const last = marks.filter(m => m.t <= t).pop(); due = last ? [last] : []; }
   for (const m of due) env.recallScene(m.scene - 1, m.others);
   return due;
+}
+
+/** Länge der Timeline: gekürztes Video bzw. Standzeit von Bild/Schwarz (0 = keine feste Länge). */
+export function timelineSpan(c: Cue, duration: number): [number, number] {
+  if (c.kind === "video") return duration > 0 ? trimmed(c, duration) : [0, 0];
+  return [0, c.hold > 0 ? c.hold : 0];
+}
+
+/** Laufenden Cue an eine Stelle spulen (Timeline). Marker gelten danach mit dem Stand an dieser Stelle. */
+export function cueSeek(s: CueState, cueId: string, t: number, nowMs: number, duration: number): boolean {
+  const c = byId(s, cueId);
+  const ac = s.run.active.find(a => a.cueId === cueId && a.fadeOutMs === null);
+  if (!c || !ac || nowMs < ac.startMs) return false;
+  const [a, b] = timelineSpan(c, duration);
+  const x = Math.max(a, Math.min(b > a ? b - 0.05 : t, t));
+  ac.startMs = nowMs - (x - a) * 1000;
+  ac.endHandled = false;
+  ac.lastT = undefined;
+  return true;
 }

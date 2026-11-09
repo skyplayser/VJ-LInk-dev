@@ -1240,3 +1240,26 @@ describe("Timeline: Szenen-Marker im Video", () => {
     expect(p.cues[0]!.marks).toEqual([{ t: 3.5, scene: 1, others: true }]);
   });
 });
+
+describe("Timeline-Cue", () => {
+  it("Spulen setzt die Stelle, Bild-Cues haben Sekunden als Zeit, Aufnahme meldet nur Abrufe von Hand", async () => {
+    const { newCue, cueSeek, cueTime, timelineSpan } = await import("../src/core/video");
+    const { recallScene } = await import("../src/core/control");
+    const c = ctx();
+    const img = newCue("image", "Standbild", "img:a1b2c3d4e5f60708"); img.hold = 30; img.timeline = true;
+    c.cues.list = [img];
+    const ac = { uid: "u", cueId: img.id, startMs: 1000, releasedMs: null, fadeOutMs: null, fadeOutDur: 0, endHandled: false, fired: false } as import("../src/core/video").ActiveCue;
+    c.cues.run.active = [ac];
+    expect(timelineSpan(img, 0)).toEqual([0, 30]);
+    expect(cueTime(img, ac, 6000, 0).t).toBeCloseTo(5, 6);
+    expect(cueSeek(c.cues, img.id, 12, 6000, 0)).toBe(true);
+    expect(cueTime(img, ac, 6000, 0).t).toBeCloseTo(12, 6);
+    const seen: number[] = [];
+    c.onSceneRecall = i => seen.push(i);
+    recallScene(c, 1, 0);                 // von Hand
+    recallScene(c, 2, 0, [], true);       // aus dem Ablauf (Marker)
+    expect(seen).toEqual([1]);
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.cues[0]!.timeline).toBe(true);
+  });
+});

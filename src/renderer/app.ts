@@ -209,7 +209,7 @@ let lastSweep = 0;
 const cueEnv: CueEnv = {
   duration: m => (m && isVideoClip(m) ? videoLib.duration(videoIdOf(m)) : 0),
   // Szenen-Marker der Timeline: „nur andere Bilder“ lässt das Bild des SHOW-Ablaufs unberührt
-  recallScene: (i, othersOnly) => { recallScene(ctx, i, Date.now(), othersOnly ? [showImage()] : []); },
+  recallScene: (i, othersOnly) => { recallScene(ctx, i, Date.now(), othersOnly ? [showImage()] : [], true); },
   timecode: () => tcClock.now(Date.now()),
   tcCommand: (action, target) => {
     const now = Date.now(), t = parseTc(target, tcClock.sendFps);
