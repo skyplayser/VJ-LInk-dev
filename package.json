@@ -44,7 +44,8 @@
     },
     "files": [
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "LICENSE"
     ],
     "asar": true,
     "mac": {
@@ -89,5 +90,10 @@
       "createStartMenuShortcut": true,
       "shortcutName": "VJ-Link"
     }
+  },
+  "license": "EPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skyplayser/VJ-LInk-dev.git"
   }
 }

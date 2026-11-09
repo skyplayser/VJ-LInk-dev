@@ -94,3 +94,4 @@ Electron mit TypeScript und WebGL2. Gründe: nur Bausteine mit freizügigen Lize
 ## Lizenz
 
 Noch nicht festgelegt. Bis dahin gilt: alle Rechte vorbehalten. Abhängigkeiten und ihre Lizenzen: `THIRD_PARTY.md`.
+
