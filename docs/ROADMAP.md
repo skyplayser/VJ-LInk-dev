@@ -52,7 +52,7 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
 | 5.1 | Bilder und Videos | Bilder/Logos und Videos (Clip mit Takt-Loop, SHOW-Ablauf) erledigt. Offen: Lizenzfrage H.264 klären, nahtloser Loop mit zwei Abspielern | L | erledigt |
-| 5.2 | Text | DJ-Name, Logo, Laufschrift, Tracktitel aus LJ-Link | M |
+| 5.2 | Text | Text-Clips mit Editor erledigt. Offen: Laufschrift, Tracktitel/DJ-Name live aus LJ-Link | M | teilweise |
 | 5.3 | Auto-VJ | Szenenwechsel bei Phrasen oder alle n Takte | S | erledigt |
 
 ## Phase 6: Anbindung vertiefen
@@ -64,7 +64,7 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 | 6.3 | Pult-Profile | GDTF, grandMA2-XML, Daslight-Profil, Test an echten Pulten | L |
 | 6.4 | Fernbedienung | Tablet und Handy im Browser, mit PIN | M |
 | 6.5 | Ableton Link | Über Carabiner (separates Programm). Offen: Carabiner mitliefern (GPL, Quelltext beilegen) oder Lizenz von Ableton | M | teilweise |
-| 6.6 | Audio-Eingang | Beat-Erkennung und Bänder von Mikrofon oder Line-In | M |
+| 6.6 | Audio-Eingang | Bänder, Bass-Schläge (Ringe), Antrieb „Audio“ erledigt. Offen: Tempo (BPM) aus dem Audio erkennen | M | teilweise |
 
 ## Phase 7: Release
 
@@ -86,5 +86,5 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 | 1 | Video als Clip (Loop-Bereich, Takt-Loop, Größe, Ton) | erledigt |
 | 2 | Ablauf-Ansicht SHOW: Cues, WEITER, Start/Ende, Kürzen, Loops, Blenden | erledigt |
 | 3 | Timecode empfangen und senden, auch gleichzeitig (Art-Net, MTC), Videos folgen dem Timecode, Timecode-Cues steuern die eigene Uhr (z. B. für eine MA) | erledigt (an Pulten noch zu testen) |
-| 4 | Vorlagen, Uhrzeit-Start, Signal-Cues, LTC, Probe-Modus, Sperre | offen |
-| 5 | Ausgang pro Cue (hängt an Mapping 4.1–4.3), Umwandeln | offen |
+| 4 | Erledigt: Sperre (global), Timecode-Cues, Timeline mit Szenen- und Effekt-Spur. Offen: Vorlagen, Uhrzeit-Start, weitere Signal-Cues (MIDI/OSC/Art-Net senden), LTC, Probe-Modus | teilweise |
+| 5 | Erledigt: SHOW-Ablauf auf ein Bild (Projektionsmapping), Cue in Timeline umwandeln. Offen: Bild je einzelnem Cue | teilweise |

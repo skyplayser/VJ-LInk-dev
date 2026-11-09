@@ -50,7 +50,7 @@ Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt
 
 ## Noch offen
 
-Modulation der Effekt-Regler, Mapping (Ausschnitt, Eckpunkte, Raster), Video-Clips, mehrere Projekte, Ableton Link, Audio-Eingang, GDTF-/XML-Profile, Fernbedienung im Browser. MIDI-Controller als Nächstes. Reihenfolge und Aufwand siehe `docs/ROADMAP.md`.
+Raster-Verzerrung (3×3/5×5) und Masken im Projektionsmapping, Syphon/Spout, Laufschrift und Tracktitel aus LJ-Link, Tempo-Erkennung aus Audio, Regel-Editor, Pult-Profile (GDTF, grandMA2-XML), Fernbedienung im Browser, LJ-Link-Seite mit mDNS, SHOW-Vorlagen/Uhrzeit-Start/Probe-Modus/LTC, Installer und Signierung. Hardware-Tests (MIDI-Controller, MA, Beamer im Nebel) stehen aus. Reihenfolge und Aufwand siehe `docs/ROADMAP.md`.
 
 ## Starten
 
