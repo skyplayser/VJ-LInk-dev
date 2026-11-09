@@ -42,9 +42,11 @@ export class LayerPanel {
     const l = this.layer();
     if (!l) { this.root.hidden = true; return; }
     this.root.hidden = false;
-    const isLaser = !!l.clip && EFFECT_BY_ID.get(l.clip)?.category === "laser";
-    // Lage gibt es für jedes Visual (Grafiken und Videos haben ihre eigene Lage im Panel „Grafik“/„Video“)
-    const isGen = !!l.clip && EFFECT_BY_ID.get(l.clip)?.kind === "generator";
+    // Lage gilt für alle Visuals der Ebene, auch wenn gerade keins läuft. Nur Grafiken und Videos haben ihre
+    // eigene Lage (Panel „Grafik“/„Video“). Laser-Regler, wenn ein Laser läuft oder die Zeile Laser enthält.
+    const isLz = (id: string | null) => !!id && EFFECT_BY_ID.get(id)?.category === "laser";
+    const isLaser = l.clip ? isLz(l.clip) : l.clips.some(isLz);
+    const isGen = !l.clip || EFFECT_BY_ID.get(l.clip)?.kind === "generator";
     const slots = this.ctx.show.slots.map(rgbCss).join(";");
     const sig = `${this.layerOf()}|${l.laser?.override ? 1 : 0}|${l.drive}|${l.colorSource}|${(l.colorSlots ?? []).join(",")}|${isLaser}|${isGen}|${slots}`;
     if (force || sig !== this.sig) { this.sig = sig; this.build(l, isLaser, isGen); }
