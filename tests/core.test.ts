@@ -1513,3 +1513,33 @@ describe("Kameras", () => {
     expect(r[0]!.rate).toBe(0);
   });
 });
+
+describe("LJ-Link im Netz finden (Bonjour)", () => {
+  const own = [{ addr: "10.69.10.103", prefix: 24 }, { addr: "192.168.1.20", prefix: 24 }];
+  it("fasst WLAN und Kabel zusammen und nimmt für diesen Rechner 127.0.0.1", async () => {
+    const { foundFromService, planAttempts } = await import("../src/core/ljdiscover");
+    const a = foundFromService({ name: "LJ Link (MBP) :8097", port: 8097, addresses: ["10.69.10.103"], txt: { vjlink: "1", path: "/vjlink", app: "1.7.6" } })!;
+    const b = foundFromService({ name: "LJ Link (MBP) :8097 (2)", port: 8097, addresses: ["10.69.10.146"], txt: { vjlink: "1", path: "/vjlink" } })!;
+    const plan = planAttempts("", [a, b], own);
+    expect(plan[0]).toEqual({ auth: "127.0.0.1:8097", path: "/vjlink", native: true, label: "LJ Link (MBP) :8097" });
+    expect(plan.filter(p => p.auth.endsWith(":8097") && p.native)).toHaveLength(1);
+    // Zum Schluss immer dieser Rechner auf 8080 (ältere LJ-Link-Versionen ohne Bonjour)
+    expect(plan.slice(-2).map(p => `${p.auth}${p.path}`)).toEqual(["127.0.0.1:8080/vjlink", "127.0.0.1:8080/ws"]);
+  });
+  it("bevorzugt die Adresse im eigenen Subnetz, ignoriert IPv6 und Unfug", async () => {
+    const { foundFromService, pickAddress, planAttempts } = await import("../src/core/ljdiscover");
+    expect(pickAddress(["172.16.0.9", "192.168.1.77", "fe80::1"], own)).toEqual({ addr: "192.168.1.77", rank: 1 });
+    expect(pickAddress(["172.16.0.9"], own)).toEqual({ addr: "172.16.0.9", rank: 2 });
+    expect(pickAddress(["fe80::1"], own)).toBeNull();
+    expect(foundFromService({ name: "x", port: 99999, addresses: ["1.2.3.4"] })).toBeNull();
+    const f = foundFromService({ name: "LJ Link (Pult)", port: 8080, addresses: ["192.168.1.50"], txt: { path: "/../evil" } })!;
+    expect(f.path).toBeNull(); // ohne vjlink=1: nur Weboberfläche
+    expect(planAttempts("", [f], own)[0]).toMatchObject({ auth: "192.168.1.50:8080", path: "/ws", native: false });
+  });
+  it("feste Adresse hat Vorrang (mit und ohne Port)", async () => {
+    const { planAttempts, ljAuthority } = await import("../src/core/ljdiscover");
+    expect(planAttempts("10.0.0.5", [], own).map(p => `${p.auth}${p.path}`)).toEqual(["10.0.0.5:8080/vjlink", "10.0.0.5:8080/ws"]);
+    expect(ljAuthority("10.0.0.5:8097")).toBe("10.0.0.5:8097");
+    expect(ljAuthority("fe80::2")).toBe("[fe80::2]:8080");
+  });
+});

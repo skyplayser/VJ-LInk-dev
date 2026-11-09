@@ -6,7 +6,21 @@ import { parseArtTimecode } from "../core/timecode";
 import { SACN_PORT, parseSacn, sacnMulticastAddress } from "../core/sacn";
 import { parseOsc } from "../core/osc";
 import { LJ_DEFAULT_PORT, parseLjMessage, type LjMessage } from "../core/ljlink";
-import { LJ_NATIVE_PATH, LJ_PRO_PATH, LJ_PRO_PORT, LjNativeTracker, LjProAdapter, type LjSource } from "../core/ljpro";
+import { LjNativeTracker, LjProAdapter, type LjSource } from "../core/ljpro";
+import { foundFromService, mergeFound, planAttempts, type FoundLj, type LjAttempt, type OwnAddr } from "../core/ljdiscover";
+import { Bonjour } from "bonjour-service";
+import os from "node:os";
+
+/** Eigene IPv4-Adressen mit Präfixlänge (für „gleicher Rechner“ und „eigenes Subnetz“). */
+function ownAddrs(): OwnAddr[] {
+  const out: OwnAddr[] = [];
+  for (const list of Object.values(os.networkInterfaces())) for (const i of list ?? []) {
+    if (i.family !== "IPv4") continue;
+    const prefix = Number((i.cidr ?? "").split("/")[1] ?? 24);
+    out.push({ addr: i.address, prefix: Number.isFinite(prefix) ? prefix : 24 });
+  }
+  return out;
+}
 import type { ControlEvent, NetStatus } from "../core/frame";
 
 export const OSC_PORT = 8000;
@@ -16,14 +30,20 @@ export class Network {
     artnet: { listening: false, packets: 0 },
     sacn: { listening: false, packets: 0 },
     osc: { listening: false, port: OSC_PORT, packets: 0 },
-    lj: { listening: false, port: LJ_DEFAULT_PORT, clients: 0, pro: { host: "127.0.0.1", connected: false } },
+    lj: { listening: false, port: LJ_DEFAULT_PORT, clients: 0, pro: { host: "auto", connected: false, auto: true, found: [] } },
   };
   private pro?: WsClient;
-  private proHost = "127.0.0.1";
+  /** Feste Adresse; leer = automatisch. */
+  private proHost = "";
+  /** Laufender bzw. letzter Verbindungsversuch und seine Stelle im Plan. */
+  private proAttempt?: LjAttempt;
+  private proIdx = 0;
+  /** Per Bonjour gefundene LJ-Links (Schlüssel: Dienstname). */
+  private found = new Map<string, FoundLj>();
+  private bonjour?: Bonjour;
+  private discoTimer?: NodeJS.Timeout;
   private proTimer?: NodeJS.Timeout;
   private proAdapter?: LjSource;
-  /** Welcher Endpunkt als Nächstes versucht wird: zuerst der eigene (/vjlink), sonst die Weboberfläche (/ws). */
-  private proNative = true;
   private sockets: dgram.Socket[] = [];
   private artnet?: dgram.Socket;
   private wss?: WebSocketServer;
@@ -56,6 +76,7 @@ export class Network {
       }
     });
     this.ws(LJ_DEFAULT_PORT);
+    this.startDiscovery();
     this.connectPro();
     setInterval(() => this.emit({ type: "status", status: this.status }), 500).unref();
   }
@@ -109,21 +130,13 @@ export class Network {
     });
   }
 
-  /** Adresse von LJ-Link PRO (http://Rechner:8080), wenn verbunden. */
+  /** Adresse von LJ-Link (http://Rechner:Port), wenn verbunden. */
   ljBase(): string | null {
-    if (!this.status.lj.pro?.connected) return null;
-    return `http://${this.proAuthority()}`;
+    if (!this.status.lj.pro?.connected || !this.proAttempt) return null;
+    return `http://${this.proAttempt.auth}`;
   }
-  /** Adresse der Weboberfläche zum Öffnen (auch ohne Verbindung). */
-  ljWebUrl(): string { return `http://${this.proAuthority()}/`; }
-
-  /** „Rechner:Port“ für LJ-Link: Eingabe „rechner“ oder „rechner:port“ (IPv6 in eckigen Klammern); ohne Port 8080. */
-  private proAuthority(): string {
-    const h = this.proHost;
-    const m = /^(\[[0-9a-fA-F:.]+\]|[^:]+):(\d{2,5})$/.exec(h);
-    if (m && Number(m[2]) <= 65535) return `${m[1]}:${m[2]}`;
-    return `${h.includes(":") && !h.startsWith("[") ? `[${h}]` : h}:${LJ_PRO_PORT}`;
-  }
+  /** Adresse der Weboberfläche zum Öffnen (auch ohne Verbindung: bestes bekanntes Ziel). */
+  ljWebUrl(): string { return `http://${(this.proAttempt ?? this.plan()[0]!).auth}/`; }
 
   /** Status von VJ-Link an LJ-Link schicken (nur über /vjlink, die Weboberfläche kennt das nicht). */
   sendLj(json: string): void {
@@ -131,7 +144,7 @@ export class Network {
     if (s && s.readyState === WsClient.OPEN && this.status.lj.pro?.connected && this.status.lj.pro.native) s.send(json);
   }
 
-  /** Stand von LJ-Link PRO erneut schicken (die Oberfläche hat neu geladen und kennt ihn nicht). */
+  /** Stand von LJ-Link erneut schicken (die Oberfläche hat neu geladen und kennt ihn nicht). */
   replayLj(): void {
     if (!this.status.lj.pro?.connected || !this.proAdapter) return;
     for (const m of this.proAdapter.snapshot()) this.emit({ type: "lj", raw: JSON.stringify(m) });
@@ -140,54 +153,106 @@ export class Network {
   /** Verbundene Gegenstellen insgesamt (LJ-Link mit eigenem Ausgang plus LJ-Link PRO). */
   private ljClients(): number { return (this.wss?.clients.size ?? 0) + (this.status.lj.pro?.connected ? 1 : 0); }
 
-  /** Rechner mit LJ-Link PRO ändern (leer = dieser Rechner) und neu verbinden. */
+  /** Feste Adresse für LJ-Link („rechner“ oder „rechner:port“); leer = automatisch (Bonjour, sonst dieser Rechner). */
   setLjHost(host: string): void {
-    const h = host.trim() || "127.0.0.1";
+    const h = host.trim();
     if (h === this.proHost) return;
-    this.proHost = h; this.proNative = true; this.status.lj.pro = { host: h, connected: false };
+    this.proHost = h;
+    this.restartPro();
+  }
+
+  /** Verbindung neu planen (Adresse geändert oder ein besseres LJ-Link gefunden). */
+  private restartPro(): void {
     clearTimeout(this.proTimer);
     const old = this.pro; this.pro = undefined; old?.terminate();
+    if (this.status.lj.pro?.connected && this.proAdapter) {
+      for (const m of this.proAdapter.clear()) this.emit({ type: "lj", raw: JSON.stringify(m) });
+      this.emit({ type: "lj-connection", clients: (this.wss?.clients.size ?? 0) });
+    }
+    this.proIdx = 0;
+    this.status.lj.pro = { host: this.proHost || "auto", connected: false, auto: !this.proHost, found: this.foundNames() };
     this.connectPro();
   }
 
+  /** Reihenfolge der Ziele: feste Adresse oder gefundene LJ-Links, zuletzt dieser Rechner. */
+  private plan(): LjAttempt[] { return planAttempts(this.proHost, [...this.found.values()], ownAddrs()); }
+  private foundNames(): string[] { return mergeFound([...this.found.values()]).map(f => f.name.replace(/\s\(\d+\)$/, "")); }
+
+  /** Bonjour: LJ-Link-Instanzen im Netz („_ljlink._tcp“) beobachten. */
+  private startDiscovery(): void {
+    try {
+      this.bonjour = new Bonjour();
+      const browser = this.bonjour.find({ type: "ljlink" });
+      const key = (s: { fqdn?: string; name?: string; port?: number }) => s.fqdn ?? `${s.name}:${s.port}`;
+      const changed = (isNew: boolean) => {
+        if (this.status.lj.pro) this.status.lj.pro.found = this.foundNames();
+        if (this.proHost) return; // feste Adresse: nichts umstellen
+        const best = this.plan()[0], cur = this.proAttempt;
+        // Noch nicht verbunden und ein neues LJ-Link ist da: sofort dorthin; verbunden nur über die Weboberfläche
+        // und eins mit eigenem Endpunkt taucht auf: umsteigen
+        if ((isNew && !this.status.lj.pro?.connected) || (this.status.lj.pro?.connected && cur && !cur.native && best?.native)) this.restartPro();
+      };
+      const add = (s: Parameters<typeof foundFromService>[0] & { fqdn?: string; name?: string; port?: number }) => {
+        const f = foundFromService(s); if (!f) return;
+        const k = key(s), isNew = !this.found.has(k);
+        this.found.set(k, f); changed(isNew);
+      };
+      browser.on("up", add);
+      browser.on("srv-update", add);
+      browser.on("txt-update", add);
+      browser.on("down", s => { this.found.delete(key(s)); if (this.status.lj.pro) this.status.lj.pro.found = this.foundNames(); });
+      // Regelmäßig neu fragen (neu gestartete LJ-Links, verlorene Pakete)
+      this.discoTimer = setInterval(() => { try { browser.update(); } catch { /* weiter */ } }, 10000);
+      this.discoTimer.unref();
+    } catch { /* ohne Bonjour: nur dieser Rechner bzw. feste Adresse */ }
+  }
+
   /**
-   * LJ-Link PRO automatisch finden: VJ-Link meldet sich an dessen Weboberfläche an (ws://Rechner:8080/ws),
-   * versucht es alle 3 Sekunden neu und übersetzt Decks, Tempo, Trackwechsel und Loops.
+   * LJ-Link automatisch verbinden: Ziele der Reihe nach versuchen (eigener Endpunkt /vjlink, sonst die
+   * Weboberfläche /ws, die übersetzt wird). Nach einem Durchlauf ohne Erfolg 3 Sekunden Pause.
    */
   private connectPro(): void {
-    const host = this.proHost;
-    const native = this.proNative;
+    const plan = this.plan();
+    if (this.proIdx >= plan.length) this.proIdx = 0;
+    const at = plan[this.proIdx]!;
+    this.proAttempt = at;
+    const native = at.native;
     const adapter: LjSource = native ? new LjNativeTracker() : new LjProAdapter();
     this.proAdapter = adapter;
     const send = (list: LjMessage[]) => { for (const m of list) this.emit({ type: "lj", raw: JSON.stringify(m) }); };
+    const label = at.label || at.auth;
     let sock: WsClient;
-    try { sock = new WsClient(`ws://${this.proAuthority()}${native ? LJ_NATIVE_PATH : LJ_PRO_PATH}`, { handshakeTimeout: 2500, maxPayload: 1024 * 1024 }); }
-    catch { this.proTimer = setTimeout(() => this.connectPro(), 3000); this.proTimer.unref(); return; }
+    try { sock = new WsClient(`ws://${at.auth}${at.path}`, { handshakeTimeout: 2500, maxPayload: 1024 * 1024 }); }
+    catch { this.proIdx++; this.proTimer = setTimeout(() => this.connectPro(), 300); this.proTimer.unref(); return; }
     this.pro = sock;
     sock.on("message", data => {
       const was = adapter.recognized;
       send(adapter.feed(data.toString()));
       if (!was && adapter.recognized && this.pro === sock) {
-        this.status.lj.pro = { host, connected: true, native };
+        this.status.lj.pro = { host: label, connected: true, native, auto: !this.proHost, found: this.foundNames() };
         this.emit({ type: "lj-connection", clients: this.ljClients() });
       }
     });
     // Ohne Erkennung nach kurzer Zeit: falscher Endpunkt oder fremder Dienst
     const probe = setTimeout(() => { if (!adapter.recognized && this.pro === sock) sock.terminate(); }, 4000);
-    sock.on("error", () => { /* LJ-Link PRO läuft nicht: still neu versuchen */ });
+    sock.on("error", () => { /* nicht erreichbar: nächstes Ziel */ });
     sock.on("close", () => {
       clearTimeout(probe);
-      if (this.pro !== sock) return; // Rechner gewechselt
-      // Nicht erkannt: beim nächsten Mal den anderen Endpunkt versuchen (ältere LJ-Link-Versionen haben kein /vjlink)
-      // Verbindung war da und ist weg (LJ-Link neu gestartet, vielleicht neuere Version): wieder zuerst /vjlink
-      this.proNative = adapter.recognized ? true : !native;
+      if (this.pro !== sock) return; // neu geplant
       if (adapter.recognized) {
+        // Verbindung war da und ist weg (LJ-Link beendet oder neu gestartet): von vorn, zuerst das beste Ziel
         send(adapter.clear());
-        this.status.lj.pro = { host, connected: false };
+        this.status.lj.pro = { host: this.proHost || "auto", connected: false, auto: !this.proHost, found: this.foundNames() };
         this.emit({ type: "lj-connection", clients: this.ljClients() });
+        this.proIdx = 0;
+        this.proTimer = setTimeout(() => this.connectPro(), 1000); this.proTimer.unref();
+        return;
       }
-      // Gleich den anderen Endpunkt versuchen, sonst in 3 s neu
-      this.proTimer = setTimeout(() => this.connectPro(), !adapter.recognized && native ? 200 : adapter.recognized ? 1000 : 3000); this.proTimer.unref();
+      // Nächstes Ziel gleich, nach dem letzten 3 Sekunden Pause
+      this.proIdx++;
+      const wrap = this.proIdx >= this.plan().length;
+      if (wrap) this.proIdx = 0;
+      this.proTimer = setTimeout(() => this.connectPro(), wrap ? 3000 : 200); this.proTimer.unref();
     });
   }
 
@@ -202,5 +267,7 @@ export class Network {
     this.wss?.close();
     clearTimeout(this.proTimer);
     const p = this.pro; this.pro = undefined; p?.terminate();
+    clearInterval(this.discoTimer);
+    try { this.bonjour?.destroy(); } catch { /* schon zu */ }
   }
 }
