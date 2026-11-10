@@ -543,14 +543,14 @@ body.mapping .cell-edit,body.modding .cell-edit{display:none}
 /* Bilder (Projektionsmapping) */
 .img-tiles{display:flex;gap:8px;flex:1;min-height:0}
 .img-tiles[hidden]{display:none}
-.img-tile{position:relative;height:100%;aspect-ratio:16/9;max-width:19%;cursor:pointer;border:2px solid var(--line);border-radius:5px;overflow:hidden;background:#000}
+.img-tile{position:relative;height:100%;aspect-ratio:16/9;flex:0 1 auto;min-width:0;cursor:pointer;border:2px solid var(--line);border-radius:5px;overflow:hidden;background:#000}
 .img-tile canvas{display:block;width:100%;height:100%;object-fit:contain}
 .img-tile.on{border-color:#22c8f0;box-shadow:0 0 10px rgba(34,200,240,.35)}
 .img-name{position:absolute;left:6px;bottom:5px;font:700 12px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
 .img-x{position:absolute;top:3px;right:3px;border:0;border-radius:4px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;padding:1px 5px;cursor:pointer;opacity:0;transition:opacity .12s}
 .img-tile:hover .img-x,.img-x.armed{opacity:1}
 .img-x.armed{background:var(--live)}
-.img-add{width:72px;border:1px dashed var(--line);border-radius:5px;background:none;color:var(--dim);font:600 11px system-ui,sans-serif;cursor:pointer}
+.img-add{width:72px;flex:none;border:1px dashed var(--line);border-radius:5px;background:none;color:var(--dim);font:600 11px system-ui,sans-serif;cursor:pointer}
 .img-add:hover{color:var(--text);border-color:var(--dim)}
 .cp-row{display:grid;grid-template-columns:1fr 110px;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
 .cp-name{display:flex;flex-direction:column;min-width:0}

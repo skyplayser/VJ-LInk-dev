@@ -1044,11 +1044,11 @@ function frame(): void {
     const id = ids[tileTurn++ % Math.max(1, ids.length)];
     if (id) {
       engine.render(showForImage(shown, id), beat, now, ctx.tempo.bpm, null, lt, null, `I${id}:`);
-      tileCanvases.get(id)?.getContext("2d")?.drawImage(preview, 0, 0, 384, 216);
+      { const c = tileCanvases.get(id); c?.getContext("2d")?.drawImage(preview, 0, 0, c.width, c.height); }
     }
   }
   engine?.render(showForImage(shown, cv), beat, now, ctx.tempo.bpm, null, lt);
-  if (mappingOn()) tileCanvases.get(cv)?.getContext("2d")?.drawImage(preview, 0, 0, 384, 216);
+  if (mappingOn()) { const c = tileCanvases.get(cv); c?.getContext("2d")?.drawImage(preview, 0, 0, c.width, c.height); }
   thumbs.draw(now);
   gallery.tick(now);
 
@@ -1359,7 +1359,9 @@ function syncCanvases(): void {
   if ((s.canvas ?? MAIN_STACK) !== uiCanvas) { uiCanvas = s.canvas ?? MAIN_STACK; editImage(uiCanvas); return; }
   const surfaces = outLayout.surfaces ?? [];
   // Bild-Vorschauen
-  const tsig = `${mappingOn()}|${s.canvas}|${images.map(im => `${im.id}:${im.name}`).join(",")}|${armedImageDelete}`;
+  // Kacheln im Seitenverhältnis der Vorschau (= Ausgang), sonst würde das Bild gestaucht oder gestreckt
+  const ta = preview.height > 0 ? preview.width / preview.height : 16 / 9;
+  const tsig = `${mappingOn()}|${ta.toFixed(3)}|${s.canvas}|${images.map(im => `${im.id}:${im.name}`).join(",")}|${armedImageDelete}`;
   if (tsig !== tilesSig) {
     tilesSig = tsig;
     const box = $("img-tiles");
@@ -1371,7 +1373,8 @@ function syncCanvases(): void {
       for (const im of images) {
         const tile = el("div", `img-tile${s.canvas === im.id ? " on" : ""}`);
         tile.dataset.img = im.id;
-        const c = el("canvas"); c.width = 384; c.height = 216; tileCanvases.set(im.id, c);
+        tile.style.aspectRatio = String(ta);
+        const c = el("canvas"); c.height = 216; c.width = Math.round(216 * ta); tileCanvases.set(im.id, c);
         const nm = el("span", "img-name", im.name);
         nm.title = t("Zum Umbenennen doppelklicken oder ✎ wählen");
         const pen = el("button", "img-pen", "✎"); pen.title = t("Umbenennen");
