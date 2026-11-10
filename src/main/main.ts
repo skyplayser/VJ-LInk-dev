@@ -1,5 +1,5 @@
 import { promises as fsp } from "node:fs";
-import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, powerSaveBlocker, protocol, screen, session, shell, systemPreferences, type Display, type MenuItemConstructorOptions } from "electron";
+import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, powerMonitor, powerSaveBlocker, protocol, screen, session, shell, systemPreferences, type Display, type MenuItemConstructorOptions } from "electron";
 import path from "node:path";
 import { Network } from "./network";
 import { Storage } from "./storage";
@@ -31,6 +31,10 @@ const LIVE_IDS = new Set(["nowplaying", "djwave"]);
 let switching = false;
 /** Beenden ohne weitere Fragen (Hinweis beantwortet, Ausgänge-Warnung bestätigt oder Update wird installiert). */
 let quitNow = false;
+/** app.quit() läuft (von wem auch immer) bzw. wurde über das Menü von dir ausgelöst. */
+let quitting = false, userQuit = false;
+/** Menü „Beenden“ und ⌘Q: wie Fenster schließen, also mit Hinweis. */
+const quitByUser = () => { userQuit = true; app.quit(); };
 /** Hinweis beim Beenden angefragt: Antwortet die Oberfläche nicht (hängt), wird trotzdem beendet. */
 let farewellTimer: NodeJS.Timeout | null = null;
 
@@ -114,8 +118,13 @@ function createControl(): void {
   });
   // Beenden, während Ausgänge live sind: nachfragen (⌘Q aus Versehen mitten in der Show).
   // Sonst zeigt die Oberfläche den Hinweis „Community-Projekt“ (abschaltbar); hängt sie, wird nach 2 s beendet.
+  // Windows: Abmelden oder Herunterfahren
+  control.on("session-end", () => { quitNow = true; });
   control.on("close", e => {
     if (quitNow || !control) return;
+    const byUser = userQuit || !quitting;
+    quitting = false; userQuit = false;
+    if (!byUser) { quitNow = true; return; }
     e.preventDefault();
     const live = [...outputs.values()].filter(w => !w.isDestroyed()).length;
     if (live > 0) {
@@ -240,7 +249,7 @@ function buildMenu(): void {
         { label: t("Einstellungen …"), accelerator: "Cmd+,", click: menuSend("settings") }, { type: "separator" },
         { role: "services", label: t("Dienste") }, { type: "separator" },
         { role: "hide", label: t("VJ-Link ausblenden") }, { role: "hideOthers", label: t("Andere ausblenden") }, { role: "unhide", label: t("Alle einblenden") },
-        { type: "separator" }, { role: "quit", label: t("VJ-Link beenden") },
+        { type: "separator" }, { label: t("VJ-Link beenden"), accelerator: "Cmd+Q", click: quitByUser },
       ],
     } as MenuItemConstructorOptions] : []),
     {
@@ -251,7 +260,7 @@ function buildMenu(): void {
         { type: "separator" },
         { label: t("Speichern"), accelerator: "CmdOrCtrl+S", click: menuSend("save") },
         { label: t("Speichern unter …"), accelerator: "Shift+CmdOrCtrl+S", click: menuSend("saveAs") },
-        ...(mac ? [] : [{ type: "separator" } as MenuItemConstructorOptions, { label: t("Einstellungen …"), accelerator: "Ctrl+,", click: menuSend("settings") }, { type: "separator" } as MenuItemConstructorOptions, { role: "quit", label: t("Beenden") } as MenuItemConstructorOptions]),
+        ...(mac ? [] : [{ type: "separator" } as MenuItemConstructorOptions, { label: t("Einstellungen …"), accelerator: "Ctrl+,", click: menuSend("settings") }, { type: "separator" } as MenuItemConstructorOptions, { label: t("Beenden"), click: quitByUser } as MenuItemConstructorOptions]),
       ],
     },
     {
@@ -617,3 +626,8 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => { net?.stop(); app.quit(); });
+// Wer beendet? Der Hinweis und die Warnung bei live Ausgängen kommen nur, wenn du selbst beendest (Fenster schließen,
+// Menü oder ⌘Q). Beendet das System (Signal, Herunterfahren, Abmelden, Update), schließt VJ-Link ohne Rückfrage,
+// sonst bliebe es offen bzw. hielte das Herunterfahren auf.
+app.on("before-quit", () => { quitting = true; });
+app.whenReady().then(() => { powerMonitor.on("shutdown", () => { quitNow = true; }); }).catch(() => { /* egal */ });

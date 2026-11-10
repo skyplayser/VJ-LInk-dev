@@ -56,6 +56,7 @@ import { MAIN_STACK, MAX_IMAGES, addImage, addLayer as addShowLayer, dropCanvas,
 import { ShowLock } from "./lock";
 import vjlinkLogo from "../../assets/logo-for-dark.png";
 import { applyDemo, DEMO_NAME } from "../core/demo";
+import { applyStarter } from "../core/starter";
 import { drawText } from "./texteditor";
 import { defaultText } from "../core/text";
 import { TextEditor } from "./texteditor";
@@ -1343,38 +1344,19 @@ function json0(raw: string | null): ReturnType<typeof parseProject> {
   return raw ? parseProject(raw) : null;
 }
 /**
- * Start-Aufbau für ein leeres oder neues Projekt:
- * E6 Logo (VJ-Link-Logo klein unten rechts), E5 Text („VJ-Link“), E4 Laser (alle Laser-Visuals),
- * E3 und E2 Overlay (Licht, Partikel, Geometrie), E1 Basis (Start-Clips).
+ * Start-Aufbau für ein leeres oder neues Projekt (core/starter): Text „VJ-Link“ und Logo als Grafiken anlegen,
+ * dann sechs Ebenen, Farben und acht Szenen für Pop-House- und Techno-Partys.
  */
 async function setupStarterProject(): Promise<void> {
-  // Wie vorgegeben: E1 Tunnel (Slot A), E2 Sternenfeld, E5 Text „VJ-Link“ und E6 Logo laufen; E3/E4 bereit
-
-  const s = ctx.show;
-  while (s.layers.length < 6 && addShowLayer(s) >= 0) { /* auffüllen */ }
-  const L = s.layers;
-  const gens = (ids: string[]) => ids.filter(id => EFFECT_BY_ID.get(id)?.status === "ready");
-  L[0]!.name = t("Basis"); L[0]!.clip = "tunnel"; L[0]!.colorSource = "A"; L[0]!.blend = "normal";
-  for (const l of L) { l.opacity = 1; l.drive = "auto"; }
-  L[1]!.name = t("Overlay"); L[1]!.clips = gens(["starfield", "bokeh", "burst", "lightning", "vector-gobos", "flower", "moire", "co2-jet"]); L[1]!.clip = "starfield"; L[1]!.blend = "normal";
-  L[2]!.name = t("Overlay"); L[2]!.clips = gens(["plexus", "hypercube", "ripples", "liquid-light", "uv-glow", "fire", "mirror-ball", "dot-matrix"]); L[2]!.clip = null; L[2]!.blend = "normal";
-  L[3]!.name = "Laser"; L[3]!.clips = EFFECTS.filter(e => e.category === "laser" && e.kind === "generator" && e.status === "ready").map(e => e.id); L[3]!.clip = null; L[3]!.blend = "add";
-  // Text-Ebene: „VJ-Link“
   const spec = { ...defaultText(), text: "VJ-Link", upper: false };
   const cv = document.createElement("canvas"); drawText(cv, spec);
   const tp = { id: newMediaId(), name: "VJ-Link", dataUrl: cv.toDataURL("image/png") };
   const titem = await library.load(tp);
-  L[4]!.name = t("Text"); L[4]!.clip = null; L[4]!.blend = "normal";
-  // Text-Ebene: Text-Clip aktiv, daneben die Now-Playing-Bauchbinde aus LJ-Link zum Umschalten
-  if (titem) { titem.text = spec; bridge?.addMedia(tp); L[4]!.clips = [mediaClip(tp.id), "now-playing"]; L[4]!.clip = mediaClip(tp.id); }
-  Object.assign(L[4]!.media, { scale: 1, x: 0, y: 0, rotation: 0, anim: "none", keyMode: "none" });
-  // Logo-Ebene: VJ-Link-Schriftzug klein unten rechts
+  if (titem) { titem.text = spec; bridge?.addMedia(tp); }
   const lp = { id: newMediaId(), name: "VJ-Link-Logo", dataUrl: vjlinkLogo };
   const litem = await library.load(lp);
-  L[5]!.name = "Logo"; L[5]!.blend = "normal";
-  if (litem) { bridge?.addMedia(lp); L[5]!.clips = [mediaClip(lp.id)]; L[5]!.clip = mediaClip(lp.id); }
-  Object.assign(L[5]!.media, { scale: 0.08, x: 0.77, y: -0.84, rotation: 0, anim: "none", keyMode: "none" });
-  L[5]!.opacity = 1;
+  if (litem) bridge?.addMedia(lp);
+  applyStarter(ctx, { text: titem ? mediaClip(tp.id) : null, logo: litem ? mediaClip(lp.id) : null });
 }
 /** Demo-Projekt: Titel, Show-Einblendung und Logo als Grafiken anlegen, dann alles Weitere aus core/demo. */
 const DEMO_FLAG = "vjlink.demo";
@@ -1616,7 +1598,7 @@ async function loadProject(): Promise<void> {
     let demo = false;
     try { demo = sessionStorage.getItem(DEMO_FLAG) === "1"; sessionStorage.removeItem(DEMO_FLAG); } catch { /* egal */ }
     if (!p) { if (demo) await setupDemoProject(); else await setupStarterProject(); }
-    if (!p && demo) toast(t("Demo geladen – die zehn Szenen laufen automatisch durch. Im Tab SHOW startest du die Timeline-Show mit WEITER."));
+    if (!p && demo) toast(t("Demo geladen – die 14 Szenen laufen automatisch durch. Im Tab SHOW startest du die Timeline-Show mit WEITER."));
     if (p) {
       applyProject(ctx, p);
       outLayout = p.outputs;

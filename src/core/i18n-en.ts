@@ -243,7 +243,7 @@ export const EN: Record<string, string> = {
   "Bild für {name}": "Image for {name}",
   "Hier legst du fest, welches Bild auf welche Leinwand kommt. Zum Bearbeiten links auf die Vorschau eines Bildes klicken. Szenen speichern alle Bilder mit.": "Which image goes on which surface. To edit an image: click its preview on the left. Scenes save all images.",
   "Name des Bildes": "Image name",
-  "Demo geladen – die zehn Szenen laufen automatisch durch. Im Tab SHOW startest du die Timeline-Show mit WEITER.": "Demo loaded: Auto plays through the ten scenes by itself. SHOW tab: start the timeline show with GO.",
+  "Demo geladen – die 14 Szenen laufen automatisch durch. Im Tab SHOW startest du die Timeline-Show mit WEITER.": "Demo loaded: Auto plays through the 14 scenes by itself. SHOW tab: start the timeline show with GO.",
   // ---- showtab.ts ----
   "von Hand": "manually",
   "nach vorigem": "after previous",
@@ -989,6 +989,11 @@ export const EN: Record<string, string> = {
   // Shader-Vorbereitung (0.1.4)
   "Visuals werden vorbereitet": "Preparing visuals",
   "Beim ersten Start dauert das etwas. Du kannst schon weiterarbeiten.": "This takes a moment on the first start. You can already keep working.",
+  // ---- Ebenen-Namen in Demo und „Neues Projekt“ ----
+  "Welten": "Worlds",
+  "Formen": "Shapes",
+  "Raum": "Space",
+  "Linien": "Lines",
   // ---- Hinweis beim Beenden, Feedback ----
   "Feedback geben …": "Give feedback …",
   "Feedback geben": "Give feedback",

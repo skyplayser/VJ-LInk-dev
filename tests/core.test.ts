@@ -1613,13 +1613,19 @@ describe("Shader-Zweige", () => {
 });
 
 import { applyDemo } from "../src/core/demo";
+import { modulatable } from "../src/core/modulation";
 describe("Demo-Projekt", () => {
   const media = { title: "img:aaaaaa11", label: "img:bbbbbb22", logo: "img:cccccc33" };
-  it("baut acht Ebenen, zehn Szenen, Modulationen und einen SHOW-Ablauf mit Timeline", () => {
+  it("baut acht Ebenen, 14 Szenen, Modulationen und einen SHOW-Ablauf mit Timeline", () => {
     const c = ctx();
     applyDemo(c, media);
     expect(c.show.layers.length).toBe(8);
-    expect(c.scenes.length).toBe(10);
+    expect(c.scenes.length).toBe(14);
+    expect(c.tempo.bpm).toBe(126);
+    // Jede Modulation zielt auf einen modulierbaren Regler
+    for (const m of c.mods!) expect(modulatable(m.target), m.target).toBe(true);
+    // Szenen-Blöcke der Timeline zeigen auf vorhandene Szenen
+    for (const q of c.cues.list) for (const mk of q.marks ?? []) expect(mk.scene).toBeLessThanOrEqual(c.scenes.length);
     expect(c.mods!.length).toBeGreaterThanOrEqual(5);
     expect(c.cues.list.some(q => q.timeline && (q.marks?.length ?? 0) > 3 && (q.fx?.length ?? 0) > 3)).toBe(true);
     expect(c.show.autoVj).toBe(true);
@@ -1632,10 +1638,22 @@ describe("Demo-Projekt", () => {
       for (const e of l.effects) expect(POST_IDS as readonly string[]).toContain(e.id);
       expect(l.effects.length).toBeLessThanOrEqual(6);
     }
-    for (const sc of c.scenes) for (const l of sc.layers) {
-      if (l?.clip) expect(known.has(l.clip), `${sc.name}: ${l.clip}`).toBe(true);
-      for (const e of l?.effects ?? []) expect(POST_IDS as readonly string[], sc.name).toContain(e.id);
+    for (const sc of c.scenes) {
+      expect(sc.layers.length, sc.name).toBeLessThanOrEqual(c.show.layers.length);
+      for (const l of sc.layers) {
+        if (l?.clip) expect(known.has(l.clip), `${sc.name}: ${l.clip}`).toBe(true);
+        for (const e of l?.effects ?? []) expect(POST_IDS as readonly string[], sc.name).toContain(e.id);
+        expect(l?.effects?.length ?? 0).toBeLessThanOrEqual(6);
+      }
     }
+  });
+  it("Szene abrufen teilt nichts mit der Szene (Farb-Slots, Effekte)", () => {
+    const c = ctx();
+    applyDemo(c, media);
+    recallScene(c, 1, 0); c.show.transition = null;
+    c.show.layers[3]!.colorSlots.push(4); c.show.layers[0]!.effects[0]!.amount = 0.99;
+    expect(c.scenes[1]!.layers[3]!.colorSlots).toEqual([0, 1, 2]);
+    expect(c.scenes[1]!.layers[0]!.effects![0]!.amount).toBe(0.25);
   });
   it("übersteht Speichern und Laden unverändert", () => {
     const c = ctx();
@@ -1649,7 +1667,43 @@ describe("Demo-Projekt", () => {
     expect(p.scenes.map(s => s.name)).toEqual(c.scenes.map(s => s.name));
     expect(p.mods?.length).toBe(c.mods!.length);
     expect(p.cues.length).toBe(4);
-    expect(p.cues[1]!.marks?.length).toBe(6);
+    expect(p.cues[1]!.marks?.length).toBe(8);
+  });
+});
+
+import { applyStarter, STARTER_LAYERS } from "../src/core/starter";
+describe("Neues Projekt (minimal)", () => {
+  const media = { text: "img:dddddd44", logo: "img:eeeeee55" };
+  it("sechs Ebenen, acht Szenen, nur bekannte Visuals und Effekte, Logo läuft, Text liegt bereit", () => {
+    const c = ctx();
+    applyStarter(c, media);
+    expect(c.show.layers.length).toBe(STARTER_LAYERS);
+    expect(c.scenes.length).toBe(8);
+    expect(c.show.autoVj).toBe(false);
+    expect(c.show.scene).toBe(1);
+    expect(c.show.layers[5]!.clip).toBe(media.logo);
+    expect(c.show.layers[4]!.clip).toBeNull();
+    expect(c.show.layers[4]!.clips).toContain(media.text);
+    expect(c.show.layers[0]!.clip).toBe("ring-tunnel");
+    const known = new Set<string>([...GEN_IDS, ...Object.values(media)]);
+    for (const l of c.show.layers) {
+      for (const id of l.clips) expect(known.has(id), id).toBe(true);
+      for (const e of l.effects) expect(POST_IDS as readonly string[]).toContain(e.id);
+    }
+    for (const sc of c.scenes) {
+      expect(sc.layers.length, sc.name).toBeLessThanOrEqual(STARTER_LAYERS);
+      for (const l of sc.layers) {
+        if (l?.clip) expect(known.has(l.clip), `${sc.name}: ${l.clip}`).toBe(true);
+        for (const e of l?.effects ?? []) expect(POST_IDS as readonly string[], sc.name).toContain(e.id);
+      }
+    }
+  });
+  it("übersteht Speichern und Laden", () => {
+    const c = ctx();
+    applyStarter(c, media);
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.layers.length).toBe(STARTER_LAYERS);
+    expect(p.scenes.map(s => s.name)).toEqual(c.scenes.map(s => s.name));
   });
 });
 

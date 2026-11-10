@@ -367,6 +367,8 @@ function applyStack(layers: LayerState[], patches: readonly (Partial<LayerState>
     if (patch.media) layer.media = { ...patch.media };
     if (patch.clips) layer.clips = [...patch.clips];
     if (patch.video) layer.video = { ...patch.video };
+    if (patch.laser) layer.laser = { ...patch.laser };
+    if (patch.colorSlots) layer.colorSlots = [...patch.colorSlots];
   });
 }
 
