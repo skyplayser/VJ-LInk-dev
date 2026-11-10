@@ -1881,3 +1881,28 @@ describe("Ein Shader je Visual (Windows-Start)", async () => {
     });
   });
 });
+
+import { feedbackText, starString } from "../src/core/report";
+import { siteUrl } from "../src/renderer/farewell";
+describe("Feedback mit Sternen (Hinweis beim Beenden)", () => {
+  it("schreibt die Bewertung in die erste Zeile", () => {
+    expect(starString(4)).toBe("★★★★☆");
+    expect(starString(0)).toBe("☆☆☆☆☆");
+    expect(feedbackText(5, " Super! ")).toBe("Feedback ★★★★★ (5/5)\n\nSuper!");
+    expect(feedbackText(2, "")).toBe("Feedback ★★☆☆☆ (2/5)");
+    expect(feedbackText(0, "Nur Worte")).toBe("Nur Worte");
+    expect(feedbackText(9, "x")).toBe("x");
+  });
+  it("Betreff und Issue-Titel tragen die Sterne, Feedback bekommt das Label feedback", () => {
+    const m = mailLink(feedbackText(3, "Mehr Laser"), null, "");
+    expect(decodeURIComponent(m.url)).toContain("subject=VJ-Link: Feedback ★★★☆☆ (3/5)");
+    const i = issueLink(feedbackText(3, "Mehr Laser"), null, "0.1.5", "", "feedback");
+    expect(i.url).toContain("labels=feedback&");
+    expect(decodeURIComponent(i.url)).toContain("title=Feedback ★★★☆☆ (3/5)");
+    expect(issueLink("Absturz", null, "0.1.5", "").url).toContain("labels=bug&");
+  });
+  it("teilt die Website in der passenden Sprache", () => {
+    expect(siteUrl("de")).toBe("https://skyplayser.github.io/VJ-LINK/de/");
+    expect(siteUrl("en")).toBe("https://skyplayser.github.io/VJ-LINK/");
+  });
+});

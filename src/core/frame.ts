@@ -148,6 +148,10 @@ export interface VjBridge {
   openLj(): void;
   /** Sprache der Oberfläche an den Hauptprozess (Menü, Dialoge); reload = Oberfläche danach neu laden (Sprachwechsel). */
   setLang(lang: string, reload?: boolean): void;
+  /** Beim Beenden: Hauptprozess fragt die Oberfläche (Hinweis „Community-Projekt“). */
+  onFarewell(cb: () => void): void;
+  /** Antwort: "shown" = Hinweis ist offen, "quit" = beenden, "stay" = weiterarbeiten. */
+  farewell(choice: "shown" | "quit" | "stay"): void;
 }
 
 export interface RecentProject { path: string; name: string; folder: string; exists: boolean; modified: number }

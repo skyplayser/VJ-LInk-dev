@@ -45,7 +45,7 @@ export function mailLink(description: string, diag: string | null, attachNote: s
 }
 
 /** GitHub-Issue mit vorausgefülltem Titel und Text; zu lange Diagnosedaten gehen über die Zwischenablage. */
-export function issueLink(description: string, diag: string | null, version: string, pasteHint: string): { url: string; clipboard: boolean } {
+export function issueLink(description: string, diag: string | null, version: string, pasteHint: string, label = "bug"): { url: string; clipboard: boolean } {
   const title = firstLine(description, 90);
   let body = `${description.trim()}\n\n${version ? `Version: ${version}\n` : ""}`;
   let clipboard = false;
@@ -55,9 +55,20 @@ export function issueLink(description: string, diag: string | null, version: str
     else { body += `\n<!-- ${pasteHint} -->\n`; clipboard = true; }
   }
   return {
-    url: `https://github.com/${REPORT_REPO}/issues/new?labels=bug&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`,
+    url: `https://github.com/${REPORT_REPO}/issues/new?labels=${encodeURIComponent(label)}&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`,
     clipboard,
   };
+}
+
+/** Sterne als Text, z. B. 4 → „★★★★☆“. */
+export const starString = (n: number): string => "★".repeat(Math.max(0, Math.min(5, Math.round(n)))) + "☆".repeat(5 - Math.max(0, Math.min(5, Math.round(n))));
+
+/** Feedback-Text: Bewertung in der ersten Zeile (wird Betreff bzw. Titel), darunter die Worte. Ohne Sterne nur die Worte. */
+export function feedbackText(stars: number, words: string): string {
+  const w = words.trim();
+  if (!(stars >= 1 && stars <= 5)) return w;
+  const head = `Feedback ${starString(stars)} (${Math.round(stars)}/5)`;
+  return w ? `${head}\n\n${w}` : head;
 }
 
 /** Dateiname für „Als Datei speichern“. */

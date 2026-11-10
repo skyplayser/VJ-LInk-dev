@@ -41,5 +41,7 @@ const bridge: VjBridge = {
   openWeb: url => { ipcRenderer.send("web:open", url); },
   openLicenses: () => { ipcRenderer.send("licenses:open"); },
   setLang: (lang, reload) => { ipcRenderer.send("ui:lang", lang, reload === true); },
+  onFarewell: cb => { ipcRenderer.on("farewell", () => cb()); },
+  farewell: choice => { ipcRenderer.send("farewell", choice); },
 };
 contextBridge.exposeInMainWorld("vj", bridge);

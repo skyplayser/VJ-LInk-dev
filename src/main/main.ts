@@ -29,6 +29,10 @@ const liveMedia = new Map<string, MediaEvent>();
 const LIVE_IDS = new Set(["nowplaying", "djwave"]);
 /** Während ein Projekt geladen oder neu angelegt wird: Sicherungen der alten Oberfläche ignorieren. */
 let switching = false;
+/** Beenden ohne weitere Fragen (Hinweis beantwortet, Ausgänge-Warnung bestätigt oder Update wird installiert). */
+let quitNow = false;
+/** Hinweis beim Beenden angefragt: Antwortet die Oberfläche nicht (hängt), wird trotzdem beendet. */
+let farewellTimer: NodeJS.Timeout | null = null;
 
 // Logo für Fenster (Windows, Linux) und Dock (macOS). Die Installer nutzen build/icon.icns und build/icon.ico.
 const ICON = path.join(__dirname, "..", "icon.png");
@@ -108,18 +112,25 @@ function createControl(): void {
     console.error("Oberfläche abgestürzt:", d.reason);
     setTimeout(() => { if (control && !control.isDestroyed()) control.webContents.reload(); }, 500);
   });
-  // Beenden, während Ausgänge live sind: nachfragen (⌘Q aus Versehen mitten in der Show)
-  let quitOk = false;
+  // Beenden, während Ausgänge live sind: nachfragen (⌘Q aus Versehen mitten in der Show).
+  // Sonst zeigt die Oberfläche den Hinweis „Community-Projekt“ (abschaltbar); hängt sie, wird nach 2 s beendet.
   control.on("close", e => {
-    const live = [...outputs.values()].filter(w => !w.isDestroyed()).length;
-    if (quitOk || live === 0 || !control) return;
+    if (quitNow || !control) return;
     e.preventDefault();
-    const r = dialog.showMessageBoxSync(control, {
-      type: "warning", buttons: [t("Beenden"), t("Abbrechen")], defaultId: 1, cancelId: 1,
-      message: t("{n} Ausgänge sind live. VJ-Link wirklich beenden?", { n: live }),
-      detail: t("Die Bildschirme und Beamer werden dann schwarz."),
-    });
-    if (r === 0) { quitOk = true; app.quit(); }
+    const live = [...outputs.values()].filter(w => !w.isDestroyed()).length;
+    if (live > 0) {
+      const r = dialog.showMessageBoxSync(control, {
+        type: "warning", buttons: [t("Beenden"), t("Abbrechen")], defaultId: 1, cancelId: 1,
+        message: t("{n} Ausgänge sind live. VJ-Link wirklich beenden?", { n: live }),
+        detail: t("Die Bildschirme und Beamer werden dann schwarz."),
+      });
+      if (r === 0) { quitNow = true; app.quit(); }
+      return;
+    }
+    if (control.webContents.isCrashed()) { quitNow = true; app.quit(); return; }
+    if (farewellTimer) clearTimeout(farewellTimer);
+    farewellTimer = setTimeout(() => { farewellTimer = null; quitNow = true; app.quit(); }, 2000);
+    control.webContents.send("farewell");
   });
   control.on("closed", () => { control = null; for (const w of outputs.values()) w.close(); });
 }
@@ -258,6 +269,7 @@ function buildMenu(): void {
     { label: t("Fenster"), role: "windowMenu", submenu: [{ role: "minimize", label: mac ? t("Im Dock ablegen") : t("Minimieren") }, { role: "zoom", label: t("Zoomen") }, ...(mac ? [{ type: "separator" } as MenuItemConstructorOptions, { role: "front", label: t("Alle nach vorne bringen") } as MenuItemConstructorOptions] : [{ role: "close", label: t("Schließen") } as MenuItemConstructorOptions])] },
     { label: t("Hilfe"), role: "help", submenu: [
       { label: t("Fehler melden …"), click: menuSend("report") },
+      { label: t("Feedback geben …"), click: menuSend("feedback") },
       { label: t("Website und Anleitungen"), click: () => { void shell.openExternal("https://skyplayser.github.io/VJ-LINK/"); } },
       { label: "Discord", click: () => { void shell.openExternal("https://discord.gg/N6DMca4Bjk"); } },
       { type: "separator" },
@@ -530,14 +542,21 @@ app.whenReady().then(async () => {
         type: "info", buttons: [t("Jetzt installieren"), t("Später")], defaultId: 0, cancelId: 1,
         message: t("Update ist geladen"), detail: t("VJ-Link wird beendet, aktualisiert und startet von selbst neu. Das Projekt ist automatisch gesichert."),
       });
+      if (r.response === 0) quitNow = true;
       return r.response === 0;
     });
+  });
+  // Hinweis beim Beenden: Antwort der Oberfläche
+  ipcMain.on("farewell", (e, choice: unknown) => {
+    if (!fromControl(e)) return;
+    if (farewellTimer) { clearTimeout(farewellTimer); farewellTimer = null; }
+    if (choice === "quit") { quitNow = true; app.quit(); }
   });
   // Nur bekannte Seiten öffnen (Instagram, Veröffentlichungen auf GitHub)
   ipcMain.on("licenses:open", e => { if (fromControl(e)) openLicenses(); });
   ipcMain.on("web:open", (e, url: unknown) => {
     if (!fromControl(e) || typeof url !== "string") return;
-    if (/^https:\/\/(www\.)?(instagram\.com|github\.com)\//.test(url) || /^mailto:fehlermelden@nextphilm\.de\?/.test(url)) void shell.openExternal(url);
+    if (/^https:\/\/(www\.)?(instagram\.com|github\.com)\//.test(url) || /^https:\/\/skyplayser\.github\.io\/VJ-LINK\//.test(url) || /^mailto:fehlermelden@nextphilm\.de\?/.test(url)) void shell.openExternal(url);
   });
   ipcMain.on("configure", (e, c: NetConfig) => {
     if (e.sender !== control?.webContents) return;

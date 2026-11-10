@@ -4,6 +4,7 @@ import { changeLang, initLang } from "./lang";
 import { t } from "../core/i18n";
 import { UpdateUi } from "./updatepanel";
 import { captureErrors, recentErrors, ReportDialog } from "./report";
+import { FarewellDialog } from "./farewell";
 import type { DiagSection } from "../core/report";
 import { getLang } from "../core/i18n";
 import { Gallery } from "./gallery";
@@ -92,9 +93,11 @@ interface Settings {
   autoUpdate: boolean;
   /** Sicherheitshinweis zum Live-Betrieb einmal bestätigt. */
   safetyAck: boolean;
+  /** Beim Beenden den Hinweis „Community-Projekt“ zeigen (Standard an). */
+  farewell: boolean;
 }
 function loadSettings(): Settings {
-  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "", ljHold: 15, safeFlash: true, autoUpdate: true, safetyAck: false };
+  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "", ljHold: 15, safeFlash: true, autoUpdate: true, safetyAck: false, farewell: true };
   try {
     const raw = JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") as Partial<Settings>;
     return { ...d, ...raw, tc: { ...d.tc, ...(raw.tc ?? {}) } };
@@ -680,8 +683,9 @@ function openSettings(sec = "audio"): void {
 }
 // Sicherheit, Update-Suche, Lizenzen
 {
-  const safe = $<HTMLInputElement>("safe-flash"), auto = $<HTMLInputElement>("auto-update");
-  safe.checked = settings.safeFlash; auto.checked = settings.autoUpdate;
+  const safe = $<HTMLInputElement>("safe-flash"), auto = $<HTMLInputElement>("auto-update"), bye = $<HTMLInputElement>("farewell-on");
+  safe.checked = settings.safeFlash; auto.checked = settings.autoUpdate; bye.checked = settings.farewell;
+  bye.addEventListener("change", () => { settings.farewell = bye.checked; saveSettings(); });
   safe.addEventListener("change", () => {
     settings.safeFlash = safe.checked; saveSettings();
     toast(safe.checked ? t("Sichere Blitze an: höchstens 3 Blitze pro Sekunde.") : t("Sichere Blitze aus. Bitte nur, wenn der Veranstaltungsort schnellere Blitze erlaubt."));
@@ -1246,6 +1250,7 @@ projMenu.querySelectorAll<HTMLButtonElement>("[data-proj]").forEach(b => b.addEv
 document.addEventListener("pointerdown", e => { if (!projMenu.hidden && !(e.target as HTMLElement).closest(".proj-wrap")) closeProjMenu(); });
 bridge?.onMenu((cmd, arg) => {
   if (cmd === "report") { report.open(); return; }
+  if (cmd === "feedback") { report.open("feedback"); return; }
   if (cmd === "notice" && arg) { toast(arg); return; }
   if (cmd === "settings") { if (showLock.locked) showLock.hint(); else openSettings(); return; }
   if (["new", "open", "save", "saveAs", "openPath"].includes(cmd)) void runFileCmd(cmd as ProjectFileCmd, arg);
@@ -1297,6 +1302,14 @@ function diagnostics(): DiagSection[] {
   ];
 }
 const report = new ReportDialog(diagnostics, () => updates.state?.current ?? "", url => { if (bridge) bridge.openWeb(url); else window.open(url, "_blank", "noopener"); });
+// Hinweis beim Beenden: Community-Projekt, bewerten, weitersagen (Einstellungen → Über VJ-Link schaltet ihn ab)
+const farewell = new FarewellDialog({
+  feedback: stars => report.open("feedback", stars),
+  openWeb: url => bridge?.openWeb(url),
+  answer: choice => bridge?.farewell(choice),
+  disable: () => { settings.farewell = false; saveSettings(); const c = document.getElementById("farewell-on") as HTMLInputElement | null; if (c) c.checked = false; },
+});
+bridge?.onFarewell(() => { bridge?.farewell("shown"); farewell.ask(settings.farewell); });
 
 // ---- Startbildschirm --------------------------------------------------------------------
 const startScreen = new StartScreen({
