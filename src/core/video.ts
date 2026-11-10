@@ -166,7 +166,7 @@ export interface ActiveCue {
 }
 
 export interface CueRun { active: ActiveCue[]; next: number; current: number }
-export interface CueState { list: Cue[]; run: CueRun; /** Letzter gesehener Timecode (Bilder). */ lastTc?: number | null }
+export interface CueState { list: Cue[]; run: CueRun; /** Letzter gesehener Timecode (Bilder). */ lastTc?: number | null; /** Zeit des letzten WEITER (Doppelklick-Schutz). */ lastGoMs?: number }
 export const newCueState = (): CueState => ({ list: [], run: { active: [], next: 0, current: -1 }, lastTc: null });
 
 /** Was ein Fenster zeichnen muss: Datei, Stelle, Deckkraft. */

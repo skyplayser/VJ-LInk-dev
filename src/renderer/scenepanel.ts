@@ -103,7 +103,7 @@ export class ScenePanel {
     box.append(el("p", "muted small", t("„Weiter …“ wirkt nur, wenn oben „Auto“ eingeschaltet ist (auch per Pult, Kanal 7).")));
 
     // Auslöser
-    const trig = [i < 9 ? t("Taste {n}", { n: i + 1 }) : null, t("Pult: Kanal 3 = {n}", { n: i + 1 }), `OSC: /vjlink/scene/go ${i + 1}`, i < 32 ? t("MIDI: scene.{n} (MIDI-Lernen folgt)", { n: i + 1 }) : null].filter(Boolean).join(" · ");
+    const trig = [i < 9 ? t("Taste {n}", { n: i + 1 }) : null, t("Pult: Kanal 3 = {n}", { n: i + 1 }), `OSC: /vjlink/scene/go ${i + 1}`, i < 32 ? t("MIDI: über MAPPING zuweisen") : null].filter(Boolean).join(" · ");
     box.append(field(t("Auslösen"), el("span", "muted small", trig)));
 
     // Aktionen

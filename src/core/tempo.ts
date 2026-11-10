@@ -22,8 +22,17 @@ export class TempoClock {
   private lastSeen = new Map<TempoSource, number>();
   private taps: number[] = [];
 
-  /** Faktor aus dem Pult (¼×, ½×, 1×, 2×, 4×). */
-  factor = 1;
+  private fac = 1;
+  /** Faktor aus dem Pult (¼×, ½×, 1×, 2×, 4×): die Visuals laufen so viel schneller als die Musik. */
+  get factor(): number { return this.fac; }
+  set factor(f: number) { this.setFactor(f, Date.now()); }
+  /** Faktor ändern, ohne dass die Beat-Position springt (sonst würden Auto-VJ und Übergänge sofort weiterschalten). */
+  setFactor(f: number, nowMs: number): void {
+    if (!Number.isFinite(f) || f <= 0 || f === this.fac) return;
+    const beat = this.beatAt(nowMs);
+    this.fac = f;
+    this.state = { ...this.state, originMs: nowMs, beatAtOrigin: beat };
+  }
   /**
    * Feste Tempo-Quelle (wie „SEND BPM“ in LJ-Link). null = automatisch nach Rangfolge.
    * Bei „manual“ bleiben Tap und Eingabe erlaubt.
@@ -31,7 +40,10 @@ export class TempoClock {
   lock: TempoSource | null = null;
 
   get snapshot(): TempoState { return { ...this.state }; }
-  get bpm(): number { return this.state.bpm * this.factor; }
+  /** Wirksames Tempo der Visuals (Tempo der Quelle × Faktor). */
+  get bpm(): number { return this.state.bpm * this.fac; }
+  /** Tempo der Quelle (Musik), ohne Faktor. */
+  get sourceBpm(): number { return this.state.bpm; }
   get source(): TempoSource { return this.state.source; }
 
   /** Beat-Position (fortlaufend, 0-basiert) zum Zeitpunkt `nowMs`. */
@@ -58,7 +70,7 @@ export class TempoClock {
     if (source !== cur && curAlive && SOURCE_RANK[source] > SOURCE_RANK[cur]) return false;
     const keepPhase = beat === undefined;
     const beatNow = keepPhase ? this.beatAt(nowMs) : beat;
-    this.state = { bpm: bpm / (this.factor || 1), originMs: nowMs, beatAtOrigin: beatNow, source };
+    this.state = { bpm, originMs: nowMs, beatAtOrigin: beatNow, source };
     return true;
   }
 
@@ -77,10 +89,10 @@ export class TempoClock {
     return bpm;
   }
 
-  /** BPM von Hand setzen (Eingabe). Gilt sofort, Phase läuft ohne Sprung weiter. */
+  /** BPM der Musik von Hand setzen (Eingabe, ohne Faktor). Gilt sofort, Phase läuft ohne Sprung weiter. */
   setManual(bpm: number, nowMs: number): boolean {
     if (!Number.isFinite(bpm) || bpm < 20 || bpm > 300) return false;
-    this.state = { bpm: bpm / (this.factor || 1), originMs: nowMs, beatAtOrigin: this.beatAt(nowMs), source: "manual" };
+    this.state = { bpm, originMs: nowMs, beatAtOrigin: this.beatAt(nowMs), source: "manual" };
     this.lastSeen.set("manual", nowMs);
     return true;
   }

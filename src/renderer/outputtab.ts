@@ -88,7 +88,7 @@ export class OutputTab {
           const moved = snapRect({ ...s, x: x0 + (ev.clientX - sx) / scale, y: y0 + (ev.clientY - sy) / scale }, others, 12 / scale);
           s.x = moved.x; s.y = moved.y;
           r.style.left = `${ox + s.x * scale}px`; r.style.top = `${oy + s.y * scale}px`;
-          r.querySelector("small")!.textContent = `${s.w} × ${s.h} · bei ${s.x}, ${s.y}`;
+          r.querySelector("small")!.textContent = t("{w} × {h} · bei {x}, {y}", { w: s.w, h: s.h, x: s.x, y: s.y });
         };
         const up = () => {
           r.removeEventListener("pointermove", move); r.removeEventListener("pointerup", up);

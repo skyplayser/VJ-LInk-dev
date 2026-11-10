@@ -11,6 +11,15 @@ export const PROJECT_FORMAT_VERSION = 1;
 export interface VideoRef { id: string; name: string; ext: string }
 
 /** Kurzer Fingerabdruck eines Projekts (FNV-1a, 2 × 32 Bit): erkennt ungespeicherte Änderungen. */
+/**
+ * Kennung eines Projektstands für „ungespeicherte Änderungen“. Laufzeitwerte (Startzeit laufender Videos)
+ * zählen nicht, sonst wäre ein gerade geöffnetes Projekt sofort „geändert“.
+ */
+export function projectHash(json: string): string {
+  try { return hashText(JSON.stringify(JSON.parse(json), (k, v) => (k === "videoStart" ? undefined : v))); }
+  catch { return hashText(json); }
+}
+
 export function hashText(s: string): string {
   let a = 0x811c9dc5, b = 0x01000193 ^ s.length;
   for (let i = 0; i < s.length; i++) {

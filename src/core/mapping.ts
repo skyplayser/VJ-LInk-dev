@@ -165,9 +165,23 @@ export function parseMidi(data: ArrayLike<number>): { input: MapInput; value: nu
   return null;
 }
 
-/** OSC-Wert normalisieren: 0–1 bleibt, 0–127 (MIDI-artig) und 0–255 (DMX-artig) werden umgerechnet. */
-export function oscValue(arg: unknown): number {
-  const v = typeof arg === "number" ? arg : typeof arg === "boolean" ? (arg ? 1 : 0) : 1;
+/** Größter bisher gesehener Ganzzahl-Wert je OSC-Adresse (0–127- oder 0–255-Regler). */
+const oscIntMax = new Map<string, number>();
+
+/**
+ * OSC-Wert normalisieren. Kommazahlen („f“) sind 0–1. Ganzzahlen („i“) sind MIDI-artig 0–127, oder 0–255,
+ * sobald an dieser Adresse einmal ein Wert über 127 kam. So springt ein 0–127-Regler bei 1 nicht auf 100 %.
+ * Ohne Typ-Kennung wird wie früher nach Größe geraten.
+ */
+export function oscValue(arg: unknown, tag?: string, address = ""): number {
+  if (typeof arg === "boolean") return arg ? 1 : 0;
+  const v = typeof arg === "number" && Number.isFinite(arg) ? arg : 1;
+  if (tag === "i" || tag === "h") {
+    if (oscIntMax.size > 500) oscIntMax.clear();
+    const max = Math.max(oscIntMax.get(address) ?? 0, v);
+    oscIntMax.set(address, max);
+    return Math.max(0, Math.min(1, v / (max > 127 ? 255 : 127)));
+  }
   if (v <= 1) return Math.max(0, v);
   if (v <= 127) return v / 127;
   return Math.min(1, v / 255);

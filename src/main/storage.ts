@@ -9,7 +9,7 @@ const MIME_EXT: Record<string, string> = {
   "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif", "image/svg+xml": "svg",
 };
 const EXT_MIME = Object.fromEntries(Object.entries(MIME_EXT).map(([m, e]) => [e, m]));
-const PROJECT_MAX_BYTES = 8 * 1024 * 1024;
+const PROJECT_MAX_BYTES = 64 * 1024 * 1024;
 
 interface IndexEntry { id: string; name: string; file: string }
 
@@ -39,10 +39,19 @@ export class Storage {
     } catch { /* noch keine Grafiken */ }
   }
 
-  private async writeAtomic(file: string, data: string | Buffer): Promise<void> {
-    const tmp = `${file}.tmp`;
-    await fs.writeFile(tmp, data);
-    await fs.rename(tmp, file);
+  /** Laufende Schreibvorgänge je Datei: Schreiben nacheinander, nie zwei gleichzeitig auf dieselbe Datei. */
+  private writing = new Map<string, Promise<void>>();
+  private tmpNo = 0;
+  private writeAtomic(file: string, data: string | Buffer): Promise<void> {
+    const run = async () => {
+      const tmp = `${file}.${process.pid}.${++this.tmpNo}.tmp`;
+      try { await fs.writeFile(tmp, data); await fs.rename(tmp, file); }
+      catch (e) { await fs.rm(tmp, { force: true }).catch(() => undefined); throw e; }
+    };
+    const next = (this.writing.get(file) ?? Promise.resolve()).catch(() => undefined).then(run);
+    this.writing.set(file, next);
+    void next.finally(() => { if (this.writing.get(file) === next) this.writing.delete(file); }).catch(() => undefined);
+    return next;
   }
   private saveIndex(): Promise<void> {
     return this.writeAtomic(path.join(this.mediaDir, "index.json"), JSON.stringify([...this.index.values()]));
@@ -159,7 +168,17 @@ export class Storage {
     if (!isValidMediaId(id) || !path.isAbsolute(src)) return false;
     const ext = path.extname(src).slice(1).toLowerCase();
     if (!["mp4", "m4v", "mov", "webm"].includes(ext)) return false;
-    try { if (!(await fs.stat(src)).isFile()) return false; } catch { return false; }
+    // Keine symbolischen Links (sonst könnte ein präparierter Projektordner beliebige Dateien einschleusen)
+    // und nur echte Videodateien: MP4/MOV beginnen mit „ftyp“ an Stelle 4, WebM mit dem EBML-Kopf.
+    try {
+      if (!(await fs.lstat(src)).isFile()) return false;
+      const fh = await fs.open(src, "r");
+      const head = Buffer.alloc(12);
+      try { await fh.read(head, 0, 12, 0); } finally { await fh.close(); }
+      const isMp4 = head.toString("latin1", 4, 8) === "ftyp" || ["moov", "wide", "mdat", "free", "skip", "pnot"].includes(head.toString("latin1", 4, 8));
+      const isWebm = head.readUInt32BE(0) === 0x1a45dfa3;
+      if (!(ext === "webm" ? isWebm : isMp4)) return false;
+    } catch { return false; }
     const file = `${id}.${ext}`;
     await fs.copyFile(src, path.join(this.videoDir, file));
     this.videos.set(id, { id, name: name.slice(0, 80), file });
@@ -170,9 +189,10 @@ export class Storage {
   /** Arbeitsstand verwerfen (neues Projekt): beim nächsten Laden startet die App leer. */
   async clearProject(): Promise<void> { await fs.rm(this.projectFile, { force: true }); }
 
-  async saveProject(json: unknown): Promise<void> {
-    if (typeof json !== "string" || json.length > PROJECT_MAX_BYTES) return;
-    await this.writeAtomic(this.projectFile, json);
+  /** Arbeitsstand sichern. false = zu groß oder nicht schreibbar (der Aufrufer sagt es dem Nutzer). */
+  async saveProject(json: unknown): Promise<boolean> {
+    if (typeof json !== "string" || json.length > PROJECT_MAX_BYTES) return false;
+    try { await this.writeAtomic(this.projectFile, json); return true; } catch { return false; }
   }
 
   async loadProject(): Promise<string | null> {

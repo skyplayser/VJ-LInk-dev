@@ -1,5 +1,5 @@
 import { promises as fsp } from "node:fs";
-import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, protocol, screen, session, shell, systemPreferences, type Display, type MenuItemConstructorOptions } from "electron";
+import { BrowserWindow, Menu, app, dialog, ipcMain, nativeImage, powerSaveBlocker, protocol, screen, session, shell, systemPreferences, type Display, type MenuItemConstructorOptions } from "electron";
 import path from "node:path";
 import { Network } from "./network";
 import { Storage } from "./storage";
@@ -33,6 +33,14 @@ let switching = false;
 // Logo für Fenster (Windows, Linux) und Dock (macOS). Die Installer nutzen build/icon.icns und build/icon.ico.
 const ICON = path.join(__dirname, "..", "icon.png");
 app.setName("VJ-Link");
+// Nur eine VJ-Link-Instanz: eine zweite würde dieselben Ports (Art-Net, OSC) und dieselben Projektdateien benutzen.
+// Für Tests mit eigenem Datenordner (VJLINK_DATA) gilt das nicht.
+if (!process.env.VJLINK_DATA && !app.requestSingleInstanceLock()) app.exit(0);
+app.on("second-instance", () => {
+  if (!control || control.isDestroyed()) return;
+  if (control.isMinimized()) control.restore();
+  control.show(); control.focus();
+});
 // URL-Schema vjlink://focus: z. B. LJ-Link holt VJ-Link damit nach vorn (gemeinsamer Status)
 if (process.defaultApp && process.argv[1]) app.setAsDefaultProtocolClient("vjlink", process.execPath, [path.resolve(process.argv[1])]);
 else app.setAsDefaultProtocolClient("vjlink");
@@ -90,6 +98,25 @@ function createControl(): void {
     setTimeout(() => net?.replayLj(), 500);
   });
   control.on("resize", applyScale);
+  // Absturz der Oberfläche: neu laden (Projekt ist automatisch gesichert, der Startbildschirm bleibt weg).
+  control.webContents.on("render-process-gone", (_e, d) => {
+    if (d.reason === "clean-exit" || !control || control.isDestroyed()) return;
+    console.error("Oberfläche abgestürzt:", d.reason);
+    setTimeout(() => { if (control && !control.isDestroyed()) control.webContents.reload(); }, 500);
+  });
+  // Beenden, während Ausgänge live sind: nachfragen (⌘Q aus Versehen mitten in der Show)
+  let quitOk = false;
+  control.on("close", e => {
+    const live = [...outputs.values()].filter(w => !w.isDestroyed()).length;
+    if (quitOk || live === 0 || !control) return;
+    e.preventDefault();
+    const r = dialog.showMessageBoxSync(control, {
+      type: "warning", buttons: [t("Beenden"), t("Abbrechen")], defaultId: 1, cancelId: 1,
+      message: t("{n} Ausgänge sind live. VJ-Link wirklich beenden?", { n: live }),
+      detail: t("Die Bildschirme und Beamer werden dann schwarz."),
+    });
+    if (r === 0) { quitOk = true; app.quit(); }
+  });
   control.on("closed", () => { control = null; for (const w of outputs.values()) w.close(); });
 }
 
@@ -283,9 +310,30 @@ function wireOutput(win: BrowserWindow, id: number): void {
     for (const ev of liveMedia.values()) if (!win.isDestroyed()) win.webContents.send("media", ev);
     if (lastFrame && !win.isDestroyed()) win.webContents.send("frame", lastFrame);
   });
-  win.on("closed", () => { outputs.delete(id); control?.webContents.send("displays", listDisplays()); });
+  win.on("closed", () => { outputs.delete(id); keepAwake(); control?.webContents.send("displays", listDisplays()); });
   win.webContents.on("did-finish-load", () => win.webContents.setZoomFactor(1));
+  // Stürzt ein Ausgang ab (GPU, Speicher), sofort neu öffnen statt schwarz zu bleiben.
+  win.webContents.on("render-process-gone", (_e, d) => {
+    if (d.reason === "clean-exit") return;
+    console.error("Ausgang abgestürzt:", id, d.reason);
+    reopenOutput(id, win);
+  });
   outputs.set(id, win);
+  keepAwake();
+}
+
+/** Ausgang schließen und kurz danach auf demselben Bildschirm neu öffnen (nach Absturz oder Grafik-Reset). */
+function reopenOutput(id: number, win: BrowserWindow): void {
+  win.destroy();
+  setTimeout(() => { if (!outputs.has(id)) { if (id === WINDOW_OUTPUT) openWindowOutput(); else toggleOutput(id); } }, 500);
+}
+
+/** Solange Ausgänge offen sind, dürfen Bildschirme und Beamer nicht in den Ruhezustand gehen. */
+let awakeId: number | null = null;
+function keepAwake(): void {
+  const need = outputs.size > 0;
+  if (need && awakeId === null) awakeId = powerSaveBlocker.start("prevent-display-sleep");
+  else if (!need && awakeId !== null) { powerSaveBlocker.stop(awakeId); awakeId = null; }
 }
 
 function toggleOutput(id: number): DisplayInfo[] {
@@ -300,7 +348,13 @@ function toggleOutput(id: number): DisplayInfo[] {
   });
   win.setMenuBarVisibility(false);
   // Esc schließt den Ausgang, auch wenn er das Hauptfenster verdeckt.
-  win.webContents.on("before-input-event", (e, input) => { if (input.type === "keyDown" && input.key === "Escape") { e.preventDefault(); win.close(); } });
+  // Esc schließt den Ausgang nur, wenn er die Oberfläche verdeckt (gleicher Bildschirm). Auf einem Beamer
+  // würde ein versehentliches Esc sonst mitten in der Show das Bild wegnehmen.
+  win.webContents.on("before-input-event", (e, input) => {
+    if (input.type !== "keyDown" || input.key !== "Escape") return;
+    const covers = !control || control.isDestroyed() || screen.getDisplayMatching(control.getBounds()).id === id;
+    if (covers) { e.preventDefault(); win.close(); }
+  });
   wireOutput(win, id);
   return listDisplays();
 }
@@ -395,6 +449,12 @@ app.whenReady().then(async () => {
     screen.on(ev as "display-added", () => control?.webContents.send("displays", listDisplays()));
   ipcMain.handle("displays:toggle", (_e, id: unknown) => typeof id === "number" ? toggleOutput(id) : listDisplays());
   ipcMain.handle("displays:windowSize", (_e, w: unknown, h: unknown) => typeof w === "number" && typeof h === "number" ? setWindowSize(w, h) : listDisplays());
+  ipcMain.on("gpu:lost", e => {
+    const entry = [...outputs.entries()].find(([, w]) => !w.isDestroyed() && w.webContents === e.sender);
+    if (entry) {
+      const [id, w] = entry; console.error("Ausgang: WebGL-Kontext verloren", id); reopenOutput(id, w);
+    } else if (fromControl(e)) { console.error("Oberfläche: WebGL-Kontext verloren"); setTimeout(() => control?.webContents.reload(), 500); }
+  });
   ipcMain.on("frame", (e, f: Frame) => {
     if (e.sender !== control?.webContents) return; // nur die Hauptoberfläche darf Bilder liefern
     lastFrame = f;
@@ -420,8 +480,17 @@ app.whenReady().then(async () => {
       if (!r.ok) return null;
       const len = Number(r.headers.get("content-length") ?? 0);
       if (len > 8_000_000) return null;
-      const buf = new Uint8Array(await r.arrayBuffer());
-      if (buf.length > 8_000_000) return null;
+      // Stückweise lesen und abbrechen, sobald es zu groß wird (Server kann die Länge verschweigen)
+      const parts: Uint8Array[] = []; let total = 0;
+      const reader = r.body?.getReader(); if (!reader) return null;
+      for (;;) {
+        const { done, value } = await reader.read(); if (done) break;
+        total += value.length;
+        if (total > 8_000_000) { void reader.cancel(); return null; }
+        parts.push(value);
+      }
+      const buf = new Uint8Array(total); let o = 0;
+      for (const part of parts) { buf.set(part, o); o += part.length; }
       return { type: r.headers.get("content-type") ?? "", data: buf };
     } catch { return null; }
   });
@@ -464,7 +533,16 @@ app.whenReady().then(async () => {
     if (!fromControl(e)) return;
     if (await storage!.removeMedia(id)) for (const w of outputs.values()) if (!w.isDestroyed()) w.webContents.send("media", { type: "remove", id });
   });
-  ipcMain.on("project:save", (e, json: unknown) => { if (fromControl(e) && !switching) void storage!.saveProject(json); });
+  // Automatische Sicherung. Schlägt sie fehl (zu groß, Platte voll), einmal pro Minute Bescheid sagen statt still zu verlieren.
+  let saveWarned = 0;
+  ipcMain.on("project:save", (e, json: unknown) => {
+    if (!fromControl(e) || switching) return;
+    void storage!.saveProject(json).then(ok => {
+      if (ok || Date.now() - saveWarned < 60_000) return;
+      saveWarned = Date.now();
+      control?.webContents.send("menu", "notice", t("Automatische Sicherung fehlgeschlagen (Projekt zu groß oder Speicher voll). Bitte „Speichern unter …“ benutzen."));
+    });
+  });
   // Startbildschirm: zuletzt geöffnete Projekte mit Änderungsdatum (fehlende Dateien markiert)
   ipcMain.handle("project:recent", async e => {
     if (!fromControl(e) || !files) return [];

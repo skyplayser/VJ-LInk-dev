@@ -429,6 +429,7 @@ export class ShowTab {
     const nt = document.getElementById("sh-next-thumb")!;
     const ntSig = n ? n.id + this.d.videos.posters.size : "";
     if (nt.dataset.sig !== ntSig) { nt.dataset.sig = ntSig; nt.replaceChildren(...(n ? [this.thumb(n)] : [])); }
+    (document.getElementById("cue-go") as HTMLButtonElement).disabled = s.list.length === 0;
     document.getElementById("cue-go-sub")!.textContent = `${goLabel(s, now, this.d.env)} · ${t("Leertaste")}`;
     const total = s.list.reduce((a, c) => a + (this.dur(c) ?? 0), 0);
     document.getElementById("cue-sum")!.textContent = s.list.length ? `· ${s.list.length} Cues · ${fmt(total)}` : "";

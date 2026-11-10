@@ -71,8 +71,10 @@ export class Network {
       const list = parseOsc(msg);
       if (!list.length) return false;
       for (const m of list) {
+        const keep = m.args.map(a => !(a instanceof Uint8Array));
         const args = m.args.filter((a): a is number | string | boolean | null => !(a instanceof Uint8Array));
-        this.emit({ type: "osc", address: m.address, args });
+        const tags = [...(m.tags ?? "")].filter((_, i) => keep[i]).join("");
+        this.emit({ type: "osc", address: m.address, args, tags });
       }
     });
     this.ws(LJ_DEFAULT_PORT);
@@ -107,17 +109,41 @@ export class Network {
     else { this.pendingSacn = addr; s.once("listening", () => { if (this.pendingSacn) this.join(s, this.pendingSacn); this.pendingSacn = null; }); }
   }
   private pendingSacn: string | null = null;
+  /** Netzwerk-Schnittstellen (IPv4), auf denen die Gruppe schon betreten ist. */
+  private joinedIfaces = new Set<string>();
+  private rejoinTimer?: NodeJS.Timeout;
+  /**
+   * Gruppe auf JEDER IPv4-Schnittstelle betreten. Ohne Angabe nimmt das System nur eine (meist WLAN mit der
+   * Standardroute) – hängt das Pult am Kabel, käme sonst kein sACN an. Neu eingesteckte Kabel werden alle
+   * 10 Sekunden nachgezogen.
+   */
   private join(s: dgram.Socket, addr: string): void {
-    if (this.joined === addr) return;
-    try {
-      if (this.joined) s.dropMembership(this.joined);
-      s.addMembership(addr);
+    if (this.joined !== addr) {
+      for (const ifc of this.joinedIfaces) { try { s.dropMembership(this.joined!, ifc); } catch { /* Schnittstelle weg */ } }
+      this.joinedIfaces.clear();
       this.joined = addr;
-    } catch (e) { this.status.sacn.error = (e as Error).message; }
+    }
+    const ifaces = Object.values(os.networkInterfaces()).flat()
+      .filter((n): n is os.NetworkInterfaceInfo => !!n && n.family === "IPv4" && !n.internal).map(n => n.address);
+    for (const ifc of [...this.joinedIfaces]) if (!ifaces.includes(ifc)) this.joinedIfaces.delete(ifc); // Kabel gezogen
+    let ok = this.joinedIfaces.size > 0, lastErr = "";
+    for (const ifc of ifaces) {
+      if (this.joinedIfaces.has(ifc)) continue;
+      try { s.addMembership(addr, ifc); this.joinedIfaces.add(ifc); ok = true; } catch (e) { lastErr = (e as Error).message; }
+    }
+    if (!ok && !ifaces.length) { try { s.addMembership(addr); ok = true; } catch (e) { lastErr = (e as Error).message; } }
+    this.status.sacn.error = ok ? undefined : lastErr || undefined;
+    if (!this.rejoinTimer) {
+      this.rejoinTimer = setInterval(() => { if (this.sacn && this.joined) this.join(this.sacn, this.joined); }, 10_000);
+      this.rejoinTimer.unref();
+    }
   }
 
   private ws(port: number): void {
-    const wss = new WebSocketServer({ port, maxPayload: 64 * 1024 });
+    // Webseiten im Browser dürfen sich nicht verbinden (Cross-Site-WebSocket): Browser senden immer „Origin“,
+    // LJ-Link und andere Programme nicht. Nur Seiten vom eigenen Rechner (localhost) sind erlaubt.
+    const verifyClient = (info: { origin?: string }) => !info.origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(info.origin);
+    const wss = new WebSocketServer({ port, maxPayload: 64 * 1024, verifyClient });
     this.wss = wss;
     wss.on("listening", () => { this.status.lj.listening = true; this.status.lj.error = undefined; });
     wss.on("error", err => { this.status.lj.error = err.message; this.status.lj.listening = false; });
@@ -195,11 +221,16 @@ export class Network {
         const best = this.plan()[0], cur = this.proAttempt;
         // Noch nicht verbunden und ein neues LJ-Link ist da: sofort dorthin; verbunden nur über die Weboberfläche
         // und eins mit eigenem Endpunkt taucht auf: umsteigen
-        if ((isNew && !this.status.lj.pro?.connected) || (this.status.lj.pro?.connected && cur && !cur.native && best?.native)) this.restartPro();
+        // Umsteigen nur auf denselben Rechner (eigener Endpunkt derselben LJ-Link-Installation). Ein fremder Rechner,
+        // der sich per Bonjour als LJ-Link ausgibt, kann eine laufende Verbindung so nicht übernehmen.
+        const host = (auth: string) => auth.replace(/:\d+$/, "");
+        if ((isNew && !this.status.lj.pro?.connected)
+          || (this.status.lj.pro?.connected && cur && !cur.native && best?.native && host(best.auth) === host(cur.auth))) this.restartPro();
       };
       const add = (s: Parameters<typeof foundFromService>[0] & { fqdn?: string; name?: string; port?: number }) => {
         const f = foundFromService(s); if (!f) return;
         const k = key(s), isNew = !this.found.has(k);
+        if (isNew && this.found.size >= 32) return; // Bonjour-Flut aus dem Netz: Liste begrenzen
         this.found.set(k, f); changed(isNew);
       };
       browser.on("up", add);
@@ -268,6 +299,7 @@ export class Network {
   }
 
   stop(): void {
+    clearInterval(this.rejoinTimer); this.rejoinTimer = undefined;
     for (const s of this.sockets) { try { s.close(); } catch { /* schon zu */ } }
     this.wss?.close();
     clearTimeout(this.proTimer);

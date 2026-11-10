@@ -6,7 +6,8 @@ await rm("dist", { recursive: true, force: true });
 await mkdir("dist/main", { recursive: true });
 await mkdir("dist/renderer", { recursive: true });
 
-const common = { bundle: true, sourcemap: true, logLevel: "info" };
+const pkgVersion = JSON.parse((await import("node:fs")).readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
+const common = { bundle: true, sourcemap: true, logLevel: "info", define: { APP_VERSION: JSON.stringify(pkgVersion) } };
 
 await build({ ...common, entryPoints: ["src/main/main.ts"], outfile: "dist/main/main.js",
   platform: "node", format: "cjs", target: "node22", external: ["electron"] });

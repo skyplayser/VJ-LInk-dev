@@ -46,7 +46,7 @@ import { MediaPanel } from "./mediapanel";
 import { ScenePanel } from "./scenepanel";
 import { mediaClip } from "../core/media";
 import { applyProject, parseProject, serializeProject } from "../core/project";
-import { hashText } from "../core/projectfile";
+import { projectHash } from "../core/projectfile";
 import type { ProjectFileCmd } from "../core/frame";
 import { stepScene } from "../core/control";
 import { FxPanel } from "./fxpanel";
@@ -110,6 +110,16 @@ const decoder = new DmxDecoder(settings.address, ctx.scenes);
 let netStatus: NetStatus | null = null;
 let lastDmx: Uint8Array | null = null;
 let lastDmxAt = 0;
+/** Zuletzt empfangene Universes je Quelle (zum Erkennen eines falsch eingestellten Universe). */
+const seenUniverses = { artnet: new Map<number, number>(), sacn: new Map<number, number>() };
+let universeHinted = 0;
+/** Kommt DMX nur auf anderen Universes an? Dann z. B. „Universe 1“ zurückgeben. */
+function otherUniverse(src: "artnet" | "sacn", now: number): number | null {
+  const wanted = src === "artnet" ? settings.universe : settings.sacn;
+  if (now - (seenUniverses[src].get(wanted) ?? -Infinity) < 3000) return null;
+  for (const [u, at] of seenUniverses[src]) if (u !== wanted && now - at < 3000) return u;
+  return null;
+}
 let displays: DisplayInfo[] = [];
 /** Bild, dessen Ebenen die Oberfläche gerade zeigt. */
 let uiCanvas = "main";
@@ -168,19 +178,27 @@ function onControl(e: ControlEvent): void {
       if (mapMode.active) { mapMode.input({ p: "dmx-frame", universe: e.universe, data: e.data }); if (mapMode.protocol === "dmx") return; }
       dispatchDmx(e.universe, e.data);
       const wanted = e.source === "artnet" ? settings.universe : settings.sacn;
-      if (e.universe !== wanted) return;
+      if (seenUniverses[e.source].size < 64 || seenUniverses[e.source].has(e.universe)) seenUniverses[e.source].set(e.universe, now);
+      if (e.universe !== wanted) {
+        // Pult sendet, aber auf einem anderen Universe: einmal pro Minute deutlich sagen
+        if (now - universeHinted > 60_000 && now - lastDmxAt > 3000) {
+          universeHinted = now;
+          toast(t("DMX kommt auf Universe {u} an, VJ-Link hört auf Universe {w} (Einstellungen → DMX und Netzwerk).", { u: e.universe, w: wanted }));
+        }
+        return;
+      }
       lastDmx = e.data; lastDmxAt = now;
       const fx = decoder.decode(e.data, ctx.show);
-      if (fx.tempoFactor !== undefined) ctx.tempo.factor = fx.tempoFactor;
+      if (fx.tempoFactor !== undefined) ctx.tempo.setFactor(fx.tempoFactor, now);
       if (fx.scene !== undefined) recallScene(ctx, fx.scene - 1, now);
       break;
     }
     case "osc": {
-      if (e.address.startsWith("/vjlink/")) { handleOsc(ctx, { address: e.address, args: e.args }, now); break; }
+      if (e.address.startsWith("/vjlink/")) { handleOsc(ctx, { address: e.address, args: e.args, tags: e.tags }, now); break; }
       const input = { p: "osc" as const, address: e.address.slice(0, 120) };
       if (mapMode.input(input)) break;
       const a = e.args[0];
-      mappings.dispatch(ctx, input, oscValue(a), typeof a === "number" ? a : undefined);
+      mappings.dispatch(ctx, input, oscValue(a, e.tags?.[0], e.address), typeof a === "number" ? a : undefined);
       break;
     }
     case "timecode": tcClock.receive(e.tc, e.fps, "artnet", now, e.from); break;
@@ -301,7 +319,7 @@ function rebuildGrid(): void {
   for (let l = 0; l < n; l++) maxCols = Math.max(maxCols, layerClips(l).length + 1);
   grid.style.setProperty("--cols", String(maxCols));
   for (let l = n - 1; l >= 0; l--) {
-    const row = el("div", "lrow");
+    const row = el("div", "lrow"); row.dataset.layer = String(l);
     const name = el("div", "lname");
     name.title = t("Klicken, um Effekte und Grafik dieser Ebene zu bearbeiten");
     name.addEventListener("click", e => {
@@ -431,10 +449,13 @@ async function importFiles(files: FileList | File[], layer: number): Promise<voi
     libraryPanel.render();
     l.clip = first;
     const bg = first.startsWith("img:") ? library.background.get(first.slice(4)) : undefined;
-    if (bg) { l.media.keyMode = bg; toast(bg === "white" ? t("Logo auf weißem Hintergrund erkannt – der Hintergrund wird ausgeblendet (Grafik → Freistellen).") : t("Logo auf schwarzem Hintergrund erkannt – der Hintergrund wird ausgeblendet (Grafik → Freistellen).")); }
+    if (bg) l.media.keyMode = bg;
     if (layer > 0 && l.opacity < 0.05) l.opacity = 1;
     fxPanel.select(layer);
-    toast(isVideoClip(first) ? t("Video geladen. Loop und Takt stellst du rechts unter „Video“ ein.") : t("Grafik geladen. Position und Animation stellst du rechts unter „Grafik“ ein."));
+    const where = t("Ebene {n}", { n: layer + 1 });
+    // Eine Meldung statt zwei (die zweite hat die erste sofort überschrieben)
+    toast(bg ? `${where}: ${bg === "white" ? t("Logo auf weißem Hintergrund erkannt – der Hintergrund wird ausgeblendet (Grafik → Freistellen).") : t("Logo auf schwarzem Hintergrund erkannt – der Hintergrund wird ausgeblendet (Grafik → Freistellen).")}`
+      : `${where}: ${isVideoClip(first) ? t("Video geladen. Loop und Takt stellst du rechts unter „Video“ ein.") : t("Grafik geladen. Position und Animation stellst du rechts unter „Grafik“ ein.")}`);
   }
 }
 $<HTMLInputElement>("file-input").addEventListener("change", e => {
@@ -446,7 +467,10 @@ window.addEventListener("dragover", e => { if (e.dataTransfer?.types.includes("F
 window.addEventListener("drop", e => {
   if (!e.dataTransfer?.files.length) return;
   e.preventDefault();
-  void importFiles(e.dataTransfer.files, fxPanel.layer);
+  // Auf eine Zeile im Clip-Raster gezogen: genau diese Ebene, sonst die gewählte
+  const row = (e.target as HTMLElement | null)?.closest<HTMLElement>("#grid .lrow");
+  const target = row?.dataset.layer !== undefined ? Number(row.dataset.layer) : fxPanel.layer;
+  void importFiles(e.dataTransfer.files, ctx.show.layers[target] ? target : fxPanel.layer);
 });
 
 // Tastatur: Belegung kommt aus den Zuweisungen (Standard: 1–9, Pfeile, B, F, S, T)
@@ -460,12 +484,20 @@ window.addEventListener("keydown", e => {
   if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
   const input = { p: "key" as const, code: e.code, label: e.key.length === 1 ? e.key.toUpperCase() : e.key.replace("Arrow", t("Pfeil ")) };
   if (mapMode.active) { if (mapMode.protocol === "key") { mapMode.input(input); e.preventDefault(); } return; }
-  if (mappings.dispatch(ctx, input, 1)) e.preventDefault();
+  if (mappings.dispatch(ctx, input, 1)) { e.preventDefault(); heldKeys.add(e.code); }
 });
+/** Gedrückte Tasten: Loslassen zählt immer, auch beim Tippen oder wenn das Fenster den Fokus verliert. */
+const heldKeys = new Set<string>();
+const releaseKey = (code: string) => { if (heldKeys.delete(code)) mappings.dispatch(ctx, { p: "key", code, label: "" }, 0); };
 window.addEventListener("keyup", e => {
+  if (heldKeys.has(e.code)) { releaseKey(e.code); return; }
   if (mapMode.active || typing(e.target)) return;
   mappings.dispatch(ctx, { p: "key", code: e.code, label: "" }, 0);
 });
+// Flash/White-Flash dürfen nicht hängen bleiben, wenn man beim Halten ins Ausgangsfenster klickt oder ⌘-Tab drückt
+const releaseAllKeys = () => { for (const code of [...heldKeys]) releaseKey(code); };
+window.addEventListener("blur", releaseAllKeys);
+document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAllKeys(); });
 
 // Mapping-Menü oben
 const mapBtn = $<HTMLButtonElement>("map-btn"), mapMenu = $("map-menu");
@@ -519,7 +551,12 @@ tempoMenu.querySelectorAll<HTMLButtonElement>("[data-lock]").forEach(b => b.addE
   closeTempoMenu();
 }));
 document.addEventListener("pointerdown", e => { if (!tempoMenu.hidden && !(e.target as HTMLElement).closest(".map-wrap")) closeTempoMenu(); });
-window.addEventListener("keydown", e => { if (e.key === "Escape") closeTempoMenu(); });
+window.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  closeTempoMenu();
+  if (!projMenu.hidden) { closeProjMenu(); projBtn.focus(); }
+  if (!mapMenu.hidden) { mapMenu.hidden = true; mapBtn.setAttribute("aria-expanded", "false"); mapBtn.focus(); }
+});
 
 // ---- Audio-Eingang ---------------------------------------------------------------------
 const audioIn = new AudioIn();
@@ -769,7 +806,7 @@ function renderDisplays(): void {
     const row = el("div", d.open ? "display open" : "display");
     const info = el("div"); info.append(el("b", "", `${d.window ? t("Fenster-Ausgang") : d.label.replace(/^Bildschirm (\d+)$/, (_, n: string) => t("Bildschirm {n}", { n }))}${d.primary ? t(" (Hauptbildschirm)") : ""}`));
     info.append(el("small", "", t("{w} × {h} Pixel", { w: Math.round(d.width * d.scaleFactor), h: Math.round(d.height * d.scaleFactor) })));
-    const b = el("button", "btn", d.open ? t("SCHLIESSEN") : d.window ? t("FENSTER ÖFFNEN") : t("ALS AUSGANG ÖFFNEN"));
+    const b = el("button", "btn", d.open ? t("Schließen") : d.window ? t("Fenster öffnen") : t("Als Ausgang öffnen"));
     b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); outputTab.render(); fitPreview(); });
     if (d.window) {
       // Fenster-Ausgang: Größe wählen; zum Abgreifen mit OBS, Resolume, Syphon-/NDI-Werkzeugen (Fensteraufnahme)
@@ -837,8 +874,10 @@ function drawConnect(now: number): void {
   else {
     const dmxLive = now - lastDmxAt < 1500;
     cards.append(
-      card("Art-Net", s.artnet.error ? "err" : s.artnet.listening ? "ok" : "off", [`UDP 6454 · Universe ${settings.universe}`, t("{n} Pakete", { n: s.artnet.packets }), s.artnet.lastFrom ? t("von {host}", { host: s.artnet.lastFrom }) : (s.artnet.error ?? t("wartet"))]),
-      card("sACN", s.sacn.error ? "err" : s.sacn.listening ? "ok" : "off", [`UDP 5568 · Universe ${settings.sacn}`, t("{n} Pakete", { n: s.sacn.packets }), s.sacn.error ?? t("wartet")]),
+      card("Art-Net", s.artnet.error ? "err" : s.artnet.listening ? "ok" : "off", [`UDP 6454 · Universe ${settings.universe}`, t("{n} Pakete", { n: s.artnet.packets }), s.artnet.lastFrom ? t("von {host}", { host: s.artnet.lastFrom }) : (s.artnet.error ?? t("wartet")),
+        ...(otherUniverse("artnet", now) !== null ? [t("⚠ Pult sendet auf Universe {u}", { u: otherUniverse("artnet", now)! })] : [])]),
+      card("sACN", s.sacn.error ? "err" : s.sacn.listening ? "ok" : "off", [`UDP 5568 · Universe ${settings.sacn}`, t("{n} Pakete", { n: s.sacn.packets }), s.sacn.error ?? t("wartet"),
+        ...(otherUniverse("sacn", now) !== null ? [t("⚠ Pult sendet auf Universe {u}", { u: otherUniverse("sacn", now)! })] : [])]),
       card("OSC", s.osc.error ? "err" : s.osc.listening ? "ok" : "off", [`UDP ${s.osc.port}`, t("{n} Pakete", { n: s.osc.packets }), s.osc.error ?? "/vjlink/…"]),
       card("LJ-Link", s.lj.clients > 0 || s.lj.pro?.connected ? "ok" : s.lj.error ? "err" : "off", [
         s.lj.pro?.connected ? t("LJ-Link verbunden: {host}", { host: proWhere(s.lj.pro.host) }) + (s.lj.pro.native ? t(" (direkt)") : t(" (über Weboberfläche)")) : t("sucht LJ-Link ({host})", { host: proWhere(s.lj.pro?.host ?? "auto") }),
@@ -933,7 +972,7 @@ djLink.hold = settings.ljHold;
 /** Status von VJ-Link für LJ-Link. */
 function vjStatus(): VjStatus {
   return {
-    t: "vj", app: "VJ-Link", version: "0.1", scene: ctx.scenes[ctx.show.scene - 1]?.name ?? "", sceneIndex: ctx.show.scene,
+    t: "vj", app: "VJ-Link", version: APP_VERSION, scene: ctx.scenes[ctx.show.scene - 1]?.name ?? "", sceneIndex: ctx.show.scene,
     blackout: ctx.show.blackout, master: ctx.show.master, bpm: ctx.tempo.bpm, bpmSource: ctx.tempo.source,
     outputs: displays.filter(d => d.open).length, nowPlaying: djLink.showing,
   };
@@ -941,8 +980,14 @@ function vjStatus(): VjStatus {
 /** Personen-Erkennung für Silhouette, Umriss und Masken (ein Modell für Vorschau und Clip-Raster). */
 const personMasks = new PersonMasks();
 const monHome = $("mon-box").parentElement!;
+// Höhe der Kopfzeile für schwebende Fenster (Zuweisungen, Modulation), damit sie nichts darin verdecken
+{
+  const top = document.querySelector<HTMLElement>("header.top");
+  if (top) new ResizeObserver(() => document.documentElement.style.setProperty("--top-h", `${top.offsetHeight}px`)).observe(top);
+}
 try {
   engine = new Engine(preview);
+  preview.addEventListener("webglcontextlost", e => { e.preventDefault(); bridge?.gpuLost?.(); });
   engine.videoSource = (key, id, t, rate, o) => previewPool.get(key, id, t, rate, o);
   engine.camSource = id => { camPool.sources = ctx.show.cameras; return camPool.get(id); };
   engine.camMask = (id, v) => personMasks.mask(id, v);
@@ -1136,7 +1181,7 @@ async function runFileCmd(cmd: ProjectFileCmd, filePath?: string): Promise<void>
   const json = currentJson();
   const r = await bridge.projectFile(cmd, json, filePath);
   if (r.ok && (cmd === "save" || cmd === "saveAs")) {
-    baseline = hashText(json); projName = r.name ?? projName;
+    baseline = projectHash(json); projName = r.name ?? projName;
     setDirty(false); showProjName(); toast(t("Gespeichert: {name}", { name: projName }));
   }
   // Öffnen und Neu: der Hauptprozess lädt die Oberfläche neu
@@ -1148,13 +1193,14 @@ projMenu.querySelectorAll<HTMLButtonElement>("[data-proj]").forEach(b => b.addEv
 document.addEventListener("pointerdown", e => { if (!projMenu.hidden && !(e.target as HTMLElement).closest(".proj-wrap")) closeProjMenu(); });
 bridge?.onMenu((cmd, arg) => {
   if (cmd === "report") { report.open(); return; }
+  if (cmd === "notice" && arg) { toast(arg); return; }
   if (cmd === "settings") { if (showLock.locked) showLock.hint(); else openSettings(); return; }
   if (["new", "open", "save", "saveAs", "openPath"].includes(cmd)) void runFileCmd(cmd as ProjectFileCmd, arg);
 });
 if (!bridge) projBtn.hidden = true;
 
 // ---- Updates (wie bei LJ-Link) -----------------------------------------------------------
-const updates = new UpdateUi(bridge ?? null, "0.1.0");
+const updates = new UpdateUi(bridge ?? null, APP_VERSION);
 
 // ---- Fehler melden (wie bei LJ-Link) ------------------------------------------------------
 /** Diagnosedaten: nur Technik, keine Dateinamen, Texte, Titel oder Passwörter. */
@@ -1171,7 +1217,7 @@ function diagnostics(): DiagSection[] {
   const clipKind = (c: string | null) => !c ? "–" : c.startsWith("img:") ? "Grafik" : c.startsWith("vid:") ? "Video" : c.startsWith("cam:") ? "Kamera" : c;
   return [
     { title: "VJ-Link", lines: [
-      `Version ${updates.state?.current ?? "0.1.0"}${updates.state?.dev ? " (Entwicklung)" : ""}, ${new Date().toISOString()}`,
+      `Version ${updates.state?.current ?? APP_VERSION}${updates.state?.dev ? " (Entwicklung)" : ""}, ${new Date().toISOString()}`,
       `System ${bridge?.platform ?? "Browser"}, ${navigator.userAgent.replace(/^.*?(Chrome\/\S+).*?(Electron\/\S+)?.*$/, "$1 $2").trim()}`,
       `Sprache ${getLang()}, Oberfläche ${window.innerWidth}×${window.innerHeight} @${Math.round(devicePixelRatio * 100) / 100}`,
       `Grafik ${gpu}`,
@@ -1209,7 +1255,7 @@ const startScreen = new StartScreen({
   goTab: tab => document.querySelector<HTMLButtonElement>(`.tabs [data-tab="${tab}"]`)?.click(),
   openSettings: () => openSettings(),
   openMapping: () => { mapMenu.hidden = false; mapBtn.setAttribute("aria-expanded", "true"); },
-  version: () => updates.state?.current ?? "0.1.0",
+  version: () => updates.state?.current ?? APP_VERSION,
   mountUpdate: box => { updates.mount(box, true); void updates.check(); },
   setLang: l => changeLang(l),
   report: () => report.open(),
@@ -1221,7 +1267,7 @@ function autosave(now: number): void {
   if (!loaded || now - lastSaveCheck < 2000) return;
   lastSaveCheck = now;
   const json = currentJson();
-  if (baseline) setDirty(hashText(json) !== baseline);
+  if (baseline) setDirty(projectHash(json) !== baseline);
   if (json === lastSaved) return;
   lastSaved = json;
   if (bridge) bridge.saveProject(json);
@@ -1514,7 +1560,7 @@ async function loadProject(): Promise<void> {
   } finally {
     loaded = true;
     // Gerade geöffnet oder neu: dieser Stand gilt als gespeichert
-    if (bridge && (fresh || !baseline)) { baseline = hashText(currentJson()); bridge.projectBaseline(baseline); }
+    if (bridge && (fresh || !baseline)) { baseline = projectHash(currentJson()); bridge.projectBaseline(baseline); }
     showProjName();
     rebuildGrid();
     fxPanel.select(Math.min(fxPanel.layer, ctx.show.layers.length - 1));

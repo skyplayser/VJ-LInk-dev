@@ -46,7 +46,7 @@ export function buildControls(): ControlDef[] {
       get: c => c.show.master, set: (c, v) => { c.show.master = clamp01(v); } },
     { id: "blackout", label: "Blackout", group: "Master", kind: "toggle", quick: true,
       get: c => (c.show.blackout ? 1 : 0), set: (c, v) => { c.show.blackout = on(v); } },
-    { id: "strobe.speed", label: "Speed", group: "Strobe", kind: "fader", quick: true,
+    { id: "strobe.speed", label: t("Geschw."), group: "Strobe", kind: "fader", quick: true,
       get: c => c.show.strobe.speed, set: (c, v) => { c.show.strobe.speed = clamp01(v); },
       format: c => c.show.strobe.sync
         ? `${STROBE_DIVISIONS[stepIndex(c.show.strobe.speed, STROBE_DIVISIONS.length)]}×`
@@ -57,9 +57,9 @@ export function buildControls(): ControlDef[] {
       get: c => (c.show.strobe.on ? 1 : 0), set: (c, v) => { c.show.strobe.on = on(v); } },
     { id: "strobe.flash", label: "Flash", group: "Strobe", kind: "hold", quick: true,
       get: c => (c.show.strobe.flash ? 1 : 0), set: (c, v) => { c.show.strobe.flash = on(v); } },
-    { id: "strobe.white", label: "White", group: "Strobe", kind: "toggle", quick: true,
+    { id: "strobe.white", label: t("Weiß"), group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.strobe.white ? 1 : 0), set: (c, v) => { c.show.strobe.white = on(v); } },
-    { id: "strobe.whiteFlash", label: "W-Flash", group: "Strobe", kind: "hold", quick: true,
+    { id: "strobe.whiteFlash", label: t("Weiß-Blitz"), group: "Strobe", kind: "hold", quick: true,
       get: c => (c.show.strobe.whiteFlash ? 1 : 0), set: (c, v) => { c.show.strobe.whiteFlash = on(v); } },
     { id: "blinder", label: "Blinder", group: "Strobe", kind: "hold", quick: true,
       get: c => (c.show.blinder ?? 0) >= 0.5 ? 1 : 0, set: (c, v) => { c.show.blinder = on(v) ? 1 : 0; } },

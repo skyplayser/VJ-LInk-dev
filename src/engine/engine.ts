@@ -133,6 +133,9 @@ export class Engine {
     const gl = this.gl;
     if (old) { gl.deleteTexture(old.tex); gl.deleteFramebuffer(old.fb); }
     const tex = gl.createTexture()!;
+    // Auf Einheit 0 anlegen: Einheit 1 ist das Vorbild (uPrev) der Effekte. Sonst sampelt der nächste Effekt
+    // die Textur, in die er schreibt (Feedback-Schleife, WebGL verwirft das Bild).
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);

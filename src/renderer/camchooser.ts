@@ -42,8 +42,13 @@ export function pickCamera(anchor: HTMLElement, devices: CamDevice[]): Promise<C
     menu.setAttribute("role", "menu");
     const r = anchor.getBoundingClientRect();
     Object.assign(menu.style, { position: "fixed", left: `${Math.max(8, Math.min(r.left, window.innerWidth - 300))}px`, top: `${r.bottom + 6}px` });
-    const done = (d: CamDevice | null) => { menu.remove(); document.removeEventListener("pointerdown", outside, true); resolve(d); };
+    const done = (d: CamDevice | null) => {
+      menu.remove(); document.removeEventListener("pointerdown", outside, true); window.removeEventListener("keydown", esc, true);
+      anchor.focus(); resolve(d);
+    };
     const outside = (e: Event) => { if (!menu.contains(e.target as Node)) done(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); done(null); } };
+    window.addEventListener("keydown", esc, true);
     if (!devices.length) menu.append(cameraHelp());
     for (const d of devices) {
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");

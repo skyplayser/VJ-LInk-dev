@@ -40,7 +40,7 @@ main{flex:1;min-height:0;overflow:auto;padding:0 16px 16px;display:flex;flex-dir
 .show-grid{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:20px;flex:1;min-height:0}
 @media (max-width:900px){.show-grid{grid-template-columns:1fr}#tab-visuals.on,#tab-show.on{display:block}}
 .left,.right{min-width:0;min-height:0}
-.left{display:grid;grid-template-rows:minmax(110px,1fr) auto auto}
+.left{display:grid;grid-template-rows:minmax(clamp(150px,30vh,380px),1fr) auto minmax(0,max-content)}
 .left h2{flex:none}
 .right{overflow-y:auto;padding-right:4px;padding-bottom:12px}
 .clip-grid{overflow:auto;padding:3px;min-height:0;grid-auto-rows:minmax(50px,auto)}
@@ -57,7 +57,7 @@ main{flex:1;min-height:0;overflow:auto;padding:0 16px 16px;display:flex;flex-dir
 #preview{position:absolute;left:0;top:0;display:block;background:#000;border:2px solid var(--live);border-radius:4px;box-sizing:border-box}
 
 .clip-grid{display:grid;gap:6px}
-.lrow{display:grid;grid-template-columns:190px repeat(var(--cols,9),minmax(84px,1fr));gap:6px;align-items:stretch}
+.lrow{display:grid;grid-template-columns:236px repeat(var(--cols,9),minmax(84px,1fr));gap:6px;align-items:stretch}
 .lname{background:var(--panel);border-radius:4px;padding:5px 7px;display:grid;grid-template-columns:1fr 1fr;gap:4px 6px;align-content:center}
 .lname b{white-space:nowrap;align-self:center}
 .lname input[type=range]{min-width:0;align-self:center}
@@ -467,7 +467,8 @@ body.mapping .cell-x{display:none}
 .lock-btn.holding::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.55);transform-origin:left;animation:lockhold 1s linear forwards}
 @keyframes lockhold{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 body.locked .top{box-shadow:inset 0 -2px 0 var(--warn)}
-body.locked .cell.add,body.locked .layer-del,body.locked .cell-x,body.locked #layer-add,body.locked #fx-add,body.locked #scene-add{opacity:.35}
+body.locked .cell.add,body.locked .layer-del,body.locked #layer-add,body.locked #fx-add,body.locked #scene-add,body.locked #text-add{opacity:.35}
+body.locked .cell-x,body.locked .cell-edit{display:none}
 /* Modulation */
 [data-mod]{box-shadow:0 0 0 2px #19d3c5 !important;border-radius:4px}
 body.modding [data-modable]{outline:1px dashed #19d3c5;outline-offset:1px;cursor:crosshair}
@@ -529,7 +530,6 @@ body.mapping .cell-edit,body.modding .cell-edit{display:none}
 .mp-corner.sel{fill:var(--accent)}
 .mp-surf.off{opacity:.4}
 .mp-nm{width:130px;background:var(--raise);border:1px solid var(--line);border-radius:4px;color:var(--text);padding:4px 7px;font:600 12px system-ui,sans-serif}
-.cv-tools label input[type=number]{width:52px}
 .out-mode{display:grid;grid-template-columns:repeat(3,1fr)}
 /* Leinwand-Auswahl (Projektionsmapping) */
 .canvas-pick{display:flex;flex-direction:column;gap:5px;min-width:190px;max-width:260px;overflow:auto}
@@ -765,3 +765,30 @@ body.mapping [data-ctl][data-mapped][data-map-sel]{outline:3px solid #fff!import
 .report-status{margin:0;min-height:1.2em;color:var(--ok);font-size:13px}
 .report-pre{margin:0;max-height:260px;overflow:auto;white-space:pre-wrap;font:11.5px/1.5 ui-monospace,monospace;color:var(--dim);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
 .start-foot-r{display:flex;align-items:center;gap:6px}
+
+/* ---- Testtag-Korrekturen ---- */
+/* Kopfzeile: Tempo, Sperre, Einstellungen und BLACKOUT bleiben immer oben rechts. Ist es zu eng,
+   rutschen Audio, Timecode und Status-Anzeigen geordnet in eine zweite Zeile. */
+.top{gap:6px 10px}
+.tabs button{padding:6px 11px}
+.top-break{flex-basis:100%;height:0;order:1}
+.top > .audio-wrap,.top > .tc-pill,.top > .status{order:2}
+@media (min-width:1800px){.top-break{display:none}.top > .audio-wrap,.top > .tc-pill,.top > .status{order:0}}
+/* Ablauf: Liste bleibt sichtbar, Zeitleiste gibt nach */
+.cue-list{min-height:140px;grid-auto-rows:max-content}
+.cue-tl{flex-shrink:1;overflow:auto;max-height:45vh}
+.cue-tl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tlv-tick:first-child{transform:none}
+.tlv-tick:last-child{transform:translateX(-100%)}
+/* Zuweisungen/Modulation: unter der Kopfzeile, Höhe nach Inhalt */
+.map-panel{top:calc(var(--top-h,72px) + 8px);height:auto;max-height:calc(100vh - var(--top-h,72px) - 24px);left:auto;right:16px}
+.map-tabs{grid-template-columns:repeat(4,auto)}
+.map-tabs button{white-space:nowrap;padding:4px 6px}
+/* Einheitliche dunkle Eingabefelder (statt heller macOS-Standardfelder) */
+select,input[type=text],input[type=search],input[type=number]{background:var(--raise);border:1px solid var(--line);border-radius:3px;color:var(--text)}
+.cv-tools select{min-width:110px}
+.report-head h2{text-transform:none;letter-spacing:0;color:var(--text);font-size:15px}
+.scene-pads .pad{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.15}
+.tlv-block.tiny > b,.tlv-block.tiny > small{display:none}
+.tlv-block.tiny{padding:0}
+#cue-go:disabled{opacity:.4;filter:grayscale(1);cursor:default}

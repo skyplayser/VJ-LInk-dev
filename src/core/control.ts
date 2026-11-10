@@ -6,6 +6,7 @@ import { SLOT_NAMES, allStacks, applyScene, clamp01, cloneLayers, cloneSideStack
 import { READY_GENERATORS } from "./effects";
 import { cueBack, cueGo, cueStopAll, type CueEnv, type CueState } from "./video";
 import { setControl } from "./controls";
+import { oscValue } from "./mapping";
 import { t } from "./i18n";
 
 export interface ControlContext {
@@ -106,9 +107,21 @@ export function overwriteScene(c: ControlContext, i: number): boolean {
   return true;
 }
 
+/**
+ * Szenennummern im SHOW-Ablauf nachführen (Cues und Timeline-Marken verweisen per Nummer 1…).
+ * `map` gibt die neue Nummer zurück, oder 0, wenn die Szene gelöscht wurde.
+ */
+function remapSceneRefs(c: ControlContext, map: (n: number) => number): void {
+  for (const cue of c.cues.list) {
+    if (cue.scene > 0) cue.scene = map(cue.scene);
+    if (cue.marks) cue.marks = cue.marks.filter(m => { if (m.scene <= 0) return true; m.scene = map(m.scene); return m.scene > 0; });
+  }
+}
+
 export function deleteScene(c: ControlContext, i: number): boolean {
   if (!c.scenes[i]) return false;
   c.scenes.splice(i, 1);
+  remapSceneRefs(c, n => (n === i + 1 ? 0 : n > i + 1 ? n - 1 : n));
   if (c.show.scene === i + 1) c.show.scene = 0;
   else if (c.show.scene > i + 1) c.show.scene -= 1;
   return true;
@@ -118,6 +131,7 @@ export function moveScene(c: ControlContext, i: number, dir: 1 | -1): boolean {
   const j = i + dir;
   if (!c.scenes[i] || !c.scenes[j]) return false;
   [c.scenes[i], c.scenes[j]] = [c.scenes[j]!, c.scenes[i]!];
+  remapSceneRefs(c, n => (n === i + 1 ? j + 1 : n === j + 1 ? i + 1 : n));
   if (c.show.scene === i + 1) c.show.scene = j + 1;
   else if (c.show.scene === j + 1) c.show.scene = i + 1;
   return true;
@@ -137,19 +151,22 @@ export function handleOsc(c: ControlContext, m: OscMessage, nowMs: number): bool
   if (p[0] !== "vjlink") return false;
   const a = m.args[0];
   const s = c.show;
+  /** Reglerwert 0–1 (auch 0–127/0–255 als Ganzzahl, siehe oscValue). */
+  const val = () => oscValue(a, m.tags?.[0], m.address);
   if (p[1] === "scene" && p[2] === "go") return recallScene(c, num(a) - 1, nowMs);
   if (p[1] === "scene" && p[2] === "next") return stepScene(c, 1, nowMs);
   if (p[1] === "scene" && p[2] === "prev") return stepScene(c, -1, nowMs);
   // Jedes Bedienelement ist per OSC erreichbar: /vjlink/ctl/<id> <Wert 0–1>
-  if (p[1] === "ctl" && p[2]) return setControl(c, p[2], num(a));
-  if (p[1] === "master" && p[2] === "dimmer") { s.master = clamp01(num(a)); return true; }
-  if (p[1] === "blackout") { s.blackout = num(a, 1) !== 0; return true; }
+  if (p[1] === "ctl" && p[2]) return setControl(c, p[2], val());
+  if (p[1] === "master" && p[2] === "dimmer") { s.master = clamp01(val()); return true; }
+  if (p[1] === "blackout") { s.blackout = typeof a === "boolean" ? a : num(a, 1) !== 0; return true; }
   if (p[1] === "tap") { c.tempo.tap(nowMs); return true; }
   if (p[1] === "bpm") { c.tempo.update("osc", num(a), nowMs); return true; }
   if (p[1] === "layer") {
-    const l = s.layers[num(p[2]) - 1];
+    // Wie die Pult-Kanäle: Ebenen von Bild 1, nicht des gerade bearbeiteten Bildes
+    const l = mainLayers(s)[Number.parseInt(p[2] ?? "", 10) - 1];
     if (!l) return false;
-    if (p[3] === "opacity") { l.opacity = clamp01(num(a)); return true; }
+    if (p[3] === "opacity") { l.opacity = clamp01(val()); return true; }
     if (p[3] === "clip") { l.clip = READY_GENERATORS[num(a) - 1]?.id ?? null; return true; }
     return false;
   }
@@ -171,7 +188,9 @@ export function handleLj(c: ControlContext, m: LjMessage, nowMs: number): RuleAc
   }
   // Hält die Verbindung am Leben, auch wenn nur Deck-Daten kommen.
   if (m.t === "deck" && m.deck.master) c.tempo.update("ljlink", m.deck.bpm, nowMs);
-  const actions = matchRules(c.rules, m);
+  // Regeln (Phrase → Szene, Hot Cue → Strobe …) nur mit Auto und nur vom Master-Deck, damit das Pult die Kontrolle behält.
+  const fromMaster = m.t === "event" && (c.lj.masterDeck === null || m.deck === c.lj.masterDeck);
+  const actions = c.show.autoVj && fromMaster ? matchRules(c.rules, m) : [];
   for (const act of actions) runAction(c, act);
   // Abfolge „bei Phrasenwechsel“, sofern keine Regel schon eine Szene gewählt hat.
   if (m.t === "event" && m.kind === "phrase" && c.show.autoVj && !actions.some(a => a.do === "scene")
@@ -197,6 +216,13 @@ export function tickVideoStarts(c: ControlContext, nowMs: number): void {
 }
 
 /** SHOW-Ablauf bedienen (auch per Taste, MIDI, Pult, OSC). */
-export function showGo(c: ControlContext, nowMs = Date.now()): string { return c.cueEnv ? cueGo(c.cues, nowMs, c.cueEnv) : "end"; }
+/** Zwei WEITER kurz hintereinander (Doppelklick, prellende Taste) würden einen Cue überspringen. */
+export const GO_LOCKOUT_MS = 400;
+export function showGo(c: ControlContext, nowMs = Date.now()): string {
+  if (!c.cueEnv) return "end";
+  if (c.cues.lastGoMs !== undefined && nowMs - c.cues.lastGoMs >= 0 && nowMs - c.cues.lastGoMs < GO_LOCKOUT_MS) return "blocked";
+  c.cues.lastGoMs = nowMs;
+  return cueGo(c.cues, nowMs, c.cueEnv);
+}
 export function showBack(c: ControlContext): void { cueBack(c.cues); }
 export function showStop(c: ControlContext, nowMs = Date.now()): void { cueStopAll(c.cues, nowMs, 1); }

@@ -38,7 +38,8 @@
       <button role="menuitem" data-mod><span data-i18n>Modulation (LFO, Audio)</span> <kbd>⇧⌘L</kbd></button>
     </div>
   </div>
-  <div class="map-wrap">
+  <div class="top-break" aria-hidden="true"></div>
+  <div class="map-wrap audio-wrap">
     <button class="pill audio-pill" id="audio-btn" aria-haspopup="dialog" aria-expanded="false" title="Audio-Eingang für Equalizer und Oszilloskop" data-i18n-title>
       <span class="meter" id="audio-meter"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span id="audio-label">AUDIO</span>
     </button>
@@ -90,7 +91,7 @@
         </div>
         <div class="canvas-pick" id="canvas-pick" hidden></div>
       </div>
-      <div class="h2row grid-head"><h2><span data-i18n>Clip-Raster</span> <span class="grid-canvas" id="grid-canvas" hidden></span> <span class="muted" data-i18n>· Klick auf eine Ebene zeigt ihre Effekte · Grafiken über „+ Grafik“ hinzufügen oder hierher ziehen</span></h2><span class="inline"><button class="btn small-btn" id="text-add" title="Text-Clip gestalten und auf die gewählte Ebene legen" data-i18n-title>+ Text</button><button class="btn small-btn" id="layer-add" data-i18n>+ Ebene</button></span></div>
+      <div class="h2row grid-head"><h2><span data-i18n>Clip-Raster</span> <span class="grid-canvas" id="grid-canvas" hidden></span> <span class="muted" data-i18n>· Klick auf eine Ebene zeigt ihre Effekte · Grafiken und Videos über „+ Clips“ hinzufügen oder auf eine Zeile ziehen</span></h2><span class="inline"><button class="btn small-btn" id="text-add" title="Text-Clip gestalten und auf die gewählte Ebene legen" data-i18n-title>+ Text</button><button class="btn small-btn" id="layer-add" data-i18n>+ Ebene</button></span></div>
       <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" multiple hidden>
       <div id="toast" class="toast" role="status" hidden></div>
       <div id="grid" class="clip-grid"></div>

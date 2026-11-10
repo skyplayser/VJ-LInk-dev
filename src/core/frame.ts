@@ -25,7 +25,7 @@ export const frameBeat = (f: Frame, nowMs: number): number =>
 // Nachrichten Main → Oberfläche
 export type ControlEvent =
   | { type: "dmx"; source: "artnet" | "sacn"; universe: number; data: Uint8Array }
-  | { type: "osc"; address: string; args: (number | string | boolean | null)[] }
+  | { type: "osc"; address: string; args: (number | string | boolean | null)[]; tags?: string }
   | { type: "lj"; raw: string }
   | { type: "lj-connection"; clients: number }
   | { type: "status"; status: NetStatus }
@@ -87,6 +87,8 @@ export type ProjectFileCmd = "new" | "open" | "save" | "saveAs" | "openPath";
 export interface VjBridge {
   onControl(cb: (e: ControlEvent) => void): void;
   publishFrame(f: Frame): void;
+  /** Grafikkarte hat den WebGL-Kontext verloren: Hauptprozess öffnet das Fenster neu. */
+  gpuLost?(): void;
   onFrame(cb: (f: Frame) => void): void;
   listDisplays(): Promise<DisplayInfo[]>;
   toggleOutput(displayId: number): Promise<DisplayInfo[]>;

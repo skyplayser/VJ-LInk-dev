@@ -1,6 +1,6 @@
 // LJ-Link PRO: VJ-Link meldet sich selbst an dessen Weboberfläche an (WebSocket „/ws“, Port 8080) und übersetzt
 // die Nachrichten in das VJ-Link-Protokoll (siehe ljlink.ts). So reicht es, LJ-Link PRO zu starten – ohne Einstellung dort.
-import { LJ_PROTOCOL_VERSION, parseLjMessage, type LjDeck, type LjMessage } from "./ljlink";
+import { LJ_PROTOCOL_VERSION, isDeckNo, parseLjMessage, type LjDeck, type LjMessage } from "./ljlink";
 
 export const LJ_PRO_PORT = 8080;
 /** Weboberfläche von LJ-Link PRO (wird übersetzt). */
@@ -80,7 +80,7 @@ export class LjProAdapter implements LjSource {
       return out;
     }
     if (m.type === "deckGone") {
-      const n = num(m.deck); if (n === undefined) return [];
+      const n = num(m.deck); if (!isDeckNo(n)) return [];
       this.decks.delete(n);
       this.tracks.delete(n); this.loops.delete(n); if (this.master === n) this.master = null;
       return [{ t: "gone", deck: n }];
@@ -96,7 +96,7 @@ export class LjProAdapter implements LjSource {
   }
 
   private deck(m: Obj, nowMs: number): LjMessage[] {
-    const n = num(m.deck); if (n === undefined) return [];
+    const n = num(m.deck); if (!isDeckNo(n)) return [];
     const dur = num(m.durationMs);
     const d: LjDeck = {
       deck: n, model: str(m.name, 60), playing: m.playing === true, onAir: m.onAir === true, master: m.master === true,

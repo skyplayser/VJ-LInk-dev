@@ -3,7 +3,7 @@
 import { app } from "electron";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { hashText, mediaFolderName, packProject, projectRefs, unpackProject, PROJECT_EXT } from "../core/projectfile";
+import { mediaFolderName, projectHash, packProject, projectRefs, unpackProject, PROJECT_EXT } from "../core/projectfile";
 import type { Storage } from "./storage";
 import { t } from "../core/i18n";
 
@@ -95,7 +95,7 @@ export class ProjectFiles {
     const tmp = `${file}.tmp`;
     await fs.writeFile(tmp, text);
     await fs.rename(tmp, file);
-    this.state.current = file; this.state.savedHash = hashText(projectJson); this.state.fresh = false;
+    this.state.current = file; this.state.savedHash = projectHash(projectJson); this.state.fresh = false;
     this.remember(file);
     await this.persist();
     this.dirty = false;

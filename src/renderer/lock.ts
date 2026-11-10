@@ -31,7 +31,7 @@ export class ShowLock {
       if (!this.on) return;
       e.preventDefault();
       btn.classList.add("holding");
-      this.holdTimer = window.setTimeout(() => { btn.classList.remove("holding"); this.justUnlocked = true; this.set(false); this.toast("Entsperrt."); }, HOLD_MS);
+      this.holdTimer = window.setTimeout(() => { btn.classList.remove("holding"); this.justUnlocked = true; this.set(false); this.toast(t("Entsperrt.")); }, HOLD_MS);
     });
     const cancel = () => { clearTimeout(this.holdTimer); btn.classList.remove("holding"); };
     btn.addEventListener("pointerup", cancel);

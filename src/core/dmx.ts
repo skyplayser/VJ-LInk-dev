@@ -56,9 +56,20 @@ export class DmxDecoder {
       if (idx >= frame.length) break;
       const v = frame[idx]!;
       if (rel === CH.scene) continue; // Szene zuletzt, damit sie nicht von Ebenenkanälen überschrieben wird
-      const isSlot = rel >= CH.slotBase && rel < CH.layerBase; // 0 ist bei Farben eine echte Aussage
-      if (this.first ? v === 0 && !isSlot : this.prev[idx] === v) continue; // erstes Bild: nur gesetzte Kanäle
+      if (rel >= CH.slotBase && rel < CH.layerBase) continue; // Farbslots gesondert, siehe unten
+      if (this.first ? v === 0 : this.prev[idx] === v) continue; // erstes Bild: nur gesetzte Kanäle
       this.apply(rel, v, state, out);
+    }
+    // Farbslots: Ein Slot gehört dem Pult erst, wenn einer seiner 4 Kanäle bewegt wird (oder beim ersten Bild
+    // nicht 0 ist). Dann zählen alle 4 Kanäle, auch 0 als echte Farbe. Sonst würde ein frisch gepatchtes Pult
+    // mit allen Kanälen auf 0 sämtliche Slots schwarz machen.
+    for (let slot = 0; slot < 5; slot++) {
+      const i0 = base + CH.slotBase - 1 + slot * 4;
+      if (i0 + 3 >= frame.length) break;
+      const vals = [frame[i0]!, frame[i0 + 1]!, frame[i0 + 2]!, frame[i0 + 3]!];
+      const touched = this.first ? vals.some(v => v > 0) : vals.some((v, c) => this.prev[i0 + c] !== v);
+      if (!touched) continue;
+      vals.forEach((v, c) => this.apply(CH.slotBase + slot * 4 + c, v, state, out));
     }
     const sceneIdx = base + CH.scene - 1;
     const sceneV = frame[sceneIdx] ?? 0;

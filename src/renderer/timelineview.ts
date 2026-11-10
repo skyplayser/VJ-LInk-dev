@@ -188,7 +188,9 @@ export class TimelineView {
     fxs.forEach((fb, k) => {
       const blk = el("div", `tlv-block tlv-fx k-${fb.kind}${k === this.selFx ? " sel" : ""}`);
       blk.style.left = `${pctOf(Math.max(a, fb.t))}%`;
-      blk.style.width = `${Math.max(0.4, pctOf(Math.min(b, fb.t + fb.len)) - pctOf(Math.max(a, fb.t)))}%`;
+      const w = Math.max(0.4, pctOf(Math.min(b, fb.t + fb.len)) - pctOf(Math.max(a, fb.t)));
+      blk.style.width = `${w}%`;
+      if (w < 3) blk.classList.add("tiny"); // zu schmal für Schrift: nur Farbe, Name im Tooltip
       blk.append(el("b", "", FX_LABEL[fb.kind]), el("small", "", fmt1(fb.len)));
       blk.title = t("{fx} ab {t}, {len} lang. In der Mitte ziehen verschiebt, an den Rändern ziehen ändert die Länge, Entf löscht.", { fx: FX_LABEL[fb.kind], t: fmt1(fb.t - a), len: fmt1(fb.len) });
       const hl = el("span", "tlv-h l"), hr = el("span", "tlv-h r");

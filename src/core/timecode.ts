@@ -118,8 +118,10 @@ export class TimecodeClock {
   /** Bildrate: beim Empfang aus dem Signal, beim Senden eingestellt. */
   fps: TcFps = 25;
   sendFps: TcFps = 25;
-  /** Versatz in Bildern (wird auf den empfangenen Wert addiert). */
-  offset = 0;
+  /** Versatz als Timecode (wird auf den empfangenen Wert addiert). Umgerechnet wird mit der Bildrate des Signals. */
+  offsetTc: Tc | null = null;
+  /** Versatz in Bildern bei der aktuellen Bildrate. */
+  get offset(): number { return this.offsetTc ? tcToFrames(this.offsetTc, this.fps) : 0; }
   /** Videos folgen dem Timecode (sonst werden sie nur gestartet). */
   chase = true;
   /** So lange läuft die Uhr bei einem Aussetzer weiter (Sekunden). */

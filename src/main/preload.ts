@@ -4,6 +4,7 @@ import type { ControlEvent, Frame, MediaEvent, NetConfig, VjBridge } from "../co
 const bridge: VjBridge = {
   onControl: cb => { ipcRenderer.on("control", (_e, ev: ControlEvent) => cb(ev)); },
   publishFrame: f => { ipcRenderer.send("frame", f); },
+  gpuLost: () => { ipcRenderer.send("gpu:lost"); },
   onFrame: cb => { ipcRenderer.on("frame", (_e, f: Frame) => cb(f)); },
   listDisplays: () => ipcRenderer.invoke("displays:list"),
   toggleOutput: id => ipcRenderer.invoke("displays:toggle", id),

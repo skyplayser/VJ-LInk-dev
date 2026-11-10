@@ -61,19 +61,61 @@ export interface LjState {
 export const newLjState = (): LjState =>
   ({ connected: false, privacy: false, decks: new Map(), masterDeck: null, loopActive: false, pos: new Map() });
 
+/** Gültige Deck-Nummer (1–16); begrenzt auch den Speicher für Decks, falls jemand Unsinn sendet. */
+export const MAX_DECKS = 16;
+export const isDeckNo = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= MAX_DECKS;
+
+const PHRASES: readonly string[] = ["intro", "up", "chorus", "down", "outro"];
+const fin = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const txt = (v: unknown, max = 200): string | undefined => typeof v === "string" && v ? v.slice(0, max) : undefined;
+/** Pfade bei LJ-Link (Cover, Wellenform) – nur relative API-Pfade. */
+const apiPath = (v: unknown): string | undefined => typeof v === "string" && /^\/api\/[\w\-./?=&%]{1,200}$/.test(v) ? v : undefined;
+
+/** Deck-Daten streng prüfen: Typen, Längen, Wertebereiche. Unbekannte Felder fallen weg. */
+function cleanDeck(v: unknown): LjDeck | null {
+  if (typeof v !== "object" || v === null) return null;
+  const d = v as Record<string, unknown>;
+  if (!isDeckNo(d.deck)) return null;
+  const out: LjDeck = { deck: d.deck, playing: d.playing === true, onAir: d.onAir === true, master: d.master === true,
+    bpm: fin(d.bpm) ? Math.max(0, Math.min(999, d.bpm)) : 0 };
+  const opt = { model: txt(d.model, 60), key: txt(d.key, 8), title: txt(d.title), artist: txt(d.artist), trackId: txt(d.trackId, 80),
+    art: apiPath(d.art), detail: apiPath(d.detail) };
+  for (const [k, val] of Object.entries(opt)) if (val !== undefined) (out as unknown as Record<string, unknown>)[k] = val;
+  if (typeof d.phrase === "string" && PHRASES.includes(d.phrase)) out.phrase = d.phrase as Phrase;
+  if (fin(d.position)) out.position = Math.max(0, Math.min(1, d.position));
+  if (d.detailStyle === "color" || d.detailStyle === "threeband") out.detailStyle = d.detailStyle;
+  if (fin(d.durationMs) && d.durationMs >= 0) out.durationMs = d.durationMs;
+  return out;
+}
+
+/** Nachricht von LJ-Link prüfen. Kommt aus dem Netz, also alles misstrauisch behandeln. */
 export function parseLjMessage(raw: string): LjMessage | null {
+  if (raw.length > 64 * 1024) return null;
   let m: unknown;
   try { m = JSON.parse(raw); } catch { return null; }
-  if (typeof m !== "object" || m === null || typeof (m as { t?: unknown }).t !== "string") return null;
-  const msg = m as LjMessage;
-  switch (msg.t) {
-    case "hello": return typeof msg.version === "number" ? msg : null;
-    case "tempo": return Number.isFinite(msg.bpm) && Number.isFinite(msg.beat) ? msg : null;
-    case "deck": return msg.deck && typeof msg.deck.deck === "number" ? msg : null;
-    case "event": return typeof msg.kind === "string" ? msg : null;
-    case "wave": return Number.isFinite(msg.bass) ? msg : null;
-    case "gone": return typeof msg.deck === "number" ? msg : null;
-    case "pos": return typeof msg.deck === "number" && Number.isFinite(msg.ms) && Number.isFinite(msg.v) ? msg : null;
+  if (typeof m !== "object" || m === null) return null;
+  const o = m as Record<string, unknown>;
+  switch (o.t) {
+    case "hello": return fin(o.version) ? { t: "hello", version: o.version, privacy: o.privacy === true, ...(txt(o.app, 60) ? { app: txt(o.app, 60) } : {}) } : null;
+    case "tempo":
+      if (!fin(o.bpm) || !fin(o.beat)) return null;
+      return { t: "tempo", bpm: o.bpm, beat: o.beat, ...(isDeckNo(o.masterDeck) ? { masterDeck: o.masterDeck } : {}) };
+    case "deck": { const deck = cleanDeck(o.deck); return deck ? { t: "deck", deck } : null; }
+    case "event": {
+      if (!isDeckNo(o.deck)) return null;
+      const deck = o.deck;
+      switch (o.kind) {
+        case "track": return { t: "event", kind: "track", deck };
+        case "phrase": return typeof o.phrase === "string" && PHRASES.includes(o.phrase) ? { t: "event", kind: "phrase", deck, phrase: o.phrase as Phrase } : null;
+        case "cue": { const cue = txt(o.cue, 8); return cue ? { t: "event", kind: "cue", deck, cue } : null; }
+        case "loop": return { t: "event", kind: "loop", deck, active: o.active === true, ...(fin(o.beats) ? { beats: o.beats } : {}) };
+      }
+      return null;
+    }
+    case "wave":
+      return isDeckNo(o.deck) && fin(o.bass) ? { t: "wave", deck: o.deck, bass: o.bass, mid: fin(o.mid) ? o.mid : 0, high: fin(o.high) ? o.high : 0 } : null;
+    case "gone": return isDeckNo(o.deck) ? { t: "gone", deck: o.deck } : null;
+    case "pos": return isDeckNo(o.deck) && fin(o.ms) && fin(o.v) ? { t: "pos", deck: o.deck, ms: o.ms, v: o.v } : null;
   }
   return null;
 }

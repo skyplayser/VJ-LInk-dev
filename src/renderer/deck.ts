@@ -52,8 +52,10 @@ function fader(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HT
   const input = el("input"); input.type = "range"; input.min = "0"; input.max = "1000"; input.className = "v";
   input.setAttribute("aria-label", `${d.label} (${d.id})`);
   let dragging = false;
-  input.addEventListener("pointerdown", () => { dragging = true; });
-  window.addEventListener("pointerup", () => { dragging = false; });
+  // Zeiger fangen statt auf window zu lauschen (das Pult wird oft neu gebaut, window-Listener blieben liegen)
+  input.addEventListener("pointerdown", e => { dragging = true; try { input.setPointerCapture(e.pointerId); } catch { /* egal */ } });
+  const stop = () => { dragging = false; };
+  input.addEventListener("pointerup", stop); input.addEventListener("pointercancel", stop); input.addEventListener("lostpointercapture", stop);
   input.addEventListener("input", () => { setControl(ctx, d.id, Number(input.value) / 1000); show(); });
   input.addEventListener("dblclick", () => { setControl(ctx, d.id, d.id === "master" ? 1 : 0); });
   const show = () => { val.textContent = d.format ? d.format(ctx) : String(Math.round(d.get(ctx) * 100)); };

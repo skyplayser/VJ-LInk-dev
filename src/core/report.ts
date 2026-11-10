@@ -12,8 +12,15 @@ export const ISSUE_LIMIT = 6500;
 export interface DiagSection { title: string; lines: string[] }
 
 /** Diagnosedaten als Text, Abschnitte wie bei LJ-Link („== Titel ==“). */
+/** Benutzernamen aus Pfaden entfernen (/Users/name, /home/name, C:\\Users\\name), bevor etwas das Gerät verlässt. */
+export function scrubPaths(text: string): string {
+  return text
+    .replace(/(\/(?:Users|home)\/)[^/\s"'):]+/g, "$1…")
+    .replace(/([A-Za-z]:[\\/]+Users[\\/]+)[^\\/\n"'):]+/gi, "$1…");
+}
+
 export function formatDiagnostics(sections: readonly DiagSection[]): string {
-  return sections.map(s => [`== ${s.title} ==`, ...s.lines].join("\n")).join("\n\n") + "\n";
+  return scrubPaths(sections.map(s => [`== ${s.title} ==`, ...s.lines].join("\n")).join("\n\n") + "\n");
 }
 
 /** Text des Berichts: Beschreibung, darunter (wenn gewünscht) die Diagnosedaten. */

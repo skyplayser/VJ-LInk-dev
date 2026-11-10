@@ -1,3 +1,4 @@
+import { scrubPaths } from "../src/core/report";
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -11,7 +12,7 @@ import { DEFAULT_SCENES, defaultScenes, defaultShow } from "../src/core/show";
 import { CATEGORY_LABEL, EFFECTS, READY_GENERATORS } from "../src/core/effects";
 import { CATEGORY_EN, EFFECT_EN, POST_EN } from "../src/core/i18n-catalog";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage, type LjMessage } from "../src/core/ljlink";
-import { handleLj, handleOsc, type ControlContext } from "../src/core/control";
+import { handleLj, handleOsc, showGo, type ControlContext } from "../src/core/control";
 
 function ctx(): ControlContext {
   return { show: defaultShow(), tempo: new TempoClock(), scenes: defaultScenes(), lj: newLjState(),
@@ -72,6 +73,14 @@ describe("Protokolle", () => {
     expect(msg[0]!.address).toBe("/vjlink/master/dimmer");
     expect(msg[0]!.args[0]).toBeCloseTo(0.5);
     expect(parseOsc(new Uint8Array([1, 2, 3]))).toEqual([]);
+    // Negative Blob-Länge darf den Parser nicht rückwärts laufen lassen (hing vorher Sekunden bis Stunden)
+    const evil = Uint8Array.from(Buffer.from("2f6100002c6273008000000041414141", "hex"));
+    const t0 = performance.now();
+    expect(parseOsc(evil)).toEqual([]);
+    const bundle = new Uint8Array(16 + 3 * 20); bundle.set(new TextEncoder().encode("#bundle\0"));
+    for (let i = 0; i < 3; i++) { new DataView(bundle.buffer).setInt32(16 + i * 20, 16); bundle.set(evil, 20 + i * 20); }
+    expect(parseOsc(bundle)).toEqual([]);
+    expect(performance.now() - t0).toBeLessThan(50);
     expect(parseOsc(new TextEncoder().encode("/x\0\0,i\0\0"))).toEqual([]); // fehlende Daten
   });
   it("LJ-Link-Nachrichten prüfen", () => {
@@ -143,6 +152,12 @@ describe("Steuerung", () => {
     const c = ctx();
     handleLj(c, { t: "hello", version: 1, privacy: false }, 0);
     handleLj(c, { t: "deck", deck: { deck: 2, playing: true, onAir: true, master: true, bpm: 128 } }, 0);
+    const before = c.show.scene;
+    handleLj(c, { t: "event", kind: "phrase", deck: 2, phrase: "chorus" } as LjMessage, 10);
+    expect(c.show.scene).toBe(before); // ohne Auto entscheidet das Pult
+    c.show.autoVj = true;
+    handleLj(c, { t: "event", kind: "phrase", deck: 1, phrase: "chorus" } as LjMessage, 10);
+    expect(c.show.scene).toBe(before); // nicht vom Master-Deck
     handleLj(c, { t: "event", kind: "phrase", deck: 2, phrase: "chorus" } as LjMessage, 10);
     expect(c.show.scene).toBe(4);
     handleLj(c, { t: "wave", deck: 2, bass: 0.9, mid: 0.2, high: 0.1 }, 20);
@@ -210,6 +225,7 @@ describe("Strobe", () => {
     const c = ctx();
     c.tempo.update("manual", 120, Date.now(), 0);
     handleLj(c, { t: "hello", version: 1, privacy: false }, Date.now());
+    c.show.autoVj = true;
     handleLj(c, { t: "event", kind: "cue", deck: 1, cue: "C" }, Date.now());
     expect(c.show.strobe.untilBeat).toBeGreaterThan(3);
   });
@@ -301,6 +317,7 @@ describe("Effekt-Stapel", () => {
     const c = ctx();
     setControl(c, "layer.2.fx.2", 0.6);
     expect(c.show.layers[1]!.effects[1]!.amount).toBe(0.6);
+    c.show.autoVj = true;
     handleLj(c, { t: "event", kind: "loop", deck: 1, active: true }, 0);
     expect(c.show.layers[1]!.effects[0]!.amount).toBe(0.8);
     c.show.layers[3]!.effects = [];
@@ -864,8 +881,11 @@ describe("Timecode", () => {
     expect(c.now(240)!.running).toBe(true);
     expect(c.now(3000)!.stale).toBe(true);
     expect(c.now(3000)!.running).toBe(false);
-    c.offset = 25; c.receive({ h: 0, m: 0, s: 2, f: 0 }, 25, "artnet", 4000);
+    c.offsetTc = { h: 0, m: 0, s: 1, f: 0 }; c.receive({ h: 0, m: 0, s: 2, f: 0 }, 25, "artnet", 4000);
     expect(c.now(4000)!.frames).toBe(75);
+    // Versatz 1 h bei 30 fps: ergibt 1 h, nicht 50 min (vorher mit 25 fps umgerechnet)
+    c.offsetTc = { h: 1, m: 0, s: 0, f: 0 }; c.receive({ h: 0, m: 0, s: 0, f: 0 }, 30, "artnet", 5000);
+    expect(c.now(5000)!.frames).toBe(30 * 3600);
     const s = new TimecodeClock(); s.sendOn = true; s.sendFps = 25;
     s.locate(100, 0); s.start(0);
     expect(s.now(1000)!.frames).toBeCloseTo(125);
@@ -1715,5 +1735,89 @@ describe("Fehler melden", () => {
     expect(r.url).toContain("github.com/skyplayser/VJ-LINK/issues/new?labels=bug&title=Ausgang%20flackert");
     expect(r.clipboard).toBe(false);
     expect(issueLink("x", "y".repeat(9000), "0.0.1", "hier").clipboard).toBe(true);
+  });
+});
+
+describe("Fehlerbericht", () => {
+  it("entfernt Benutzernamen aus Pfaden", () => {
+    expect(scrubPaths("at file:///Users/philipp/VJ-Link/app.js:3")).toBe("at file:///Users/…/VJ-Link/app.js:3");
+    expect(scrubPaths("C:\\Users\\Max Muster\\Desktop")).toBe("C:\\Users\\…\\Desktop");
+    expect(scrubPaths("/home/anna/x")).toBe("/home/…/x");
+  });
+});
+
+describe("Testtag: Live-Sicherheit", () => {
+  it("frisch gepatchtes Pult (alles 0) lässt die Farbslots stehen", () => {
+    const s = defaultShow();
+    const before = s.slots.map(x => [...x]);
+    const dec = new DmxDecoder(1);
+    dec.decode(new Uint8Array(512), s);
+    expect(s.slots).toEqual(before);
+    // Bewegt das Pult einen Slot-Kanal, gehören alle 4 Kanäle dieses Slots dem Pult
+    const f = new Uint8Array(512); f[CH.slotBase - 1] = 255; f[CH.slotBase] = 255; // Slot A: Dimmer, Rot
+    dec.decode(f, s);
+    expect(s.slots[0]).toEqual([1, 0, 0]);
+    expect(s.slots[1]).toEqual(before[1]);
+  });
+  it("doppeltes WEITER innerhalb 400 ms überspringt keinen Cue", () => {
+    const c = ctx();
+    c.cueEnv = { duration: () => 10, startTc: () => null } as unknown as ControlContext["cueEnv"];
+    c.cues.list = [newCue("black", "A"), newCue("black", "B"), newCue("black", "C")];
+    expect(showGo(c, 1000)).toBe("started");
+    expect(showGo(c, 1150)).toBe("blocked");
+    expect(c.cues.run.current).toBe(0);
+    expect(showGo(c, 1500)).toBe("started");
+    expect(c.cues.run.current).toBe(1);
+  });
+});
+
+describe("Testtag: Tempo-Faktor", () => {
+  it("Faktor wirkt auch bei LJ-Link und lässt die Beat-Position nicht springen", () => {
+    const c = new TempoClock();
+    c.update("ljlink", 128, 0, 0);
+    c.update("ljlink", 128, 600_000, 1280);
+    expect(c.bpm).toBe(128);
+    const before = c.beatAt(600_000);
+    c.setFactor(2, 600_000);
+    expect(c.beatAt(600_000)).toBeCloseTo(before);
+    expect(c.bpm).toBe(256);
+    c.update("ljlink", 128, 601_000);
+    expect(c.bpm).toBe(256);
+    c.setManual(64, 602_000); // Eingabe 128 bei Faktor 2 → Musik 64
+    expect(c.bpm).toBe(128);
+  });
+});
+
+describe("Testtag: OSC", () => {
+  it("Ebene per OSC, Ganzzahl-Regler 0–127 springt bei 1 nicht auf voll, Blackout mit F", () => {
+    const c = ctx();
+    expect(handleOsc(c, { address: "/vjlink/layer/1/opacity", args: [0.25], tags: "f" }, 0)).toBe(true);
+    expect(c.show.layers[0]!.opacity).toBeCloseTo(0.25);
+    handleOsc(c, { address: "/vjlink/master/dimmer", args: [1], tags: "i" }, 0);
+    expect(c.show.master).toBeCloseTo(1 / 127);
+    handleOsc(c, { address: "/vjlink/master/dimmer", args: [127], tags: "i" }, 0);
+    expect(c.show.master).toBeCloseTo(1);
+    handleOsc(c, { address: "/vjlink/blackout", args: [true] }, 0);
+    expect(c.show.blackout).toBe(true);
+    handleOsc(c, { address: "/vjlink/blackout", args: [false] }, 0);
+    expect(c.show.blackout).toBe(false);
+  });
+});
+
+describe("Testtag: Szenen und SHOW", () => {
+  it("Löschen und Verschieben von Szenen führt Cues und Timeline-Marken nach", async () => {
+    const { deleteScene, moveScene } = await import("../src/core/control");
+    const { newCue } = await import("../src/core/video");
+    const c = ctx();
+    const a = newCue("scene", "A"); a.scene = 6;
+    const b = newCue("scene", "B"); b.scene = 2;
+    const v = newCue("video", "V", "vid:aaaaaa"); v.marks = [{ t: 0, scene: 2, others: false }, { t: 5, scene: 4, others: false }];
+    c.cues.list = [a, b, v];
+    deleteScene(c, 1); // Szene 2 weg
+    expect(a.scene).toBe(5);
+    expect(b.scene).toBe(0);
+    expect(v.marks!.map(m => m.scene)).toEqual([3]);
+    moveScene(c, 2, 1); // 3 ↔ 4
+    expect(v.marks![0]!.scene).toBe(4);
   });
 });

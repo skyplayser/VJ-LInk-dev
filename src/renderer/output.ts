@@ -15,6 +15,8 @@ const displayId = Number(new URLSearchParams(location.search).get("display") ?? 
 
 const canvas = document.getElementById("out") as HTMLCanvasElement;
 const engine = new Engine(canvas);
+// Grafiktreiber zurückgesetzt (Absturz, Schlaf, Bildschirmwechsel): neu öffnen statt schwarz zu bleiben
+canvas.addEventListener("webglcontextlost", e => { e.preventDefault(); bridge?.gpuLost?.(); });
 let frame: Frame | null = null;
 // Videos kommen direkt aus der Bibliothek (vjmedia://), Ton gibt nur das Hauptfenster aus
 const videos = new VideoPool(id => `vjmedia://video/${id}`, false);

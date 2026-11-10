@@ -75,6 +75,7 @@ export class MappingEditor {
     if (!st || !this.open.some(o => o.id === this.screen)) return;
     st.replaceChildren();
     const f = this.frame();
+    if (!(f.w > 0 && f.h > 0)) return; // Bühne hat noch keine Größe (Tab gerade erst sichtbar)
     const root = svg("svg", { class: "mp-svg", width: st.clientWidth, height: st.clientHeight });
     root.append(svg("rect", { x: f.x, y: f.y, width: f.w, height: f.h, class: "mp-frame" }));
     // Bühnenfoto als Hilfe im Hintergrund

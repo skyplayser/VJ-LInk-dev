@@ -53,8 +53,8 @@ export class TcPanel {
     const c = this.clock, s = this.s;
     c.receiveOn = s.receive; c.sendOn = s.send; c.sendFrom = s.sendFrom;
     c.source = s.source; c.chase = s.chase; c.freewheel = s.freewheel; c.sendFps = s.fps;
-    const off = parseTc(s.offset, c.fps);
-    c.offset = off ? tcToFrames(off, c.fps) : 0;
+    // Bildanteil bis 29 erlauben; umgerechnet wird erst mit der Bildrate des empfangenen Signals
+    c.offsetTc = parseTc(s.offset, 30);
     clearInterval(this.timer);
     if (s.send) this.timer = window.setInterval(() => this.tick(), 1000 / (realRate(s.fps) * 4));
   }
@@ -111,7 +111,7 @@ export class TcPanel {
       seg(t("Quelle"), [["artnet", "Art-Net"], ["mtc", "MIDI (MTC)"]], () => s.source, v => { s.source = v; });
       seg(t("Videos"), [["chase", t("folgen dem Timecode")], ["start", t("werden nur gestartet")]], () => (s.chase ? "chase" : "start"), v => { s.chase = v === "chase"; });
       seg(t("Bei Aussetzer"), [["2", t("2 s weiterlaufen")], ["0.3", t("sofort anhalten")]], () => (s.freewheel >= 1 ? "2" : "0.3"), v => { s.freewheel = Number(v); });
-      text(t("Versatz"), () => s.offset, v => { if (!parseTc(v, this.clock.fps)) return false; s.offset = v; return true; }, t("wird zum empfangenen Wert addiert"));
+      text(t("Versatz"), () => s.offset, v => { if (!parseTc(v, 30)) return false; s.offset = v; return true; }, t("wird zum empfangenen Wert addiert"));
     }
 
     // ---- Ausgang
