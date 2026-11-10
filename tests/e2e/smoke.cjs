@@ -5,7 +5,8 @@
 // macOS:  node tests/e2e/smoke.cjs release/mac-arm64/VJ-Link.app/Contents/MacOS/VJ-Link /tmp/vj-report
 // Entwicklungsstand: npm run test:e2e (= node tests/e2e/smoke.cjs dev release/e2e)
 // Fasst keine laufende VJ-Link-Instanz an: eigener Datenordner, eigener Prozess, wird am Ende beendet.
-// Netzwerk-Test (Art-Net, OSC an 127.0.0.1) nur mit VJ_E2E_NET=1 und nur, wenn kein anderes VJ-Link läuft.
+// Netzwerk-Test (Art-Net, sACN, OSC, LJ-Link an 127.0.0.1) nur mit VJ_E2E_NET=1 (oder Liste wie sacn,osc,lj) und nur,
+// wenn kein anderes Programm auf diesen Ports lauscht (anderes VJ-Link, Lichtsoftware mit Art-Net …).
 "use strict";
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), dgram = require("dgram"), http = require("http");
@@ -134,21 +135,48 @@ async function main() {
 
   // 7) Netzwerk: Art-Net (Master auf 50 %) und OSC. Nur mit VJ_E2E_NET=1 und nur, wenn KEIN anderes VJ-Link läuft:
   //    die Pakete gehen an 127.0.0.1 und würden sonst eine laufende Instanz steuern.
-  if (process.env.VJ_E2E_NET !== "1") { log("Netzwerk-Eingang", true, "übersprungen (VJ_E2E_NET=1 setzen, wenn kein anderes VJ-Link läuft)"); }
+  //    VJ_E2E_NET=1 testet alles, sonst eine Liste, z. B. VJ_E2E_NET=sacn,osc,lj (wenn eine Lichtsoftware Art-Net belegt).
+  const netWant = (process.env.VJ_E2E_NET || "").toLowerCase();
+  const net = k => netWant === "1" || netWant.split(",").map(x => x.trim()).includes(k);
+  if (!netWant) { log("Netzwerk-Eingang", true, "übersprungen (VJ_E2E_NET=1 setzen, wenn kein anderes VJ-Link läuft)"); }
   else {
   const sock = dgram.createSocket("udp4");
   const art = Buffer.alloc(18 + 512); art.write("Art-Net\0", 0, "latin1"); art.writeUInt16LE(0x5000, 8); art.writeUInt16BE(14, 10); art.writeUInt16BE(512, 16); art[18] = 128;
   await c.eval("window.__vj.ctx.show.master = 1, true");
+  if (net("artnet")) {
   for (let i = 0; i < 10; i++) { sock.send(art, 6454, "127.0.0.1"); await wait(60); }
   await wait(400);
   const m = await c.eval("window.__vj.ctx.show.master");
   log("Art-Net-Eingang (Master über DMX)", Math.abs(m - 128 / 255) < 0.05, `Master = ${Math.round(m * 100)} %`);
+  }
   const osc = Buffer.concat([Buffer.from("/vj/ping\0\0\0\0", "latin1"), Buffer.from(",\0\0\0", "latin1")]);
+  if (net("osc")) {
   for (let i = 0; i < 5; i++) { sock.send(osc, 8000, "127.0.0.1"); await wait(60); }
   await wait(1200);
   const oscOk = await c.eval("document.getElementById('st-osc')?.classList.contains('ok')");
   log("OSC-Eingang", !!oscOk);
+  }
+  // sACN (E1.31) auf Universe 1: Master auf 25 %. Art-Net davor 2 s ruhen lassen, sonst gewinnt die frischere Quelle.
+  if (net("sacn")) {
+  if (net("artnet")) await wait(2500);
+  const sacn = Buffer.alloc(126 + 512); Buffer.from("ASC-E1.17", "latin1").copy(sacn, 4); sacn[108] = 100; sacn.writeUInt16BE(1, 113); sacn.writeUInt16BE(513, 123); sacn[125] = 0; sacn[126] = 64;
+  for (let i = 0; i < 10; i++) { sock.send(sacn, 5568, "127.0.0.1"); await wait(60); }
+  await wait(400);
+  const ms = await c.eval("window.__vj.ctx.show.master");
+  log("sACN-Eingang (Master über DMX)", Math.abs(ms - 64 / 255) < 0.05, `Master = ${Math.round(ms * 100)} %`);
+  }
   sock.close();
+  // LJ-Link: WebSocket auf Port 9099, Begrüßung wie LJ-Link
+  if (net("lj")) {
+  const lj = await new Promise(res => { try {
+    const w = new WebSocket("ws://127.0.0.1:9099");
+    w.onopen = () => w.send(JSON.stringify({ t: "hello", version: 1, privacy: false, app: "E2E-Test" }));
+    w.onerror = () => res(false);
+    setTimeout(async () => { const ok = await c.eval("window.__vj.ctx.lj.connected").catch(() => false); try { w.close(); } catch { /* egal */ } res(ok); }, 1500);
+  } catch { res(false); } });
+  log("LJ-Link-Verbindung (WebSocket)", !!lj);
+  }
+  await c.eval("window.__vj.ctx.show.master = 1, true");
   }
 
   const waitFor = async (expr, ms = 20000) => { const tw = Date.now(); while (Date.now() - tw < ms) { const v = await c.eval(expr, 5000).catch(() => null); if (v) return v; await wait(200); } return null; };
