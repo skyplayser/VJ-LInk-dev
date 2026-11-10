@@ -178,7 +178,7 @@
   <h2>LJ-Link</h2>
   <p class="muted small" data-i18n>VJ-Link findet LJ-Link automatisch, auf diesem Rechner und im Netzwerk (Bonjour). Normalerweise musst du nichts einstellen. Nur wenn LJ-Link nicht gefunden wird (z. B. in einem anderen Netz), trag hier die Adresse oder „Adresse:Port“ ein.</p>
   <div class="inline wrap lj-host">
-    <label class="inline"><span data-i18n>LJ-Link PRO auf</span> <input id="cfg-ljhost" type="text" placeholder="automatisch" spellcheck="false" autocomplete="off" maxlength="253" data-i18n-ph></label>
+    <label class="inline"><span data-i18n>LJ-Link auf</span> <input id="cfg-ljhost" type="text" placeholder="automatisch" spellcheck="false" autocomplete="off" maxlength="253" data-i18n-ph></label>
     <button class="btn small-btn" id="lj-open" title="Weboberfläche von LJ-Link im Browser öffnen" data-i18n-title data-i18n>LJ-Link öffnen</button>
   </div>
   <div class="inline wrap lj-host">
@@ -199,7 +199,9 @@
       <button data-sec="midi" data-i18n="set.midi">MIDI</button>
       <button data-sec="dmx" data-i18n="set.dmx">DMX und Netzwerk</button>
       <button data-sec="ui" data-i18n="set.ui">Oberfläche</button>
+      <button data-sec="safety" data-i18n>Sicherheit</button>
       <button data-sec="update" data-i18n="set.update">Update</button>
+      <button data-sec="about" data-i18n>Über VJ-Link</button>
       <button data-sec="report" data-i18n>Fehler melden</button>
     </nav>
     <div class="set-main">
@@ -232,7 +234,24 @@
           </select>
         </label>
         <p class="am-hint" data-i18n>Automatisch passt alles dem Fenster an, auch auf großen Bildschirmen.</p></div></section>
-      <section class="set-sec" data-sec="update" hidden><div id="set-update"></div></section>
+      <section class="set-sec" data-sec="safety" hidden>
+        <h3 data-i18n>Sicherheit im Live-Betrieb</h3>
+        <p class="am-hint" data-i18n>Schnelle Blitze, Strobe und starke Farbwechsel können bei Menschen mit fotosensitiver Epilepsie Anfälle auslösen. Halte die Blitzfrequenz niedrig (höchstens drei Blitze pro Sekunde), kündige Strobe-Effekte an, wenn der Veranstalter das verlangt, und beachte die Regeln des Veranstaltungsorts. Richte helle Projektorstrahlen im Nebel nicht in Augenhöhe auf das Publikum. Software kann ausfallen: Halte für die Show einen Plan B bereit.</p>
+        <label class="report-check"><input type="checkbox" id="safe-flash"> <span data-i18n>Sichere Blitze (höchstens 3 pro Sekunde)</span></label>
+        <p class="am-hint" data-i18n>Begrenzt Strobe, Strobe White, Ebenen-Strobe, Farb-Strobe und Beat-Invert. Schalte das nur bewusst aus, wenn der Veranstaltungsort schnellere Blitze erlaubt und das Publikum gewarnt ist.</p>
+      </section>
+      <section class="set-sec" data-sec="update" hidden><div id="set-update"></div>
+        <label class="report-check"><input type="checkbox" id="auto-update"> <span data-i18n>Automatisch nach Updates suchen</span></label>
+        <p class="am-hint" data-i18n>VJ-Link fragt beim Start und danach höchstens einmal pro Stunde bei GitHub nach einer neuen Version. GitHub erhält dabei die IP-Adresse dieses Rechners und die Programmversion. Sonst verlässt nichts dein Netzwerk. Ausgeschaltet suchst du nur, wenn du hier auf „Nach Updates suchen“ klickst.</p>
+      </section>
+      <section class="set-sec" data-sec="about" hidden>
+        <h3 data-i18n>Lizenz</h3>
+        <p class="am-hint" data-i18n>VJ-Link ist freie Software unter der Eclipse Public License 2.0. Der Quellcode liegt öffentlich auf GitHub. Kostenlos und ohne Gewähr.</p>
+        <div class="report-btns"><button class="btn" id="open-licenses" data-i18n>Lizenzen und Hinweise</button><button class="btn" id="open-source" data-i18n>Quellcode auf GitHub</button></div>
+        <h3 data-i18n>Marken</h3>
+        <p class="am-hint" data-i18n>VJ-Link ist ein unabhängiges Projekt und kein offizielles Produkt der genannten Hersteller; es wird von ihnen weder unterstützt noch geprüft. Alle genannten Produktnamen und Marken gehören ihren jeweiligen Inhabern und werden nur genannt, um die Kompatibilität zu beschreiben. Ableton und Link sind Marken der Ableton AG.</p>
+        <p class="am-hint">Art-Net™ Designed by and Copyright Artistic Licence Holdings Ltd</p>
+      </section>
     </div>
   </div>
 </div>

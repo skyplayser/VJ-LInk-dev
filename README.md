@@ -7,7 +7,7 @@
 
 Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt aus LJ-Link, Ableton Link, OSC oder MIDI. Schwesterprojekt von [LJ-Link](https://github.com/skyplayser/LJ-Link).
 
-> Stand: **Grundgerüst** (Version 0.1.0). Lauffähig, aber noch kein fertiges Programm.
+> Stand: **Beta 0.1.3**. Lauffähig und getestet auf macOS (Apple Silicon); vieles hat noch keine echte Bühnentechnik gesehen.
 
 ## Was schon läuft
 
@@ -91,7 +91,17 @@ docs/          Architektur, LJ-Link-Protokoll
 
 Electron mit TypeScript und WebGL2. Gründe: nur Bausteine mit freizügigen Lizenzen (MIT, Apache, BSD), läuft auf macOS und Windows, jede Oberfläche ist zugleich die spätere Fernbedienung, und Ausgabe und Oberfläche laufen in getrennten Prozessen. Das Konzept sah zuerst Rust und wgpu vor. Die Engine ist so gekapselt (`src/engine`), dass sie später ersetzt werden kann, wenn die Leistung es verlangt.
 
+## Sicherheit im Live-Betrieb
+
+Schnelle Blitze, Strobe und starke Farbwechsel können bei Menschen mit fotosensitiver Epilepsie Anfälle auslösen. Halte die Blitzfrequenz niedrig (höchstens drei Blitze pro Sekunde), kündige Strobe-Effekte an, wenn der Veranstalter das verlangt, und beachte die Regeln des Veranstaltungsorts. Richte helle Projektorstrahlen im Nebel nicht in Augenhöhe auf das Publikum. Software kann ausfallen: Halte für die Show einen Plan B bereit. VJ-Link zeigt diesen Hinweis vor dem ersten Ausgang; „Sichere Blitze“ (Einstellungen → Sicherheit, Standard an) begrenzt Strobe, Strobe White, Ebenen-Strobe, Farb-Strobe und Beat-Invert auf 3 Blitze pro Sekunde.
+
+Art-Net, sACN, OSC und der LJ-Link-Eingang haben keine Anmeldung (Branchenstandard). Trenne Show-Netz und Gäste-WLAN und erlaube in der Firewall nur das private Show-Netz.
+
 ## Lizenz
 
-Noch nicht festgelegt. Bis dahin gilt: alle Rechte vorbehalten. Abhängigkeiten und ihre Lizenzen: `THIRD_PARTY.md`.
+Eclipse Public License 2.0, siehe `LICENSE`. Drittanbieter-Bausteine und ihre Lizenzen: `THIRD_PARTY.md`; die App liefert alle Lizenztexte in `THIRD_PARTY_LICENSES.txt` mit (Hilfe → Lizenzen und Hinweise).
+
+Art-Net™ Designed by and Copyright Artistic Licence Holdings Ltd. VJ-Link ist ein unabhängiges Projekt und kein offizielles Produkt der genannten Hersteller; alle Marken gehören ihren Inhabern. Ableton und Link sind Marken der Ableton AG.
+
+[Impressum](https://skyplayser.github.io/VJ-LINK/impressum.html) · [Datenschutz](https://skyplayser.github.io/VJ-LINK/datenschutz.html)
 

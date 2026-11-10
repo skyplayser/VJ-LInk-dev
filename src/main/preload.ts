@@ -39,6 +39,7 @@ const bridge: VjBridge = {
   updateInstall: () => ipcRenderer.invoke("update:install"),
   onUpdate: cb => { ipcRenderer.on("update", (_e, st) => cb(st)); },
   openWeb: url => { ipcRenderer.send("web:open", url); },
+  openLicenses: () => { ipcRenderer.send("licenses:open"); },
   setLang: (lang, reload) => { ipcRenderer.send("ui:lang", lang, reload === true); },
 };
 contextBridge.exposeInMainWorld("vj", bridge);

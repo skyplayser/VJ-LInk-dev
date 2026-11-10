@@ -52,6 +52,7 @@ uniform int   uHasWave;
 
 const float PI = 3.14159265;
 
+// verbreitetes GLSL-Hash-Idiom (bekannt u. a. durch „The Art of Code“, Martijn Steinrucken), siehe THIRD_PARTY.md
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 vec3 hsv(float h, float s, float v){
   vec3 k = clamp(abs(fract(h + vec3(0.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
@@ -279,6 +280,7 @@ vec3 hypercube(vec2 uv){
 }
 
 // 12 Vektor-Gobos: Kreuz, Dreieck, Hexagon, alle 4 Beats wechselnd, im Takt skaliert
+// sdHex, sdTri: Distanzfunktionen nach Inigo Quilez (iquilezles.org/articles, MIT), siehe THIRD_PARTY.md
 float sdHex(vec2 p, float r){ const vec3 k = vec3(-0.8660254, 0.5, 0.57735); p = abs(p); p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy; p -= vec2(clamp(p.x, -k.z * r, k.z * r), r); return length(p) * sign(p.y); }
 float sdTri(vec2 p, float r){ const float k = 1.7320508; p.x = abs(p.x) - r; p.y = p.y + r / k; if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0; p.x -= clamp(p.x, -2.0 * r, 0.0); return -length(p) * sign(p.y); }
 float sdCross(vec2 p, float r){ p = abs(p); vec2 q = p.x > p.y ? p : p.yx; return length(max(q - vec2(r, r * 0.25), 0.0)) + min(max(q.x - r, q.y - r * 0.25), 0.0); }
@@ -373,6 +375,7 @@ vec3 fire(vec2 uv){
 }
 
 // 22 Liquid Light: Öl-Wasser-Farben, langsam fließend
+// Domain-Warping nach Inigo Quilez (MIT), siehe THIRD_PARTY.md
 vec3 liquidLight(vec2 uv){
   vec2 q = cp(uv) * 1.6;
   vec2 w = vec2(fbm(q + uTime * 0.05), fbm(q + vec2(5.2, 1.3) - uTime * 0.04));
@@ -806,6 +809,7 @@ vec3 beamBurst(vec2 uv){
 
 
 // ==== Moderne Techno-Visuals ===========================================================
+// Distanzfunktion nach Inigo Quilez (iquilezles.org/articles, MIT), siehe THIRD_PARTY.md
 float sdBox3(vec3 p, vec3 b){ vec3 q = abs(p) - b; return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0); }
 
 // -- Minimal / Monochrom --
@@ -1084,6 +1088,7 @@ vec3 hypnoSpiral(vec2 uv){
 }
 
 // -- Organisch und Flüssig --
+// Domain-Warping und Kosinus-Palette nach Inigo Quilez (MIT), siehe THIRD_PARTY.md
 vec3 ink(vec2 uv){
   vec2 p = cp(uv) * 2.0;
   vec2 q = vec2(fbm(p + uTime * 0.05), fbm(p + vec2(3.1, 1.7) + uTime * 0.04));
@@ -1170,16 +1175,40 @@ vec3 kifs(vec2 uv){
   }
   return hsv(0.55 + d * 20.0 + uTime * 0.03, 0.7, 1.0) * glowLine(d, 0.003, 0.002) * (0.8 + 0.4 * uPulse);
 }
+// Apollonisches Kreisfraktal, eigener Aufbau: Startfigur aus Einheitskreis und drei gleich großen Innenkreisen
+// (Descartes-Anordnung), dazu die vier dualen Kreise durch deren Berührpunkte. Gespiegelt (invertiert) wird an den
+// dualen Kreisen, bis der Punkt in keinem mehr liegt; dann ist er in einem der vier Startkreise. Abstand zu dessen
+// Rand / mitgeführte Streckung = Linienabstand auf dem Bildschirm.
 vec3 apollonian(vec2 uv){
-  vec2 p = rot(uTime * 0.05) * cp(uv) * (1.6 + 0.4 * sin(uTime * 0.2));
-  float sc = 1.0;
-  for (int i = 0; i < 8; i++) {
-    p = -1.0 + 2.0 * fract(0.5 * p + 0.5);
-    float k = 1.15 / max(dot(p, p), 1e-4);
-    p *= k; sc *= k;
+  float k = 2.3 / (1.0 + 0.3 * (0.5 + 0.5 * sin(uTime * 0.17)));
+  vec2 p = rot(uTime * 0.05) * cp(uv) * k;
+  float sc = 1.0, n = 0.0;
+  const float RI = 0.4641016, DI = 0.5358984, R0 = 0.2679492, RD2 = 3.0;
+  // außen: am Einheitskreis nach innen spiegeln (die Figur ist dabei unverändert)
+  float q = dot(p, p);
+  if (q > 1.0) { p /= q; sc /= q; }
+  for (int i = 0; i < 40; i++) {
+    float r2 = dot(p, p);
+    if (r2 < R0 * R0) { float f = R0 * R0 / max(r2, 1e-9); p *= f; sc *= f; n += 1.0; continue; }
+    bool moved = false;
+    for (int j = 0; j < 3; j++) {
+      float a = 4.712389 + float(j) * 2.0943951;           // gegenüber dem j-ten Innenkreis
+      vec2 c = 2.0 * vec2(cos(a), sin(a)), v = p - c;
+      float w = dot(v, v);
+      if (w < RD2) { float f = RD2 / w; p = c + v * f; sc *= f; n += 1.0; moved = true; break; }
+    }
+    if (!moved) break;
   }
-  float d = 0.25 * abs(p.y) / sc;
-  return hsv(0.08 + log(sc) * 0.05, 0.6, 1.0) * glowLine(d, 0.0025, 0.0015);
+  float d = abs(length(p) - 1.0);
+  float ring = 0.0;
+  for (int j = 0; j < 3; j++) {
+    float a = 1.5707963 + float(j) * 2.0943951;
+    float dj = abs(length(p - DI * vec2(cos(a), sin(a))) - RI);
+    if (dj < d) { d = dj; ring = float(j + 1); }
+  }
+  d = d / sc / k;
+  vec3 col = hsv(0.08 + n * 0.045 + ring * 0.06 + uTime * 0.02, 0.6, 1.0);
+  return col * glowLine(d, 0.0025, 0.0015) * (0.85 + 0.3 * uPulse);
 }
 vec3 carpet(vec2 uv){
   vec2 q = fract(cp(uv) * pow(3.0, fract(uTime * 0.1)) * 0.9 + 0.5);
@@ -1472,18 +1501,30 @@ vec3 lavaLamp(vec2 uv){
   float m = smoothstep(0.9, 1.1, f);
   return mix(vec3(0.08, 0.0, 0.12), hsv(0.02 + p.y * 0.1 + uTime * 0.01, 0.85, 1.0), m) + vec3(1.0, 0.6, 0.3) * smoothstep(1.1, 2.5, f) * 0.3;
 }
-vec3 caustics(vec2 uv){
-  vec2 p = mod(cp(uv) * 6.2832 * 1.5, 6.2832) - 250.0;
-  float c = 1.0;
-  vec2 i = p;
-  for (int n = 0; n < 5; n++) {
-    float t = uTime * 0.5 * (1.0 - 3.5 / float(n + 1));
-    i = p + vec2(cos(t - i.x) + sin(t + i.y), sin(t - i.y) + cos(t + i.x));
-    c += 1.0 / length(vec2(p.x / (sin(i.x + t) / 0.005), p.y / (cos(i.y + t) / 0.005)));
+// Lichtnetz am Poolgrund, eigener Aufbau: zwei Lagen wandernder Zellen (Voronoi); hell ist es dort, wo zwei Zellen
+// fast gleich nah sind (Abstand zweitnächster − nächster Zellpunkt klein), leicht verwirbelt durch Rauschen.
+vec2 cauPoint(vec2 g, float t){
+  float a = hash(g), b = hash(g + 17.3);
+  return 0.5 + 0.38 * vec2(sin(t * (0.6 + a) + a * 6.2832), cos(t * (0.5 + b) + b * 6.2832));
+}
+float cauEdge(vec2 p, float t){
+  vec2 g = floor(p), f = fract(p);
+  float d1 = 9.0, d2 = 9.0;
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 o = vec2(float(x), float(y));
+    vec2 r = o + cauPoint(g + o, t) - f;
+    float d = dot(r, r);
+    if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) { d2 = d; }
   }
-  c = 1.17 - pow(c / 5.0, 1.4);
-  float v = pow(abs(c), 8.0);
-  return clamp(vec3(v * 0.6, v * 0.9, v) + vec3(0.0, 0.12, 0.25), 0.0, 1.5) * (0.8 + 0.4 * uPulse);
+  return sqrt(d2) - sqrt(d1);
+}
+vec3 caustics(vec2 uv){
+  float t = uTime * 0.7;
+  vec2 p = cp(uv) * 3.0;
+  p += 0.35 * vec2(fbm(p * 0.6 + t * 0.15), fbm(p * 0.6 - t * 0.12 + 3.7));
+  float l = exp(-cauEdge(p, t) * 14.0) + 0.6 * exp(-cauEdge(p * 1.7 + 11.0, t * 1.3) * 18.0);
+  l *= l;
+  return clamp(vec3(0.0, 0.1, 0.22) + vec3(0.55, 0.85, 1.0) * l, 0.0, 1.5) * (0.8 + 0.4 * uPulse);
 }
 vec3 flowLines(vec2 uv){
   vec2 p = cp(uv) * 3.0;
@@ -1493,6 +1534,7 @@ vec3 flowLines(vec2 uv){
   float l = smoothstep(w, 0.0, abs(fract(k) - 0.5) - 0.5 + w * 1.5);
   return hsv(0.45 + n * 0.5 + uTime * 0.02, 0.7, 1.0) * l * (0.5 + n);
 }
+// Domain-Warping nach Inigo Quilez (MIT), siehe THIRD_PARTY.md
 vec3 domainWarp(vec2 uv){
   vec2 p = cp(uv) * 2.5;
   vec2 q = vec2(fbm(p + uTime * 0.05), fbm(p + vec2(5.2, 1.3)));
@@ -2112,6 +2154,7 @@ uniform vec3  uColA;
 uniform vec3  uColB;
 const float PI = 3.14159265;
 
+// verbreitetes GLSL-Hash-Idiom (bekannt u. a. durch „The Art of Code“, Martijn Steinrucken), siehe THIRD_PARTY.md
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 vec4 tex(vec2 uv){ return texture(uTex, uv); }
 vec3 hsv(float h, float s, float v){

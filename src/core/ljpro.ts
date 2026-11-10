@@ -61,7 +61,7 @@ export class LjProAdapter implements LjSource {
     if (!isObj(m) || typeof m.type !== "string") return [];
     if (m.type === "state") {
       this.recognized = true;
-      this.hello = { t: "hello", version: LJ_PROTOCOL_VERSION, privacy: m.privacy === true, app: "LJ-Link PRO" };
+      this.hello = { t: "hello", version: LJ_PROTOCOL_VERSION, privacy: m.privacy === true, app: "LJ-Link" };
       const out: LjMessage[] = [this.hello];
       // Sucht LJ-Link noch Player, gibt es keine Decks
       if (m.phase !== "monitoring") out.push(...this.clear());

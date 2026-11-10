@@ -86,9 +86,15 @@ interface Settings {
   ljHost: string;
   /** Now-Playing-Bauchbinde: Sekunden nach Trackwechsel (0 = immer). */
   ljHold: number;
+  /** Sichere Blitze: Strobe & Co. höchstens 3 × pro Sekunde (Standard an). */
+  safeFlash: boolean;
+  /** Beim Start und stündlich bei GitHub nach Updates fragen (Standard an). */
+  autoUpdate: boolean;
+  /** Sicherheitshinweis zum Live-Betrieb einmal bestätigt. */
+  safetyAck: boolean;
 }
 function loadSettings(): Settings {
-  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "", ljHold: 15 };
+  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "", ljHold: 15, safeFlash: true, autoUpdate: true, safetyAck: false };
   try {
     const raw = JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") as Partial<Settings>;
     return { ...d, ...raw, tc: { ...d.tc, ...(raw.tc ?? {}) } };
@@ -660,7 +666,7 @@ const tcPanel = new TcPanel(tcClock, settings.tc, saveSettings, {
 });
 ctx.tc = tcClock;
 const setBox = $("settings");
-const SEC_TITLE: Record<string, string> = { audio: t("set.audio"), timecode: t("set.timecode"), midi: t("set.midi"), dmx: t("set.dmx"), ui: t("set.ui"), update: t("set.update") };
+const SEC_TITLE: Record<string, string> = { audio: t("set.audio"), timecode: t("set.timecode"), midi: t("set.midi"), dmx: t("set.dmx"), ui: t("set.ui"), update: t("set.update"), safety: t("set.safety"), about: t("set.about") };
 function openSettings(sec = "audio"): void {
   setBox.hidden = false;
   setBox.querySelectorAll<HTMLButtonElement>(".set-nav [data-sec]").forEach(b => b.classList.toggle("on", b.dataset.sec === sec));
@@ -670,7 +676,38 @@ function openSettings(sec = "audio"): void {
   if (sec === "timecode") tcPanel.build($("set-tc"));
   if (sec === "midi") buildMidiSection();
   if (sec === "report") { closeSettings(); report.open(); return; }
-  if (sec === "update") { updates.mount($("set-update")); void updates.check(); }
+  if (sec === "update") { updates.mount($("set-update")); if (settings.autoUpdate) void updates.check(); }
+}
+// Sicherheit, Update-Suche, Lizenzen
+{
+  const safe = $<HTMLInputElement>("safe-flash"), auto = $<HTMLInputElement>("auto-update");
+  safe.checked = settings.safeFlash; auto.checked = settings.autoUpdate;
+  safe.addEventListener("change", () => {
+    settings.safeFlash = safe.checked; saveSettings();
+    toast(safe.checked ? t("Sichere Blitze an: höchstens 3 Blitze pro Sekunde.") : t("Sichere Blitze aus. Bitte nur, wenn der Veranstaltungsort schnellere Blitze erlaubt."));
+  });
+  auto.addEventListener("change", () => { settings.autoUpdate = auto.checked; saveSettings(); });
+  $("open-licenses").addEventListener("click", () => bridge?.openLicenses());
+  $("open-source").addEventListener("click", () => bridge?.openWeb("https://github.com/skyplayser/VJ-LInk-dev"));
+}
+/** Vor dem ersten Ausgang einmal den Sicherheitshinweis zeigen (Blitze, Laser-Looks im Nebel, Plan B). */
+function safetyAck(): Promise<boolean> {
+  if (settings.safetyAck) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const wrap = el("div", "report safety-dlg"); wrap.setAttribute("role", "dialog"); wrap.setAttribute("aria-modal", "true");
+    const box = el("div", "report-box");
+    box.append(el("h2", "", t("Sicherheit im Live-Betrieb")),
+      el("p", "", t("Schnelle Blitze, Strobe und starke Farbwechsel können bei Menschen mit fotosensitiver Epilepsie Anfälle auslösen. Halte die Blitzfrequenz niedrig (höchstens drei Blitze pro Sekunde), kündige Strobe-Effekte an, wenn der Veranstalter das verlangt, und beachte die Regeln des Veranstaltungsorts. Richte helle Projektorstrahlen im Nebel nicht in Augenhöhe auf das Publikum. Software kann ausfallen: Halte für die Show einen Plan B bereit.")),
+      el("p", "am-hint", t("„Sichere Blitze“ ist eingeschaltet und begrenzt Strobe & Co. auf 3 Blitze pro Sekunde (Einstellungen → Sicherheit).")));
+    const btns = el("div", "report-btns");
+    const ok = el("button", "btn primary", t("Verstanden")), no = el("button", "btn", t("Abbrechen"));
+    const done = (v: boolean) => { wrap.remove(); window.removeEventListener("keydown", key, true); if (v) { settings.safetyAck = true; saveSettings(); } resolve(v); };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); done(false); } };
+    ok.addEventListener("click", () => done(true)); no.addEventListener("click", () => done(false));
+    btns.append(ok, no); box.append(btns); wrap.append(box);
+    window.addEventListener("keydown", key, true);
+    document.body.append(wrap); ok.focus();
+  });
 }
 const closeSettings = () => { setBox.hidden = true; };
 setBox.querySelectorAll<HTMLButtonElement>(".set-nav [data-sec]").forEach(b => b.addEventListener("click", () => openSettings(b.dataset.sec)));
@@ -807,7 +844,7 @@ function renderDisplays(): void {
     const info = el("div"); info.append(el("b", "", `${d.window ? t("Fenster-Ausgang") : d.label.replace(/^Bildschirm (\d+)$/, (_, n: string) => t("Bildschirm {n}", { n }))}${d.primary ? t(" (Hauptbildschirm)") : ""}`));
     info.append(el("small", "", t("{w} × {h} Pixel", { w: Math.round(d.width * d.scaleFactor), h: Math.round(d.height * d.scaleFactor) })));
     const b = el("button", "btn", d.open ? t("Schließen") : d.window ? t("Fenster öffnen") : t("Als Ausgang öffnen"));
-    b.addEventListener("click", async () => { displays = await bridge!.toggleOutput(d.id); renderDisplays(); outputTab.render(); fitPreview(); });
+    b.addEventListener("click", async () => { if (!d.open && !(await safetyAck())) return; displays = await bridge!.toggleOutput(d.id); renderDisplays(); outputTab.render(); fitPreview(); });
     if (d.window) {
       // Fenster-Ausgang: Größe wählen; zum Abgreifen mit OBS, Resolume, Syphon-/NDI-Werkzeugen (Fensteraufnahme)
       info.querySelector("b")!.title = t("Normales Fenster statt Vollbild – zum Abgreifen per Fensteraufnahme (OBS, Syphon Recorder, NDI-Tools)");
@@ -1005,6 +1042,7 @@ function setPill(id: string, state: "ok" | "off" | "warn", text?: string): void 
 }
 
 function frame(): void {
+  ctx.show.safeFlash = settings.safeFlash;
   const now = Date.now();
   ctx.tempo.tick(now);
   tickTransition(ctx, now);
@@ -1256,7 +1294,7 @@ const startScreen = new StartScreen({
   openSettings: () => openSettings(),
   openMapping: () => { mapMenu.hidden = false; mapBtn.setAttribute("aria-expanded", "true"); },
   version: () => updates.state?.current ?? APP_VERSION,
-  mountUpdate: box => { updates.mount(box, true); void updates.check(); },
+  mountUpdate: box => { updates.mount(box, true); if (settings.autoUpdate) void updates.check(); },
   setLang: l => changeLang(l),
   report: () => report.open(),
   openWeb: url => { if (bridge) bridge.openWeb(url); else window.open(url, "_blank", "noopener"); },

@@ -37,9 +37,9 @@ export function bandsFrom(audio: AudioState, beat: number, tSec: number): number
 }
 
 /** 1 = Licht an. `division` 1..8: 1 = ein Blitz pro Beat, danach doppelt so schnell. */
-export function strobeGate(beat: number, division: number): number {
+export function strobeGate(beat: number, division: number, bpm = 120, maxHz = Infinity): number {
   if (division <= 0) return 1;
-  const rate = Math.pow(2, division - 1);
+  const rate = limitRate(Math.pow(2, division - 1), bpm, maxHz);
   const ph = beat * rate;
   return ph - Math.floor(ph) < 0.3 ? 1 : 0;
 }
@@ -60,34 +60,40 @@ export function strobeActive(s: StrobeState, beat: number): boolean {
   return s.on || s.flash || beat < s.untilBeat;
 }
 
-/** Blitze pro Sekunde bei 'bpm' (nur zur Anzeige). */
-export function strobeHz(s: StrobeState, bpm: number): number {
-  if (!s.sync) return STROBE_MIN_HZ + s.speed * (STROBE_MAX_HZ - STROBE_MIN_HZ);
-  return STROBE_DIVISIONS[Math.min(STROBE_DIVISIONS.length - 1, Math.floor(s.speed * STROBE_DIVISIONS.length))]! * bpm / 60;
+/** „Sichere Blitze“: höchstens so viele Blitze pro Sekunde (Richtwert gegen fotosensitive Anfälle). */
+export const SAFE_FLASH_HZ = 3;
+
+/** Blitze pro Beat so lange halbieren, bis höchstens `maxHz` Blitze pro Sekunde herauskommen (bleibt im Takt). */
+export function limitRate(perBeat: number, bpm: number, maxHz: number): number {
+  let r = perBeat;
+  while (r * bpm / 60 > maxHz + 1e-9 && r > 1 / 64) r /= 2;
+  return r;
+}
+
+const syncDivision = (s: StrobeState) => STROBE_DIVISIONS[Math.min(STROBE_DIVISIONS.length - 1, Math.floor(s.speed * STROBE_DIVISIONS.length))]!;
+
+/** Blitze pro Sekunde bei 'bpm' (mit `maxHz` = so, wie es mit „Sichere Blitze“ tatsächlich läuft). */
+export function strobeHz(s: StrobeState, bpm: number, maxHz = Infinity): number {
+  if (!s.sync) return Math.min(maxHz, STROBE_MIN_HZ + s.speed * (STROBE_MAX_HZ - STROBE_MIN_HZ));
+  return limitRate(syncDivision(s), bpm, maxHz) * bpm / 60;
 }
 
 /** Phase des Strobes (gleiche Geschwindigkeit für normales und weißes Strobe): true = Blitz. */
-function strobePhaseOn(s: StrobeState, beat: number, tSec: number, bpm: number): boolean {
-  const phase = s.sync
-    ? beat * STROBE_DIVISIONS[Math.min(STROBE_DIVISIONS.length - 1, Math.floor(s.speed * STROBE_DIVISIONS.length))]!
-    : tSec * strobeHz(s, bpm);
+function strobePhaseOn(s: StrobeState, beat: number, tSec: number, bpm: number, maxHz: number): boolean {
+  const phase = s.sync ? beat * limitRate(syncDivision(s), bpm, maxHz) : tSec * strobeHz(s, bpm, maxHz);
   return phase - Math.floor(phase) < STROBE_DUTY;
 }
 
 /** Strobe White: Anteil Weiß 0–1, der über das ganze Bild gelegt wird (Intensität = Helligkeit des Blitzes). */
-export function strobeWhite(s: StrobeState, beat: number, tSec: number, bpm = 120): number {
+export function strobeWhite(s: StrobeState, beat: number, tSec: number, bpm = 120, maxHz = Infinity): number {
   if (!s.white && !s.whiteFlash) return 0;
-  return strobePhaseOn(s, beat, tSec, bpm) ? Math.max(0.05, s.intensity) : 0;
+  return strobePhaseOn(s, beat, tSec, bpm, maxHz) ? Math.max(0.05, s.intensity) : 0;
 }
 
 /** Helligkeitsfaktor 0–1 für das Master-Strobe. `tSec` nur für die freie Frequenz. */
-export function strobeGain(s: StrobeState, beat: number, tSec: number, bpm = 120): number {
+export function strobeGain(s: StrobeState, beat: number, tSec: number, bpm = 120, maxHz = Infinity): number {
   if (!strobeActive(s, beat)) return 1;
-  const phase = s.sync
-    ? beat * STROBE_DIVISIONS[Math.min(STROBE_DIVISIONS.length - 1, Math.floor(s.speed * STROBE_DIVISIONS.length))]!
-    : tSec * strobeHz(s, bpm);
-  const on = phase - Math.floor(phase) < STROBE_DUTY;
-  return on ? 1 : 1 - s.intensity;
+  return strobePhaseOn(s, beat, tSec, bpm, maxHz) ? 1 : 1 - s.intensity;
 }
 
 // ---- Analyse eines Audio-Eingangs ------------------------------------------------------

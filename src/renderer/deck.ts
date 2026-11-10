@@ -3,7 +3,7 @@
 // die später auch per MIDI belegt werden.
 import { CONTROLS, setControl, type ControlDef } from "../core/controls";
 import { recallScene, stepScene } from "../core/control";
-import { strobeHz } from "../core/audio";
+import { SAFE_FLASH_HZ, strobeHz } from "../core/audio";
 import type { ControlContext } from "../core/control";
 import { t } from "../core/i18n";
 
@@ -38,7 +38,7 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
       const info = el("div", "info"); box.append(info);
       updaters.push(() => {
         const s = ctx.show.strobe;
-        info.textContent = `${strobeHz(s, ctx.tempo.bpm).toFixed(1)} Hz · ${s.sync ? t("im Takt") : t("frei")}`;
+        info.textContent = `${strobeHz(s, ctx.tempo.bpm, ctx.show.safeFlash === false ? Infinity : SAFE_FLASH_HZ).toFixed(1)} Hz · ${s.sync ? t("im Takt") : t("frei")}`;
       });
     }
     mount.append(box);

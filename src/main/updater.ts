@@ -3,10 +3,11 @@
 // der alten und startet sie. Windows: Der Installer wird gestartet und ersetzt die installierte Version.
 import { app, shell } from "electron";
 import { spawn } from "node:child_process";
-import { createWriteStream, promises as fs } from "node:fs";
+import { createHash, verify as verifySig } from "node:crypto";
+import { createReadStream, createWriteStream, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { isNewer, pickRelease, RELEASES_PAGE, UPDATE_REPO, type UpdateState } from "../core/update";
+import { isNewer, parseSums, pickRelease, RELEASES_PAGE, UPDATE_PUBLIC_KEY, UPDATE_REPO, type ReleaseInfo, type UpdateState } from "../core/update";
 import { t } from "../core/i18n";
 
 const HOUR = 3_600_000;
@@ -53,12 +54,20 @@ export class Updater {
   async install(confirmQuit: () => Promise<boolean>): Promise<UpdateState> {
     const rel = this.state.latest;
     if (this.busy || this.state.status !== "available" || !rel) return this.state;
-    // Ohne passendes Paket oder in der Entwicklungsversion: Seite der Veröffentlichung öffnen
-    if (!rel.url || this.state.dev) { void shell.openExternal(rel.page || RELEASES_PAGE); return this.state; }
+    // Ohne passendes Paket, ohne Prüfsumme oder in der Entwicklungsversion: Seite der Veröffentlichung öffnen
+    if (!rel.url || !rel.sha256 || this.state.dev) { void shell.openExternal(rel.page || RELEASES_PAGE); return this.state; }
     this.busy = true;
     try {
       this.set({ status: "downloading", progress: 0, message: undefined });
       const file = await this.download(rel.url, rel.asset, rel.size);
+      // Echtheit: SHA-256 muss zu GitHub passen; mit eigenem Schlüssel zusätzlich die signierte Prüfsummenliste
+      const hash = await sha256File(file);
+      if (hash !== rel.sha256) throw new Error(t("Prüfsumme stimmt nicht, das Paket wird nicht installiert."));
+      if (UPDATE_PUBLIC_KEY && !(await this.signed(rel, hash))) {
+        void shell.openExternal(rel.page || RELEASES_PAGE);
+        this.set({ status: "available", progress: undefined, message: t("Keine gültige Signatur: Bitte von der Seite der Veröffentlichung laden.") });
+        return this.state;
+      }
       if (!(await confirmQuit())) { this.set({ status: "available", progress: undefined, message: t("Update geladen, Installation abgebrochen.") }); return this.state; }
       this.set({ status: "installing", progress: 1 });
       await this.runInstaller(file);
@@ -69,6 +78,18 @@ export class Updater {
       this.busy = false;
     }
     return this.state;
+  }
+
+  /** SHA256SUMS mit dem eingebauten öffentlichen Schlüssel prüfen und den Eintrag des Pakets vergleichen. */
+  private async signed(rel: ReleaseInfo, hash: string): Promise<boolean> {
+    if (!rel.sumsUrl || !rel.sigUrl) return false;
+    try {
+      const get = async (u: string) => { const r = await fetch(u, { headers: { "User-Agent": `VJ-Link/${this.state.current}` }, signal: AbortSignal.timeout(15_000) }); if (!r.ok) throw new Error(String(r.status)); return Buffer.from(await r.arrayBuffer()); };
+      const [sums, sig] = await Promise.all([get(rel.sumsUrl), get(rel.sigUrl)]);
+      if (sums.length > 64_000 || sig.length > 1_000) return false;
+      if (!verifySig(null, sums, UPDATE_PUBLIC_KEY, sig)) return false;
+      return parseSums(sums.toString("utf8")).get(rel.asset) === hash;
+    } catch { return false; }
   }
 
   private async download(url: string, name: string, size: number): Promise<string> {
@@ -117,6 +138,12 @@ open "$APP"
     const log = await fs.open(path.join(path.dirname(file), "update.log"), "w");
     spawn("/bin/bash", [script, String(process.pid), file, bundle], { detached: true, stdio: ["ignore", log.fd, log.fd] }).unref();
   }
+}
+
+async function sha256File(file: string): Promise<string> {
+  const h = createHash("sha256");
+  for await (const chunk of createReadStream(file)) h.update(chunk as Buffer);
+  return h.digest("hex");
 }
 
 /** Der .app-Ordner, aus dem VJ-Link läuft (nur in der fertigen App). */

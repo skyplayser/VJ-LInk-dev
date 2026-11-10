@@ -52,7 +52,7 @@ Fertig, wenn: ein Controller ohne Maus die ganze Show fährt, und jede Zuordnung
 
 | # | Schritt | Inhalt | Aufwand |
 |---|---|---|---|
-| 5.1 | Bilder und Videos | Bilder/Logos und Videos (Clip mit Takt-Loop, SHOW-Ablauf) erledigt. Offen: Lizenzfrage H.264 klären, nahtloser Loop mit zwei Abspielern | L | erledigt |
+| 5.1 | Bilder und Videos | Bilder/Logos und Videos (Clip mit Takt-Loop, SHOW-Ablauf) erledigt. Videodekodierung (H.264, HEVC, VP9, AV1) macht Chromium bzw. das Betriebssystem in Electron, VJ-Link liefert keinen eigenen Codec; Hinweise in LICENSES.chromium.html. Offen: nahtloser Loop mit zwei Abspielern | L | erledigt |
 | 5.2 | Text | Text-Clips mit Editor erledigt. Offen: Laufschrift, Tracktitel/DJ-Name live aus LJ-Link | M | teilweise |
 | 5.3 | Auto-VJ | Szenenwechsel bei Phrasen oder alle n Takte | S | erledigt |
 

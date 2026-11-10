@@ -254,9 +254,18 @@ function buildMenu(): void {
       { label: t("Fehler melden …"), click: menuSend("report") },
       { label: t("Website und Anleitungen"), click: () => { void shell.openExternal("https://skyplayser.github.io/VJ-LINK/"); } },
       { label: "Discord", click: () => { void shell.openExternal("https://discord.gg/N6DMca4Bjk"); } },
+      { type: "separator" },
+      { label: t("Lizenzen und Hinweise"), click: () => openLicenses() },
+      { label: t("Quellcode auf GitHub"), click: () => { void shell.openExternal("https://github.com/skyplayser/VJ-LInk-dev"); } },
     ] },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/** Lizenzen und Hinweise: in der App neben app.asar (extraResources), in der Entwicklung in dist/. */
+function openLicenses(): void {
+  const file = app.isPackaged ? path.join(process.resourcesPath, "THIRD_PARTY_LICENSES.txt") : path.join(__dirname, "..", "THIRD_PARTY_LICENSES.txt");
+  void shell.openPath(file);
 }
 
 function displayInfo(d: Display): DisplayInfo {
@@ -390,7 +399,12 @@ app.whenReady().then(async () => {
   await storage.init();
   files = new ProjectFiles(storage, path.join(app.getPath("userData"), "state.json"));
   await files.init();
-  app.setAboutPanelOptions({ applicationName: "VJ-Link", applicationVersion: app.getVersion() });
+  app.setAboutPanelOptions({
+    applicationName: "VJ-Link", applicationVersion: app.getVersion(),
+    copyright: "© 2026 Philipp Spruck / NEXTPHILM · Eclipse Public License 2.0",
+    credits: `${t("Quellcode")}: https://github.com/skyplayser/VJ-LInk-dev\n${t("Lizenzen und Hinweise: Hilfe → Lizenzen und Hinweise")}\n\nArt-Net™ Designed by and Copyright Artistic Licence Holdings Ltd\n${t("Ableton und Link sind Marken der Ableton AG. Kein offizielles Produkt der genannten Hersteller; alle Marken gehören ihren Inhabern.")}`,
+    website: "https://skyplayser.github.io/VJ-LINK/",
+  });
   setLang(await savedLang());
   buildMenu();
   protocol.handle("vjmedia", req => storage!.serveVideo(req));
@@ -514,6 +528,7 @@ app.whenReady().then(async () => {
     });
   });
   // Nur bekannte Seiten öffnen (Instagram, Veröffentlichungen auf GitHub)
+  ipcMain.on("licenses:open", e => { if (fromControl(e)) openLicenses(); });
   ipcMain.on("web:open", (e, url: unknown) => {
     if (!fromControl(e) || typeof url !== "string") return;
     if (/^https:\/\/(www\.)?(instagram\.com|github\.com)\//.test(url) || /^mailto:fehlermelden@nextphilm\.de\?/.test(url)) void shell.openExternal(url);

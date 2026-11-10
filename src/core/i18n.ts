@@ -75,6 +75,8 @@ const D: Record<string, Entry> = {
   "set.dmx": { de: "DMX und Netzwerk", en: "DMX and network" },
   "set.ui": { de: "Oberfläche", en: "Interface" },
   "set.update": { de: "Update", en: "Update" },
+  "set.safety": { de: "Sicherheit", en: "Safety" },
+  "set.about": { de: "Über VJ-Link", en: "About VJ-Link" },
   "set.close": { de: "Schließen (Esc)", en: "Close (Esc)" },
   // Kamera: Regler mit Personen-Erkennung („Kontur“ heißt hier: wie eng an der Person)
   "cam.tight": { de: "Kontur", en: "Tightness" },

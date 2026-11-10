@@ -151,7 +151,7 @@ export class LayerPanel {
     const reset = el("button", "btn small-btn", t("Lage zurücksetzen"));
     reset.addEventListener("click", () => { l.laser = { ...defaultLaser(), override: l.laser?.override ?? false }; });
     this.root.append(reset, el("p", "muted small lp-hint", isLaser
-      ? t("Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt sie von dort aus. „Stärke“ macht Linien und Punkte dicker, damit sie im Nebel besser wirken. Alles lässt sich auch mappen. Doppelklick setzt einen Regler zurück.")
+      ? t("Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt sie von dort aus. „Stärke“ macht Linien und Punkte dicker, damit sie im Nebel besser wirken. Richte den Projektorstrahl nicht in Augenhöhe auf das Publikum. Alles lässt sich auch mappen. Doppelklick setzt einen Regler zurück.")
       : t("Verschieben, vergrößern, drehen – was über den Rand hinausragt, bleibt schwarz. Alles lässt sich auch mappen (MIDI, DMX, OSC). Doppelklick setzt einen Regler zurück.")));
   }
 }

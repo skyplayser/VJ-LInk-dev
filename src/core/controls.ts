@@ -1,7 +1,7 @@
 // Register aller Bedienelemente. Oberfläche, MIDI, OSC und Pult greifen alle darauf zu.
 // Jedes Element hat eine feste ID; Werte laufen immer von 0 bis 1.
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
-import { STROBE_DIVISIONS, strobeHz } from "./audio";
+import { SAFE_FLASH_HZ, STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
 import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAIN_STACK, MAX_IMAGES, MAX_LAYERS, SLOT_NAMES, allStacks, clamp01, imageList, selectCanvas, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
@@ -50,7 +50,7 @@ export function buildControls(): ControlDef[] {
       get: c => c.show.strobe.speed, set: (c, v) => { c.show.strobe.speed = clamp01(v); },
       format: c => c.show.strobe.sync
         ? `${STROBE_DIVISIONS[stepIndex(c.show.strobe.speed, STROBE_DIVISIONS.length)]}×`
-        : `${strobeHz(c.show.strobe, 120).toFixed(0)}Hz` },
+        : `${strobeHz(c.show.strobe, 120, c.show.safeFlash === false ? Infinity : SAFE_FLASH_HZ).toFixed(0)}Hz` },
     { id: "strobe.intensity", label: t("Intens."), group: "Strobe", kind: "fader", quick: true,
       get: c => c.show.strobe.intensity, set: (c, v) => { c.show.strobe.intensity = clamp01(v); } },
     { id: "strobe.on", label: "Strobe", group: "Strobe", kind: "toggle", quick: true,

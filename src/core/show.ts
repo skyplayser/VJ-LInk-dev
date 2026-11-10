@@ -175,6 +175,8 @@ export interface AudioState {
 export interface ShowState {
   master: number;
   strobe: StrobeState;
+  /** „Sichere Blitze“: Strobe, Farb-Strobe und Beat-Invert höchstens 3 × pro Sekunde (fehlt = an). Kommt aus den Einstellungen. */
+  safeFlash?: boolean;
   blackout: boolean;
   scene: number;
   /** Übergangsdauer in Beats (0 = Schnitt). */

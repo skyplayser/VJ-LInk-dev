@@ -3,7 +3,7 @@
 // → mit Deckkraft und Mischmodus in die Komposition. Während einer Überblendung gibt es zwei
 // Kompositionen (alt und neu), die der letzte Schritt mischt und mit Master und Strobe versieht.
 import { CAM_LOOKS, camIdOf, isCamClip, isMaskLook, usesFigure } from "../core/camera";
-import { WAVE_POINTS, bandsFrom, beatPulse, layerDrive, strobeGain, strobeGate, strobeWhite } from "../core/audio";
+import { SAFE_FLASH_HZ, WAVE_POINTS, bandsFrom, beatPulse, layerDrive, strobeGain, strobeGate, strobeWhite } from "../core/audio";
 import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
   MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
@@ -17,6 +17,10 @@ const COLOR_MODE: Record<ColorSource, number> = {
   original: 0, A: 1, B: 1, C: 1, D: 1, E: 1, gradient: 2, rainbow: 3, multi: 4,
 };
 const SLOT_INDEX: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+/** Blitz-Effekte und ihre Puls-Schwelle im Shader (Beat-Invert 0,65, Farb-Strobe 0,6). */
+const FLASH_FX: Record<string, number> = { "beat-invert": 0.65, "color-strobe": 0.6 };
+/** Höchste Blitzfrequenz: mit „Sichere Blitze“ (Standard) 3 pro Sekunde, sonst unbegrenzt. */
+const flashLimit = (show: ShowState): number => (show.safeFlash === false ? Infinity : SAFE_FLASH_HZ);
 
 interface Target { tex: WebGLTexture; fb: WebGLFramebuffer; w: number; h: number }
 interface Program { p: WebGLProgram; u: Map<string, WebGLUniformLocation | null> }
@@ -74,6 +78,8 @@ export class Engine {
   private canvasT: Target | null = null;
   /** Feedback braucht das letzte Bild: pro Ebene (bzw. Vorschauzelle) zwei Texturen im Wechsel. */
   private feedback = new Map<string, { t: [Target, Target]; cur: 0 | 1; used: number }>();
+  /** Sichere Blitze: Zustand je Ebene und Blitz-Effekt. */
+  private flashGate = new Map<string, { high: boolean; ok: boolean; start: number }>();
   private layerTime = new Array<number>(MAX_LAYERS).fill(0);
   private thumbTime = new Array<number>(MAX_LAYERS).fill(0);
   private lastSec = 0;
@@ -395,6 +401,9 @@ export class Engine {
       } else {
         dst = src === this.work[0] ? this.work[1]! : this.work[0]!;
       }
+      // Sichere Blitze: Beat-Invert und Farb-Strobe blitzen höchstens 3 × pro Sekunde (auch bei Audio-Antrieb)
+      const thr = FLASH_FX[slot.id];
+      gl.uniform1f(this.loc(p, "uPulse"), thr === undefined ? pulse : this.limitFlash(`${fbKey}:${slot.id}`, pulse, thr, show));
       this.bindTex(0, src);
       gl.uniform1f(this.loc(p, "uAmount"), amount);
       gl.uniform1i(this.loc(p, "uEffect"), eff);
@@ -403,6 +412,18 @@ export class Engine {
       src = dst;
     }
     return src;
+  }
+
+  /** Neuer Blitz (Puls steigt über die Schwelle) nur, wenn der letzte mindestens 1/3 s her ist; sonst Puls 0. */
+  private limitFlash(key: string, pulse: number, threshold: number, show: ShowState): number {
+    if (flashLimit(show) === Infinity) return pulse;
+    const now = performance.now();
+    let st = this.flashGate.get(key);
+    if (!st) { st = { high: false, ok: true, start: -1e9 }; this.flashGate.set(key, st); }
+    const high = pulse >= threshold;
+    if (high && !st.high) { st.ok = now - st.start >= 1000 / SAFE_FLASH_HZ; if (st.ok) st.start = now; }
+    st.high = high;
+    return high && !st.ok ? 0 : pulse;
   }
 
   private feedbackPair(key: string, w: number, h: number): { t: [Target, Target]; cur: 0 | 1; used: number } {
@@ -423,7 +444,7 @@ export class Engine {
     gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
     for (let i = 0; i < layers.length && i < MAX_LAYERS; i++) {
       const l = layers[i]!;
-      const op = l.opacity * strobeGate(beat, l.strobe);
+      const op = l.opacity * strobeGate(beat, l.strobe, this.bpm, flashLimit(show));
       if (op <= 0.001 || !l.clip) continue;
       const img = this.renderLayer(l, `${prefix}${i}`, this.layerTime[i]!, out.w, out.h, show, beat, pulse, bands, i > 0);
       if (!img) continue;
@@ -670,9 +691,9 @@ export class Engine {
     gl.uniform1i(this.loc(this.fin, "uTo"), 1);
     gl.uniform1f(this.loc(this.fin, "uMix"), mix);
     gl.uniform1i(this.loc(this.fin, "uDip"), show.transition?.style === "black" ? 1 : 0);
-    gl.uniform1f(this.loc(this.fin, "uGain"), show.master * gain * (deferFlash ? 1 : strobeGain(show.strobe, beat, sec, bpm)));
+    gl.uniform1f(this.loc(this.fin, "uGain"), show.master * gain * (deferFlash ? 1 : strobeGain(show.strobe, beat, sec, bpm, flashLimit(show))));
     // Strobe White und Blinder wirken auch bei Master 0, aber nicht bei Blackout
-    gl.uniform1f(this.loc(this.fin, "uWhite"), deferFlash ? 0 : Math.max(strobeWhite(show.strobe, beat, sec, bpm), show.blinder ?? 0));
+    gl.uniform1f(this.loc(this.fin, "uWhite"), deferFlash ? 0 : Math.max(strobeWhite(show.strobe, beat, sec, bpm, flashLimit(show)), show.blinder ?? 0));
     this.bindTex(0, from); this.bindTex(1, t.to);
     this.bindTarget(dest, 0, 0, w, h);
     this.draw();
@@ -700,7 +721,7 @@ export class Engine {
   /** Strobe (Abdunkeln), White und Blinder über das fertige Bild inklusive Cues legen. */
   private flashAfter(show: ShowState, beat: number, sec: number, bpm: number, dest: Target | null, w: number, h: number): void {
     const gl = this.gl;
-    const g = strobeGain(show.strobe, beat, sec, bpm), white = Math.max(strobeWhite(show.strobe, beat, sec, bpm), show.blinder ?? 0);
+    const g = strobeGain(show.strobe, beat, sec, bpm, flashLimit(show)), white = Math.max(strobeWhite(show.strobe, beat, sec, bpm, flashLimit(show)), show.blinder ?? 0);
     if (g >= 0.999 && white <= 0.001) return;
     gl.useProgram(this.solid.p);
     this.bindTarget(dest, 0, 0, w, h);

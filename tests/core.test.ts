@@ -1821,3 +1821,34 @@ describe("Testtag: Szenen und SHOW", () => {
     expect(v.marks![0]!.scene).toBe(4);
   });
 });
+
+describe("Rechts-Check 0.1.3", () => {
+  it("Sichere Blitze: Strobe höchstens 3 Hz, im Takt und frei", async () => {
+    const { limitRate, strobeHz, strobeGate, SAFE_FLASH_HZ } = await import("../src/core/audio");
+    const { defaultStrobe } = await import("../src/core/show");
+    expect(limitRate(16, 128, SAFE_FLASH_HZ) * 128 / 60).toBeLessThanOrEqual(3);
+    expect(limitRate(1, 120, SAFE_FLASH_HZ)).toBe(1);            // 2 Hz bleibt
+    const s = { ...defaultStrobe(), sync: false, speed: 1 };       // 20 Hz frei
+    expect(strobeHz(s, 120)).toBe(20);
+    expect(strobeHz(s, 120, SAFE_FLASH_HZ)).toBe(3);
+    const sy = { ...defaultStrobe(), sync: true, speed: 0.99 };    // 16 × pro Beat
+    expect(strobeHz(sy, 128, SAFE_FLASH_HZ)).toBeLessThanOrEqual(3);
+    // Ebenen-Strobe (Teiler 5 = 16 pro Beat): höchstens 3 Wechsel pro Sekunde
+    let flashes = 0, last = 0;
+    for (let i = 0; i <= 6000; i++) { const beat = (i / 1000) * 2; const g = strobeGate(beat, 5, 120, SAFE_FLASH_HZ); if (g && !last) flashes++; last = g; }
+    expect(flashes / 6).toBeLessThanOrEqual(3);   // 6 s
+  });
+  it("Update: Prüfsumme aus GitHub und SHA256SUMS lesen", async () => {
+    const { parseDigest, parseSums, pickRelease } = await import("../src/core/update");
+    const h = "a".repeat(64);
+    expect(parseDigest(`sha256:${h.toUpperCase()}`)).toBe(h);
+    expect(parseDigest("md5:abc")).toBeNull();
+    expect(parseSums(`${h}  VJ-Link-windows.exe\n${"b".repeat(64)} *VJ-Link-macos-arm64.dmg\n`).get("VJ-Link-macos-arm64.dmg")).toBe("b".repeat(64));
+    const rel = pickRelease({ tag_name: "v0.1.3", html_url: "https://github.com/skyplayser/VJ-LINK/releases/tag/v0.1.3", assets: [
+      { name: "VJ-Link-windows.exe", browser_download_url: "https://example.org/w.exe", size: 5, digest: `sha256:${h}` },
+      { name: "SHA256SUMS", browser_download_url: "https://example.org/s" }] }, "win32", "x64");
+    expect(rel?.sha256).toBe(h);
+    expect(rel?.sumsUrl).toBe("https://example.org/s");
+    expect(rel?.sigUrl).toBeNull();
+  });
+});

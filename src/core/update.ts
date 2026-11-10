@@ -1,7 +1,7 @@
 // Updates: Wie bei LJ-Link fragt der Hauptprozess GitHub nach der neuesten Veröffentlichung, lädt das passende
 // Installationspaket und ersetzt die App. Hier liegt nur, was sich ohne Netz und Dateisystem prüfen lässt.
 
-/** Öffentliches Repo mit den Veröffentlichungen (das Entwicklungs-Repo ist privat). */
+/** Öffentliches Repo mit den Veröffentlichungen und Installern (der Quellcode liegt in skyplayser/VJ-LInk-dev). */
 export const UPDATE_REPO = "skyplayser/VJ-LINK";
 export const RELEASES_PAGE = `https://github.com/${UPDATE_REPO}/releases`;
 
@@ -15,6 +15,35 @@ export interface ReleaseInfo {
   page: string;
   /** Kurzer Text aus der Veröffentlichung (erste Zeilen). */
   notes: string;
+  /** SHA-256 des Pakets laut GitHub (Feld „digest“ des Assets), klein geschrieben; null = unbekannt. */
+  sha256: string | null;
+  /** Signierte Prüfsummenliste (SHA256SUMS und SHA256SUMS.sig), falls in der Veröffentlichung vorhanden. */
+  sumsUrl: string | null;
+  sigUrl: string | null;
+}
+
+/**
+ * Öffentlicher Ed25519-Schlüssel (PEM, SPKI) für SHA256SUMS.sig. Leer = noch kein Schlüssel: Dann prüft der Updater nur
+ * die SHA-256 von GitHub. Ist er gesetzt, installiert der Updater nur mit gültiger Signatur, sonst öffnet er die Seite.
+ * Schlüssel erzeugen und Veröffentlichungen signieren: scripts/sign-release.sh.
+ */
+export const UPDATE_PUBLIC_KEY = "";
+
+/** „sha256:<64 Hex>“ → Hex klein; alles andere → null. */
+export function parseDigest(d: unknown): string | null {
+  if (typeof d !== "string") return null;
+  const m = /^sha256:([0-9a-f]{64})$/i.exec(d.trim());
+  return m ? m[1]!.toLowerCase() : null;
+}
+
+/** SHA256SUMS (Zeilen „<hex>  <datei>“, wie sha256sum/shasum) → Datei → Hex. */
+export function parseSums(text: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^([0-9a-f]{64}) [ *]?(.+)$/i.exec(line.trim());
+    if (m) out.set(m[2]!.trim(), m[1]!.toLowerCase());
+  }
+  return out;
 }
 
 export type UpdateStatus = "idle" | "checking" | "latest" | "available" | "downloading" | "installing" | "error";
@@ -58,12 +87,15 @@ export function pickRelease(json: unknown, platform: string, arch: string): Rele
   const version = typeof r.tag_name === "string" ? r.tag_name.replace(/^v/i, "") : "";
   if (!version) return null;
   const want = assetName(platform, arch);
-  const assets = Array.isArray(r.assets) ? r.assets as { name?: unknown; browser_download_url?: unknown; size?: unknown }[] : [];
+  const assets = Array.isArray(r.assets) ? r.assets as { name?: unknown; browser_download_url?: unknown; size?: unknown; digest?: unknown }[] : [];
+  const link = (x: { browser_download_url?: unknown } | undefined) => (x && typeof x.browser_download_url === "string" && x.browser_download_url.startsWith("https://") ? x.browser_download_url : null);
   const a = assets.find(x => x.name === want);
-  const url = a && typeof a.browser_download_url === "string" && a.browser_download_url.startsWith("https://") ? a.browser_download_url : null;
+  const url = link(a);
   const notes = typeof r.body === "string" ? r.body.split(/\r?\n/).map(l => l.trim()).filter(Boolean).slice(0, 6).join("\n").slice(0, 600) : "";
   return {
     version, url, asset: want, size: a && typeof a.size === "number" ? a.size : 0,
     page: typeof r.html_url === "string" && r.html_url.startsWith("https://github.com/") ? r.html_url : RELEASES_PAGE, notes,
+    sha256: parseDigest(a?.digest),
+    sumsUrl: link(assets.find(x => x.name === "SHA256SUMS")), sigUrl: link(assets.find(x => x.name === "SHA256SUMS.sig")),
   };
 }

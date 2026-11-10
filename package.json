@@ -88,8 +88,19 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "VJ-Link"
-    }
+      "shortcutName": "VJ-Link",
+      "license": "build/license.txt"
+    },
+    "extraResources": [
+      {
+        "from": "LICENSE",
+        "to": "LICENSE.txt"
+      },
+      {
+        "from": "dist/THIRD_PARTY_LICENSES.txt",
+        "to": "THIRD_PARTY_LICENSES.txt"
+      }
+    ]
   },
   "license": "EPL-2.0",
   "repository": {

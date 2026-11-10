@@ -143,6 +143,8 @@ export interface VjBridge {
   onUpdate(cb: (s: import("./update").UpdateState) => void): void;
   /** Bekannte Seite im Browser öffnen (Instagram, GitHub). */
   openWeb(url: string): void;
+  /** Lizenzen und Hinweise (THIRD_PARTY_LICENSES.txt) öffnen. */
+  openLicenses(): void;
   openLj(): void;
   /** Sprache der Oberfläche an den Hauptprozess (Menü, Dialoge); reload = Oberfläche danach neu laden (Sprachwechsel). */
   setLang(lang: string, reload?: boolean): void;
