@@ -10,7 +10,7 @@ import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
 import { mediaTransform } from "../core/media";
 import type { Mask, View, Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
-import { HISTORY_FX, COMPOSITE_FRAG, FINAL_FRAG, FRAG, GEN_IDS, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG, DJWAVE_FRAG } from "./shaders";
+import { HISTORY_FX, COMPOSITE_FRAG, FINAL_FRAG, GEN_IDS, genFrag, postFrag, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG, DJWAVE_FRAG } from "./shaders";
 import { t } from "../core/i18n";
 
 const COLOR_MODE: Record<ColorSource, number> = {
@@ -24,6 +24,9 @@ const flashLimit = (show: ShowState): number => (show.safeFlash === false ? Infi
 
 interface Target { tex: WebGLTexture; fb: WebGLFramebuffer; w: number; h: number }
 interface Program { p: WebGLProgram; u: Map<string, WebGLUniformLocation | null> }
+/** Programm, das im Hintergrund übersetzt wird (KHR_parallel_shader_compile), bis es fertig ist. */
+interface LazyProgram { prog: Program; vs: WebGLShader; fs: WebGLShader; state: "pending" | "ready" | "failed" }
+const COMPLETION_STATUS_KHR = 0x91B1;
 
 export interface FrameInfo { fps: number; frameMs: number }
 
@@ -44,8 +47,44 @@ export function fitScale(fit: Fit, canvasAspect: number, mediaAspect: number, me
 
 export class Engine {
   readonly gl: WebGL2RenderingContext;
-  private gen: Program;
-  private post: Program;
+  /** Je Visual bzw. Effekt ein eigenes Programm, erst beim ersten Gebrauch übersetzt. */
+  private genP = new Map<number, LazyProgram>();
+  private postP = new Map<number, LazyProgram>();
+  /** Übersetzen im Hintergrund möglich: das Fenster wartet nicht auf den Grafiktreiber. */
+  private parallel = false;
+  /** Grundprogramme (Mischen, Bilder, Mapping …): beim Start angestoßen, vor dem ersten Bild geprüft. */
+  private base: LazyProgram[] = [];
+  private baseState: "pending" | "ready" | "failed" = "pending";
+  /** Fehlermeldung, falls ein Grundprogramm nicht übersetzt werden konnte. */
+  error = "";
+  /** Zeitpunkt des letzten Zeichnens (für progress()). */
+  private lastUse = 0;
+  /** Stand im Hintergrund übersetzter Programme nachfragen, ohne zu warten. */
+  private poll(): void {
+    if (!this.parallel) return;
+    const gl = this.gl;
+    this.baseReady();
+    for (const [m, src] of [[this.genP, genFrag], [this.postP, postFrag]] as const)
+      for (const [k, e] of m) if (e.state === "pending" && gl.getProgramParameter(e.prog.p, COMPLETION_STATUS_KHR)) this.lazy(m, k, () => src(k));
+  }
+  /** Neue Übersetzungen je Bild begrenzen, damit die Oberfläche bedienbar bleibt. */
+  private startBudget = 0;
+  private budgetAt = 0;
+  /** Alle Engines dieses Fensters (für die Anzeige „Visuals werden vorbereitet“). */
+  private static all = new Set<Engine>();
+  /** Stand der Übersetzung aller Engines in diesem Fenster. */
+  static progress(): { ready: number; pending: number } {
+    let ready = 0, pending = 0;
+    const now = performance.now();
+    for (const e of Engine.all) {
+      // Engines, die gerade nicht zeichnen (Galerie zu, Tab verdeckt), zählen nicht: sie fragen ihren Stand nicht ab
+      if (now - e.lastUse > 2000) continue;
+      e.poll();
+      for (const m of [e.genP, e.postP]) for (const x of m.values()) { if (x.state === "pending") pending++; else ready++; }
+      if (e.baseState === "pending") pending += e.base.length; else ready += e.base.length;
+    }
+    return { ready, pending };
+  }
   private comp: Program;
   private fin: Program;
   private img: Program;
@@ -94,8 +133,8 @@ export class Engine {
     });
     if (!gl) throw new Error(t("WebGL2 wird von dieser Grafikkarte nicht unterstützt."));
     this.gl = gl;
-    this.gen = this.program(FRAG);
-    this.post = this.program(POST_FRAG);
+    this.parallel = !!gl.getExtension("KHR_parallel_shader_compile");
+    Engine.all.add(this);
     this.comp = this.program(COMPOSITE_FRAG);
     this.fin = this.program(FINAL_FRAG);
     this.img = this.program(IMAGE_FRAG);
@@ -108,27 +147,79 @@ export class Engine {
     this.meshBuf = gl.createBuffer()!;
     gl.bindVertexArray(this.meshVao);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.meshBuf);
-    const aPos = gl.getAttribLocation(this.meshP.p, "aPos"), aUv = gl.getAttribLocation(this.meshP.p, "aUv");
-    gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
-    gl.enableVertexAttribArray(aUv); gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 16, 8);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 16, 0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 16, 8);
     gl.bindVertexArray(null);
     this.vao = gl.createVertexArray()!;
   }
 
   // ---- WebGL-Hilfen -------------------------------------------------------------------
-  private compile(type: number, src: string): WebGLShader {
-    const gl = this.gl, sh = gl.createShader(type)!;
-    gl.shaderSource(sh, src); gl.compileShader(sh);
-    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(t("Shader-Fehler: ") + gl.getShaderInfoLog(sh));
-    return sh;
-  }
+  /** Grundprogramm anstoßen, ohne auf den Treiber zu warten (Status erst in baseReady()). */
   private program(frag: string, vert = VERT): Program {
     const gl = this.gl, p = gl.createProgram()!;
-    gl.attachShader(p, this.compile(gl.VERTEX_SHADER, vert));
-    gl.attachShader(p, this.compile(gl.FRAGMENT_SHADER, frag));
+    const vs = gl.createShader(gl.VERTEX_SHADER)!, fs = gl.createShader(gl.FRAGMENT_SHADER)!;
+    gl.shaderSource(vs, vert); gl.compileShader(vs);
+    gl.shaderSource(fs, frag); gl.compileShader(fs);
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    // Feste Plätze für die Eckpunkt-Daten, damit niemand auf das fertige Programm warten muss
+    gl.bindAttribLocation(p, 0, "aPos"); gl.bindAttribLocation(p, 1, "aUv");
     gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(t("Link-Fehler: ") + gl.getProgramInfoLog(p));
-    return { p, u: new Map() };
+    const prog = { p, u: new Map() };
+    this.base.push({ prog, vs, fs, state: "pending" });
+    return prog;
+  }
+  /** Sind die Grundprogramme übersetzt? Bis dahin zeichnet die Engine nichts (das Fenster bleibt bedienbar). */
+  private baseReady(): boolean {
+    if (this.baseState !== "pending") return this.baseState === "ready";
+    const gl = this.gl;
+    if (this.parallel && this.base.some(b => !gl.getProgramParameter(b.prog.p, COMPLETION_STATUS_KHR))) return false;
+    for (const b of this.base) {
+      if (gl.getProgramParameter(b.prog.p, gl.LINK_STATUS)) { b.state = "ready"; continue; }
+      b.state = "failed";
+      this.error = t("Shader-Fehler: ") + (gl.getShaderInfoLog(b.fs) || gl.getShaderInfoLog(b.vs) || gl.getProgramInfoLog(b.prog.p));
+      console.error(this.error);
+    }
+    for (const b of this.base) { gl.deleteShader(b.vs); gl.deleteShader(b.fs); }
+    this.baseState = this.base.every(b => b.state === "ready") ? "ready" : "failed";
+    return this.baseState === "ready";
+  }
+  /** Programm aus dem Zwischenspeicher; null, solange es noch übersetzt wird oder fehlerhaft ist. */
+  private lazy(cache: Map<number, LazyProgram>, key: number, src: () => string): Program | null {
+    const gl = this.gl;
+    let e = cache.get(key);
+    if (!e) {
+      // Höchstens wenige neue Programme pro Bild anstoßen (ohne Hintergrund-Übersetzung nur eines)
+      const now = performance.now();
+      if (now - this.budgetAt > 12) { this.budgetAt = now; this.startBudget = this.parallel ? 6 : 1; }
+      if (this.startBudget <= 0) return null;
+      this.startBudget--;
+      const vs = gl.createShader(gl.VERTEX_SHADER)!, fs = gl.createShader(gl.FRAGMENT_SHADER)!, p = gl.createProgram()!;
+      gl.shaderSource(vs, VERT); gl.compileShader(vs);
+      gl.shaderSource(fs, src()); gl.compileShader(fs);
+      gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
+      e = { prog: { p, u: new Map() }, vs, fs, state: "pending" };
+      cache.set(key, e);
+      return null; // Ergebnis frühestens im nächsten Bild abfragen
+    }
+    if (e.state === "ready") return e.prog;
+    if (e.state === "failed") return null;
+    if (this.parallel && !gl.getProgramParameter(e.prog.p, COMPLETION_STATUS_KHR)) return null;
+    if (gl.getProgramParameter(e.prog.p, gl.LINK_STATUS)) {
+      e.state = "ready";
+      gl.deleteShader(e.vs); gl.deleteShader(e.fs);
+      return e.prog;
+    }
+    e.state = "failed";
+    console.error(t("Shader-Fehler: ") + (gl.getShaderInfoLog(e.fs) || gl.getProgramInfoLog(e.prog.p)));
+    return null;
+  }
+  private genProg(n: number): Program | null { return this.lazy(this.genP, n, () => genFrag(n)); }
+  private postProg(n: number): Program | null { return this.lazy(this.postP, n, () => postFrag(n)); }
+  /** Ist das Visual dieses Clips übersetzt? Startet die Übersetzung, falls nötig. Medien und Kameras: immer true. */
+  clipReady(clip: string | null): boolean {
+    const gen = clip ? GEN_IDS.indexOf(clip as typeof GEN_IDS[number]) : -1;
+    if (!this.baseReady()) return false;
+    return gen < 0 || this.genProg(gen) !== null || this.genP.get(gen)?.state === "failed";
   }
   private loc(pr: Program, name: string): WebGLUniformLocation | null {
     if (!pr.u.has(name)) pr.u.set(name, this.gl.getUniformLocation(pr.p, name));
@@ -255,6 +346,9 @@ export class Engine {
     }
     const gen = l.clip && !media ? GEN_IDS.indexOf(l.clip as typeof GEN_IDS[number]) : -1;
     if (gen < 0 && !media) return null;
+    // Visual wird noch übersetzt: so lange leer statt das Fenster warten zu lassen
+    const genProgram = gen >= 0 ? this.genProg(gen) : null;
+    if (gen >= 0 && !genProgram) return null;
     const gl = this.gl;
     // Antrieb der Ebene: Takt, Audio oder ruhig (ersetzt Beat, Puls und Bänder für diese Ebene)
     const drv = layerDrive(l.drive, show.audio, l.clip, beat, this.nowMs / 1000, time);
@@ -309,14 +403,13 @@ export class Engine {
     }
 
     // 1) Generator
-    const g = this.gen;
+    const g = genProgram!;
     gl.useProgram(g.p);
     gl.uniform2f(this.loc(g, "uRes"), w, h);
     gl.uniform1f(this.loc(g, "uTime"), time);
     gl.uniform1f(this.loc(g, "uBeat"), drv.beat);
     gl.uniform1f(this.loc(g, "uPulse"), drv.pulse);
     gl.uniform1f(this.loc(g, "uKey"), key ? 1 : 0);
-    gl.uniform1i(this.loc(g, "uGen"), gen);
     gl.uniform1i(this.loc(g, "uColorMode"), COLOR_MODE[l.colorSource]);
     gl.uniform3f(this.loc(g, "uColA"), ca[0], ca[1], ca[2]);
     gl.uniform3f(this.loc(g, "uColB"), cb[0], cb[1], cb[2]);
@@ -375,22 +468,23 @@ export class Engine {
     show: ShowState, pulse: number, ca: Rgb, cb: Rgb, beat = 0): Target {
     const gl = this.gl;
     let src: Target = this.work[0]!;
-    const p = this.post;
-    gl.useProgram(p.p);
-    gl.uniform2f(this.loc(p, "uRes"), w, h);
-    gl.uniform1f(this.loc(p, "uTime"), time);
-    gl.uniform1f(this.loc(p, "uPulse"), pulse);
-    gl.uniform1f(this.loc(p, "uBeat"), beat);
-    gl.uniform1i(this.loc(p, "uTex"), 0);
-    gl.uniform1i(this.loc(p, "uPrev"), 1);
-    gl.uniform3f(this.loc(p, "uColA"), ca[0], ca[1], ca[2]);
-    gl.uniform3f(this.loc(p, "uColB"), cb[0], cb[1], cb[2]);
-    // Farbüberlagerung kennt keine Palette: „mehrere Slots“ wirkt dort als Verlauf der ersten zwei
-    gl.uniform1i(this.loc(p, "uColorMode"), l.colorSource === "multi" ? 2 : COLOR_MODE[l.colorSource]);
     for (const slot of l.effects) {
       const amount = slot.amount * show.fxMaster;
       const eff = POST_IDS.indexOf(slot.id as typeof POST_IDS[number]);
       if (!slot.on || amount < 0.005 || eff < 0) continue;
+      // Effekt wird noch übersetzt: so lange auslassen
+      const p = this.postProg(eff);
+      if (!p) continue;
+      gl.useProgram(p.p);
+      gl.uniform2f(this.loc(p, "uRes"), w, h);
+      gl.uniform1f(this.loc(p, "uTime"), time);
+      gl.uniform1f(this.loc(p, "uBeat"), beat);
+      gl.uniform1i(this.loc(p, "uTex"), 0);
+      gl.uniform1i(this.loc(p, "uPrev"), 1);
+      gl.uniform3f(this.loc(p, "uColA"), ca[0], ca[1], ca[2]);
+      gl.uniform3f(this.loc(p, "uColB"), cb[0], cb[1], cb[2]);
+      // Farbüberlagerung kennt keine Palette: „mehrere Slots“ wirkt dort als Verlauf der ersten zwei
+      gl.uniform1i(this.loc(p, "uColorMode"), l.colorSource === "multi" ? 2 : COLOR_MODE[l.colorSource]);
       let dst: Target;
       if (HISTORY_FX.has(slot.id)) {
         // Effekte mit Gedächtnis: je Ebene und Effekt ein eigenes Paar (letztes Bild ↔ neues Bild)
@@ -406,7 +500,6 @@ export class Engine {
       gl.uniform1f(this.loc(p, "uPulse"), thr === undefined ? pulse : this.limitFlash(`${fbKey}:${slot.id}`, pulse, thr, show));
       this.bindTex(0, src);
       gl.uniform1f(this.loc(p, "uAmount"), amount);
-      gl.uniform1i(this.loc(p, "uEffect"), eff);
       this.bindTarget(dst);
       this.draw();
       src = dst;
@@ -475,6 +568,8 @@ export class Engine {
   render(show: ShowState, beat: number, nowMs: number, bpm = 120, view: View | null = null, layerTimes: readonly number[] | null = null, warps: readonly Warp[] | null = null,
     /** Eigener Schlüssel für Zwischenbilder, Feedback und Video-Abspieler (z. B. je Bild-Vorschau). */ key = "",
     /** Masken dieses Ausgangs (Projektionsmapping). */ masks: readonly Mask[] = []): void {
+    this.lastUse = performance.now();
+    if (!this.baseReady()) return;
     const t0 = performance.now();
     const gl = this.gl;
     const sec = nowMs / 1000;
@@ -571,6 +666,8 @@ export class Engine {
   // ---- Live-Vorschau im Clip-Raster ---------------------------------------------------
   /** Jede Zelle zeigt ihren Clip mit Farbe und Effekt-Stapel ihrer Ebene, ohne Master und Strobe. */
   renderThumbs(show: ShowState, beat: number, nowMs: number, cells: readonly ThumbCell[]): void {
+    this.lastUse = performance.now();
+    if (!this.baseReady()) return;
     const gl = this.gl;
     const sec = nowMs / 1000;
     const dt = this.lastThumbSec ? Math.min(0.1, Math.max(0, sec - this.lastThumbSec)) : 0;
@@ -732,7 +829,8 @@ export class Engine {
   }
 
   private drawTestCard(show: ShowState, beat: number, nowMs: number, w: number, h: number, dest: Target | null): void {
-    const gl = this.gl, g = this.gen;
+    const gl = this.gl, g = this.genProg(GEN_IDS.indexOf("testcard"));
+    if (!g) return;
     gl.useProgram(g.p);
     gl.uniform1i(this.loc(g, "uTest"), Math.max(0, TEST_IDS.indexOf(show.testPattern ?? "bars")));
     const l: LayerState = { ...show.layers[0]!, clip: "testcard", effects: [], colorSource: "original", opacity: 1, strobe: 0 };

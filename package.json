@@ -1,6 +1,6 @@
 {
   "name": "vj-link",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "productName": "VJ-Link",
   "description": "Einfache VJ-Software für LJs: Lichtpult, OSC und LJ-Link steuern die Visuals.",
   "private": true,
@@ -12,6 +12,7 @@
     "start": "npm run build && node scripts/dev-app.mjs --run",
     "web": "npm run build && node scripts/serve.mjs",
     "check": "npm run typecheck && npm test",
+    "test:e2e": "npm run build && node tests/e2e/smoke.cjs dev release/e2e",
     "dist:mac": "npm run build && electron-builder --mac --arm64 --x64 --publish never && node scripts/rename-dist.mjs",
     "dist:win": "npm run build && electron-builder --win --x64 --publish never && node scripts/rename-dist.mjs"
   },

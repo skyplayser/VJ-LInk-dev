@@ -986,4 +986,7 @@ export const EN: Record<string, string> = {
   "Ableton und Link sind Marken der Ableton AG. Kein offizielles Produkt der genannten Hersteller; alle Marken gehören ihren Inhabern.": "Ableton and Link are trademarks of Ableton AG. Not an official product of the manufacturers named; all trademarks belong to their owners.",
   "Prüfsumme stimmt nicht, das Paket wird nicht installiert.": "Checksum does not match, the package will not be installed.",
   "Keine gültige Signatur: Bitte von der Seite der Veröffentlichung laden.": "No valid signature: please download it from the release page.",
+  // Shader-Vorbereitung (0.1.4)
+  "Visuals werden vorbereitet": "Preparing visuals",
+  "Beim ersten Start dauert das etwas. Du kannst schon weiterarbeiten.": "This takes a moment on the first start. You can already keep working.",
 };

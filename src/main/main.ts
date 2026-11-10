@@ -73,12 +73,13 @@ function secureWindow(opts: Electron.BrowserWindowConstructorOptions): BrowserWi
 /** Entwurfsgröße der Oberfläche. Größere Fenster vergrößern alles, kleinere verkleinern es (Zoom). */
 const DESIGN_W = 1440, DESIGN_H = 900;
 let uiScale: "auto" | number = "auto";
+let scaleWatch = false;
 
 function applyScale(): void {
   if (!control || control.isDestroyed()) return;
   const [w, h] = control.getContentSize();
   const auto = Math.min(w! / DESIGN_W, h! / DESIGN_H);
-  const f = uiScale === "auto" ? Math.min(2.2, Math.max(0.7, auto)) : uiScale;
+  const f = uiScale === "auto" ? Math.min(3, Math.max(0.7, auto)) : uiScale;
   const r = Math.round(f * 100) / 100;
   if (Math.abs(control.webContents.getZoomFactor() - r) > 0.005) control.webContents.setZoomFactor(r);
 }
@@ -98,6 +99,9 @@ function createControl(): void {
     setTimeout(() => net?.replayLj(), 500);
   });
   control.on("resize", applyScale);
+  // Unter Windows kommt beim Maximieren oder bei geänderter Bildschirm-Skalierung nicht immer ein resize
+  for (const ev of ["maximize", "unmaximize", "restore", "enter-full-screen", "leave-full-screen"] as const) control.on(ev as "maximize", () => setTimeout(applyScale, 50));
+  if (!scaleWatch) { scaleWatch = true; screen.on("display-metrics-changed", () => setTimeout(applyScale, 50)); }
   // Absturz der Oberfläche: neu laden (Projekt ist automatisch gesichert, der Startbildschirm bleibt weg).
   control.webContents.on("render-process-gone", (_e, d) => {
     if (d.reason === "clean-exit" || !control || control.isDestroyed()) return;

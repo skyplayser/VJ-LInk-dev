@@ -1852,3 +1852,32 @@ describe("Rechts-Check 0.1.3", () => {
     expect(rel?.sigUrl).toBeNull();
   });
 });
+
+describe("Ein Shader je Visual (Windows-Start)", async () => {
+  const { FRAG, GEN_IDS, POST_IDS, genFrag, postFrag } = await import("../src/engine/shaders");
+  it("jedes Visual hat genau einen Fall, der switch ist weg", () => {
+    // „now-playing“ und „dj-waveform“ zeichnet die Engine selbst, ohne Fall im Shader
+    const own = new Set(["now-playing", "dj-waveform"]);
+    expect(FRAG.match(/case \d+:/g)?.length).toBe(GEN_IDS.length - own.size);
+    GEN_IDS.forEach((id, n) => {
+      if (own.has(id)) return;
+      const src = genFrag(n);
+      expect(src).not.toMatch(/switch \(uGen\)/);
+      expect(src).not.toMatch(/uniform int\s+uGen/);
+      expect(src).toContain(`const int uGen = ${n};`);
+      const call = FRAG.match(new RegExp(`case ${n}: c = ([a-zA-Z0-9]+)\\(`))![1]!;
+      expect(src).toContain(`c = ${call}(`);
+      expect(src).toMatch(new RegExp(`^vec3 ${call}\\(`, "m"));
+      expect(src.length).toBeLessThan(20000);
+    });
+  });
+  it("jeder Effekt bekommt seine Nummer als Konstante", () => {
+    POST_IDS.forEach((_id, n) => {
+      const src = postFrag(n);
+      expect(src).toContain(`const int uEffect = ${n};`);
+      expect(src).not.toMatch(/uniform int\s+uEffect/);
+      expect(src).not.toMatch(/uEffect ==/);
+      expect(src).toContain("outColor = c;");
+    });
+  });
+});

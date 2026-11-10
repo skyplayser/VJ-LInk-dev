@@ -69,7 +69,9 @@ export class Gallery {
     const beat = this.d.ctx.tempo.beatAt(nowMs);
     const show = this.probeShow(this.section === "effects" ? null : this.selected);
     // Ein Vorschaubild pro Bild nachziehen, damit die Oberfläche flüssig bleibt
-    const next = this.queue.shift();
+    let next = this.queue.shift();
+    // Visual wird noch übersetzt: hinten anstellen, sonst würde ein leeres Vorschaubild gespeichert
+    if (next && !this.engine.clipReady(next)) { this.queue.push(next); next = undefined; }
     if (next) {
       this.engine.resize(256, 144);
       this.engine.renderThumbs(this.probeShow(next), beat + 0.37, nowMs + 1500, [{ layer: 0, col: 0, clip: next, x: 0, y: 0, w: 256, h: 144 }]);

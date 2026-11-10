@@ -17,7 +17,7 @@ import { TempoClock } from "../core/tempo";
 import { DmxDecoder, DMX_MODE_STANDARD_CHANNELS, CH, channelListCsv } from "../core/dmx";
 import { handleLj, handleOsc, recallScene, tickAuto, tickTransition, tickVideoStarts, type ControlContext } from "../core/control";
 import { CLUB_STANDARD_RULES, newLjState, parseLjMessage } from "../core/ljlink";
-import { CATEGORY_LABEL, EFFECTS, EFFECT_BY_ID, READY_GENERATORS, type EffectCategory } from "../core/effects";
+import { CATEGORY_LABEL, EFFECTS, EFFECT_BY_ID, POST_EFFECTS, READY_GENERATORS, type EffectCategory } from "../core/effects";
 import { BLEND_MODES, COLOR_SOURCES_ALL, DRIVES, type Drive, MAX_LAYERS, addClip, addLayer, defaultScenes, removeClip, removeLayer, SLOT_NAMES, defaultShow, type BlendMode, type ColorSource } from "../core/show";
 import { LedFeedback, MappingTable, MidiClock, defaultKeyMappings, oscValue, parseMidi, type MapProtocol } from "../core/mapping";
 import { MapMode } from "./mapmode";
@@ -1101,8 +1101,23 @@ function frame(): void {
     };
     bridge.publishFrame(JSON.parse(JSON.stringify(f)) as Frame);
   }
-  if (now - lastUi > 100) { lastUi = now; updateUi(now, beat); syncCanvases(); djLink.tick(now, vjStatus); }
+  if (now - lastUi > 100) { lastUi = now; updateUi(now, beat); syncCanvases(); djLink.tick(now, vjStatus); showGpuPrep(now); }
   requestAnimationFrame(frame);
+}
+
+/** Hinweis „Visuals werden vorbereitet“, solange der Grafiktreiber Shader übersetzt (unter Windows beim ersten Start spürbar). */
+let gpuPrepSince = 0;
+function showGpuPrep(now: number): void {
+  const { ready, pending } = Engine.progress();
+  if (engine?.error && $("mon-info").textContent !== engine.error) $("mon-info").textContent = engine.error;
+  const box = $("gpu-prep");
+  if (pending === 0) { gpuPrepSince = 0; box.hidden = true; return; }
+  if (!gpuPrepSince) gpuPrepSince = now;
+  if (now - gpuPrepSince < 600) return; // kurz übersetzen (Mac) ohne Hinweis
+  box.hidden = false;
+  const total = ready + pending;
+  $("gpu-prep-n").textContent = `${ready} / ${total}`;
+  $("gpu-prep-bar").style.width = `${Math.round((ready / Math.max(1, total)) * 100)}%`;
 }
 
 function updateUi(now: number, beat: number): void {
@@ -1628,5 +1643,8 @@ requestAnimationFrame(frame);
   importFiles: (f: File[]) => importToLibrary(f),
   rebuild: () => { rebuildGrid(); rebuildDeck(); },
   scene: (i: number) => recallScene(ctx, i),
+  // Test: Stand der Shader-Übersetzung (tests/e2e/smoke.cjs)
+  gpu: () => Engine.progress(),
+  genIds: () => READY_GENERATORS.map(g => g.id), fxIds: () => POST_EFFECTS.map(e => e.id),
   demoOutputs: (d: DisplayInfo[], layout?: OutputLayout) => { displays = d; demoDisplays = true; if (layout) outLayout = layout; renderDisplays(); outputTab.render(); fitPreview(); },
 };

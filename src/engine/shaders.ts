@@ -2787,3 +2787,77 @@ void main() {
   if (abs(uv.x - uHead) * uRes.x < 1.5) { col = vec3(1.0, 0.25, 0.25); a = 1.0; }
   outColor = vec4(col * a, a);
 }`;
+
+// ---- Ein Programm je Visual bzw. Effekt -----------------------------------------------
+// Ein einziges großes Programm mit allen Visuals braucht unter Windows (DirectX-Übersetzung) Minuten,
+// und solange steht das Fenster. Deshalb bekommt jedes Visual und jeder Effekt ein eigenes, kleines
+// Programm: die Nummer wird zur Konstanten, der switch schrumpft auf den einen Fall.
+const GEN_SWITCH = /switch \(uGen\) \{[\s\S]*?default: c = vec3\(0\.0\);\n {2}\}/;
+
+/** Quelltext des Generator-Programms für Visual Nummer `n` (Index in GEN_IDS). */
+export function genFrag(n: number): string {
+  const sw = FRAG.match(GEN_SWITCH);
+  if (!sw) throw new Error("FRAG: switch (uGen) nicht gefunden");
+  const one = sw[0].match(new RegExp(`case ${n}: (c = [^;]*;)`));
+  return pruneGlsl(FRAG.replace("uniform int   uGen;", `const int uGen = ${n};`).replace(GEN_SWITCH, one ? one[1]! : "c = vec3(0.0);"));
+}
+
+/** Quelltext des Effekt-Programms für Effekt Nummer `n` (Index in POST_IDS). */
+export function postFrag(n: number): string {
+  if (!POST_FRAG.includes("uniform int   uEffect;")) throw new Error("POST_FRAG: uEffect nicht gefunden");
+  return pruneGlsl(onlyBranch(POST_FRAG.replace("uniform int   uEffect;", `const int uEffect = ${n};`), "uEffect", n));
+}
+
+/** Aus einer Kette `if (v == 0) {…} else if (v == 1) {…} … else {…}` nur den Zweig für `n` behalten. */
+function onlyBranch(src: string, v: string, n: number): string {
+  const first = src.indexOf(`if (${v} == 0) {`);
+  if (first < 0) throw new Error(`${v}-Kette nicht gefunden`);
+  const close = (open: number): number => {
+    let depth = 0;
+    for (let i = open; i < src.length; i++) { if (src[i] === "{") depth++; else if (src[i] === "}" && --depth === 0) return i; }
+    throw new Error("Klammer fehlt");
+  };
+  let at = first, chosen: string | null = null, rest: string | null = null;
+  for (;;) {
+    const open = src.indexOf("{", at), end = close(open);
+    const head = src.slice(at, open);
+    const body = src.slice(open + 1, end);
+    const m = head.match(new RegExp(`${v} == (\\d+)`));
+    if (!m) rest = body; else if (Number(m[1]) === n) chosen = body;
+    at = end + 1;
+    const next = src.slice(at).match(/^\s*else\s*/);
+    if (!next || !m) break;
+    at += next[0].length;
+  }
+  return src.slice(0, first) + "{" + (chosen ?? rest ?? "") + "}" + src.slice(at);
+}
+
+/** Funktionen weglassen, die von main() aus nicht aufgerufen werden. Der DirectX-Übersetzer unter Windows
+ *  braucht für jede mitgeschickte Funktion Zeit, auch wenn sie nie läuft. Erwartet Funktionen ab Spalte 0. */
+export function pruneGlsl(src: string): string {
+  const head = /^(?:float|vec[234]|mat[234]|bool|int|void)\s+([A-Za-z_]\w*)\s*\(/gm;
+  const defs: { name: string; start: number; end: number }[] = [];
+  for (let m; (m = head.exec(src)); ) {
+    const open = src.indexOf("{", m.index);
+    let depth = 0, i = open;
+    for (; i < src.length; i++) { const ch = src[i]; if (ch === "{") depth++; else if (ch === "}" && --depth === 0) break; }
+    defs.push({ name: m[1]!, start: m.index, end: i + 1 });
+    head.lastIndex = i + 1;
+  }
+  const names = new Set(defs.map(d => d.name));
+  const keep = new Set(["main"]), todo = ["main"];
+  while (todo.length) {
+    const name = todo.pop()!;
+    for (const d of defs) {
+      if (d.name !== name) continue;
+      const body = src.slice(src.indexOf("(", d.start), d.end);
+      for (const c of body.matchAll(/\b([A-Za-z_]\w*)\s*\(/g)) {
+        const f = c[1]!;
+        if (names.has(f) && !keep.has(f)) { keep.add(f); todo.push(f); }
+      }
+    }
+  }
+  let out = "", at = 0;
+  for (const d of defs) if (!keep.has(d.name)) { out += src.slice(at, d.start); at = d.end; }
+  return out + src.slice(at);
+}

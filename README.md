@@ -7,7 +7,7 @@
 
 Einfache VJ-Software für LJs. Das Lichtpult steuert die Visuals, der Takt kommt aus LJ-Link, Ableton Link, OSC oder MIDI. Schwesterprojekt von [LJ-Link](https://github.com/skyplayser/LJ-Link).
 
-> Stand: **Beta 0.1.3**. Lauffähig und getestet auf macOS (Apple Silicon); vieles hat noch keine echte Bühnentechnik gesehen.
+> Stand: **Beta 0.1.4**. Lauffähig und automatisch getestet auf macOS (Apple Silicon, Intel über Rosetta) und Windows 11 (`npm run test:e2e`); vieles hat noch keine echte Bühnentechnik gesehen.
 
 ## Was schon läuft
 
