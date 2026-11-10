@@ -23,7 +23,8 @@ const t0 = Date.now();
 const log = (name, ok, detail = "") => { report.steps.push({ name, ok, detail, at: Date.now() - t0 }); console.log(`${ok ? "OK  " : "FEHLER"} ${name}${detail ? " · " + detail : ""}`); };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-const env = { ...process.env, VJLINK_DATA: data };
+const saveFile = path.join(data, "e2e-projekt.vjlink");
+const env = { ...process.env, VJLINK_DATA: data, VJLINK_TEST_SAVE: saveFile };
 delete env.ELECTRON_RUN_AS_NODE;
 const child = spawn(exe, [...(dev ? [path.join(__dirname, "..", "..")] : []), `--remote-debugging-port=${PORT}`], { env, stdio: "ignore" });
 child.on("exit", c => { if (!finished) { log("App läuft bis zum Ende", false, `beendet mit ${c}`); } });
@@ -115,50 +116,21 @@ async function main() {
     s.layers.forEach((l, i) => { l.clip = i === 0 ? ${JSON.stringify(clip)} : null; l.opacity = 1; l.colorSource = 'original'; l.effects = ${JSON.stringify(fx)}; });
     window.__vj.rebuild(); return true; })()`);
   const gens = await c.eval("window.__vj.genIds()"), fxs = await c.eval("window.__vj.fxIds()");
+  const quick = process.env.VJ_E2E_QUICK === "1"; // nur zum Entwickeln des Tests: lange Durchläufe auslassen
   const dark = [], slow = [];
-  for (const g of gens) {
+  for (const g of quick ? gens.slice(0, 3) : gens) {
     await setLayer(g, []); const tg = Date.now(); let v = 0;
     while (Date.now() - tg < 30000) { await wait(150); v = await brightness(); if (v >= 2) break; }
     if (v < 2) dark.push(g); else if (Date.now() - tg > 3000) slow.push(`${g} ${((Date.now() - tg) / 1000).toFixed(1)} s`);
   }
   log(`Alle ${gens.length} Visuals zeichnen ein Bild`, dark.length === 0, (dark.length ? "dunkel: " + dark.join(", ") : "") + (slow.length ? " · langsam: " + slow.join(", ") : ""));
   const fxDark = [];
-  for (const f of fxs) {
+  for (const f of quick ? fxs.slice(0, 3) : fxs) {
     await setLayer("plasma", [{ id: f, on: true, amount: 0.8 }]); const tf = Date.now(); let v = 0;
     while (Date.now() - tf < 30000) { await wait(150); v = await brightness(); if (v >= 2) break; }
     if (v < 2) fxDark.push(f);
   }
   log(`Alle ${fxs.length} Effekte zeichnen ein Bild`, fxDark.length === 0, fxDark.join(", "));
-
-  // 5) Alle Tabs und Knöpfe durchklicken (ohne Löschen, Beenden, Dateidialoge)
-  await c.eval(`(()=>{ window.open=()=>null; window.confirm=()=>true; window.alert=()=>{}; window.prompt=()=>null;
-    const oc=HTMLInputElement.prototype.click; HTMLInputElement.prototype.click=function(){ if(this.type==='file') return; return oc.call(this); };
-    window.showOpenFilePicker=()=>Promise.reject(new DOMException('x','AbortError')); return true; })()`);
-  const before = report.errors.length; let clicks = 0;
-  const skip = "/quit|beenden|löschen|delete|entfernen|remove|neues projekt|new project|zurücksetzen|reset|×|✕|fehler melden|report a problem|github|lizenzen|licenses|website|instagram/i";
-  for (const tab of ["visuals", "show", "build", "output", "connect"]) {
-    await c.eval(`document.querySelector('.tabs [data-tab=${tab}]').click(), true`); await wait(500);
-    const seen = new Set();
-    for (let n = 0; n < 400; n++) {
-      const sig = await c.eval(`(()=>{ const sec=document.getElementById('tab-${tab}'); const vis=e=>{const r=e.getBoundingClientRect(); return r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'};
-        const seen=new Set(${JSON.stringify([...seen])}); const sig=e=>(e.id||'')+'|'+e.className+'|'+(e.textContent||'').trim().slice(0,30)+'|'+(e.title||'').slice(0,20);
-        const b=[...sec.querySelectorAll('button, [role=button], .cell, input[type=checkbox], select')].filter(vis).find(e=>!seen.has(sig(e)) && !${skip}.test((e.textContent||'')+' '+(e.title||'')));
-        if(!b) return null; const s=sig(b);
-        if (b.tagName==='SELECT') { if (b.options.length>1) { b.selectedIndex=(b.selectedIndex+1)%b.options.length; b.dispatchEvent(new Event('change',{bubbles:true})); } } else b.click();
-        return s; })()`, 15000).catch(e => "AUSNAHME " + e.message);
-      if (!sig) break; seen.add(sig); clicks++; await wait(120);
-      const modal = await c.eval("!!document.querySelector('.report, dialog[open], .modal:not([hidden])')").catch(() => false);
-      if (modal) { await c.eval("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})), (document.activeElement||document.body).dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})), true"); await wait(150); }
-    }
-  }
-  log("Alle Tabs und Knöpfe bedienbar", report.errors.length === before, `${clicks} Bedienelemente geklickt${report.errors.length > before ? ", " + (report.errors.length - before) + " Fehler" : ""}`);
-
-  // 6) Einstellungen: jede Seite öffnen
-  await c.eval("document.getElementById('settings-btn').click(), true"); await wait(400);
-  const secs = await c.eval("[...document.querySelectorAll('.set-nav [data-sec]')].map(b=>b.dataset.sec)");
-  for (const s of secs) { await c.eval(`document.querySelector('.set-nav [data-sec=${s}]').click(), true`); await wait(250); }
-  await c.eval("document.getElementById('set-close')?.click(), true");
-  log("Einstellungen", secs.length > 0, `${secs.length} Seiten`);
 
   // 7) Netzwerk: Art-Net (Master auf 50 %) und OSC. Nur mit VJ_E2E_NET=1 und nur, wenn KEIN anderes VJ-Link läuft:
   //    die Pakete gehen an 127.0.0.1 und würden sonst eine laufende Instanz steuern.
@@ -179,10 +151,149 @@ async function main() {
   sock.close();
   }
 
-  // 8) Größe der Oberfläche
+  const waitFor = async (expr, ms = 20000) => { const tw = Date.now(); while (Date.now() - tw < ms) { const v = await c.eval(expr, 5000).catch(() => null); if (v) return v; await wait(200); } return null; };
+  const frameKey = async () => { const r = await c.eval("JSON.stringify(document.getElementById('preview').getBoundingClientRect())").then(JSON.parse);
+    const sh = await c.send("Page.captureScreenshot", { format: "png", clip: { x: r.x, y: r.y, width: r.width, height: r.height, scale: 0.25 } }); return sh.result?.data ?? ""; };
+  const clipsNow = () => c.eval("JSON.stringify(window.__vj.ctx.show.layers.map(l => l.clip))").then(JSON.parse);
+
+  // 8) Medien: Bild und Videos über den echten Datei-Import (wie Ziehen oder „+ Clips“)
+  const fx = path.join(__dirname, "fixtures");
+  await c.send("DOM.enable");
+  const media = {};
+  for (const [file, label, optional] of [["test.png", "Bild (PNG)"], ["test-h264.mp4", "Video H.264 (MP4)"], ["test-vp9.webm", "Video VP9 (WebM)"], ["test-hevc.mp4", "Video HEVC/H.265 (MP4)", true]]) {
+    const src = path.join(fx, file);
+    if (!fs.existsSync(src)) { log(label, false, "Testdatei fehlt"); continue; }
+    await c.eval("window.__vj.ctx.show.layers.forEach(l => { l.clip = null; }), true");
+    const doc = await c.send("DOM.getDocument", { depth: 0 });
+    const q = await c.send("DOM.querySelector", { nodeId: doc.result.root.nodeId, selector: "#file-input" });
+    await c.send("DOM.setFileInputFiles", { nodeId: q.result.nodeId, files: [src] });
+    let id = null; const ti = Date.now();
+    while (Date.now() - ti < 30000 && !id) { await wait(300); id = (await clipsNow()).find(x => x) ?? null; }
+    if (!id) { log(label, !!optional, "Import ohne Ergebnis" + (optional ? " (unter Windows braucht HEVC die HEVC-Erweiterung)" : "")); continue; }
+    media[file] = id;
+    await setLayer(id, []); let v = 0; const tb = Date.now();
+    while (Date.now() - tb < 15000) { await wait(250); v = await brightness(); if (v >= 2) break; }
+    let moving = true;
+    if (file.endsWith(".mp4") || file.endsWith(".webm")) { const a = await frameKey(); await wait(700); const b = await frameKey(); moving = a !== b; }
+    const ok = v >= 2 && moving;
+    log(label, ok || !!optional, ok ? `zeigt Bild${file === "test.png" ? "" : " und läuft"}` : (v < 2 ? "bleibt schwarz" : "Bild steht still") + (optional && !ok ? " (optional: HEVC braucht unter Windows die HEVC-Erweiterung)" : ""));
+  }
+
+  // 9) Projekt speichern und wieder öffnen (Datei auf der Platte, mit Medienordner)
+  if (media["test-h264.mp4"]) {
+    await c.eval(`(()=>{ const s = window.__vj.ctx.show; s.layers[0].clip = ${JSON.stringify(media["test-h264.mp4"])}; s.layers[1].clip = 'plasma'; s.layers[1].opacity = 0.42; return true })()`);
+    await c.eval("window.__vj.file('saveAs')");
+    await wait(1500);
+    const saved = fs.existsSync(saveFile);
+    log("Projekt speichern", saved, saved ? `${Math.round(fs.statSync(saveFile).size / 1024)} KB` : "keine Datei");
+    if (saved) {
+      await c.eval("(()=>{ const s = window.__vj.ctx.show; s.layers[0].clip = null; s.layers[1].clip = null; return true })()");
+      await c.eval(`window.__vj.file('openPath', ${JSON.stringify(saveFile)})`).catch(() => null);
+      await wait(2500);
+      const back = await waitFor("window.__vj && window.__vj.ctx.show.layers[1].clip === 'plasma' && JSON.stringify([window.__vj.ctx.show.layers[0].clip, window.__vj.ctx.show.layers[1].opacity])", 30000);
+      const [c0, op] = back ? JSON.parse(back) : [null, 0];
+      log("Projekt öffnen", !!back && !!c0 && Math.abs(op - 0.42) < 0.01, back ? `Ebene 1: ${c0 ? "Video da" : "Video fehlt"}, Deckkraft Ebene 2: ${Math.round(op * 100)} %` : "Stand nicht wiederhergestellt");
+      await c.eval("document.querySelector('.start:not([hidden]) .start-btn')?.click(), true").catch(() => 0);
+    }
+  }
+
+  // 10) Ausgang als Fenster öffnen, Bild prüfen, schließen
+  await setLayer("plasma", []);
+  const before2 = (await getJson()).filter(p => /output\.html/.test(p.url)).length;
+  await c.eval("window.vj.toggleOutput(-1)");
+  let outPage = null;
+  for (let i = 0; i < 100 && !outPage; i++) { await wait(200); outPage = (await getJson()).find(p => p.type === "page" && /output\.html/.test(p.url)); }
+  if (!outPage) log("Ausgang öffnen", false, "kein Ausgabefenster");
+  else {
+    const o = new Cdp(outPage.webSocketDebuggerUrl); await o.ready;
+    let ov = 0; const to = Date.now();
+    while (Date.now() - to < 30000) { await wait(400); const sh = await o.send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: 400, height: 300, scale: 0.5 } }); ov = sh.result?.data ? pngBrightness(Buffer.from(sh.result.data, "base64")) : 0; if (ov >= 2) break; }
+    log("Ausgang öffnen und Bild zeigen", ov >= 2, `nach ${((Date.now() - to) / 1000).toFixed(1)} s`);
+    try { o.ws.close(); } catch { /* egal */ }
+    await c.eval("window.vj.toggleOutput(-1)"); await wait(1500);
+    const left = (await getJson()).filter(p => /output\.html/.test(p.url)).length;
+    log("Ausgang schließen", left === before2);
+  }
+
+  // 11) Kopfzeile, Szenen, Blackout
+  const hBefore = report.errors.length;
+  for (const id of ["map-btn", "proj-btn", "tempo-lock", "bpm", "blackout", "blackout"]) {
+    await c.eval(`document.getElementById('${id}')?.click(), true`); await wait(300);
+    await c.eval("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})), true"); await wait(150);
+  }
+  for (let i = 1; i <= 6; i++) { await c.eval(`window.__vj.scene(${i}), true`); await wait(300); }
+  log("Kopfzeile, Szenen, Blackout", report.errors.length === hBefore);
+
+  // 12) Demo-Show 6 s laufen lassen: Bildrate. Vorher speichern, sonst fragt VJ-Link beim Neuladen nach.
+  const saveNow = async () => { await c.eval("window.__vj.file('save')").catch(() => 0); await wait(1200); };
+  await saveNow();
+  // Neu laden geht nur über den Hauptprozess (location.reload() sperrt der Navigationsschutz)
+  await c.eval("sessionStorage.clear(), window.vj.setLang(localStorage.getItem('vjlink.lang') || 'de', true), true").catch(() => 0);
+  await wait(1500);
+  const startAgain = await waitFor("!!document.querySelector('.start-btn')", 30000);
+  if (startAgain) {
+    await c.eval("[...document.querySelectorAll('.start-btn')][3].click(), true"); await wait(6000);
+    const f = await c.eval("JSON.stringify(window.__vj.fps())").then(JSON.parse).catch(() => null);
+    log("Demo-Show läuft", !!f && f.fps > 20, f ? `${Math.round(f.fps)} Bilder/s, ${f.frameMs.toFixed(1)} ms pro Bild` : "");
+  } else log("Demo-Show läuft", false, "Startbildschirm nach Neuladen nicht da: " + await c.eval("location.href.slice(-30) + ' ' + document.readyState + ' vj=' + !!window.__vj + ' start=' + document.querySelectorAll('.start-btn').length + ' ss=' + JSON.stringify(Object.keys(sessionStorage)) + ' ls=' + localStorage.getItem('vjlink.startScreen')").catch(e => "eval: " + e.message)
+    + " · loadProject: " + await c.eval("Promise.race([window.vj.loadProject().then(r => 'ok ' + (r.project || '').length + ' videos ' + (JSON.parse(r.project || '{}').videos || []).length), new Promise(r => setTimeout(() => r('hängt'), 5000))])", 15000).catch(e => e.message)
+    + " · toast: " + await c.eval("document.getElementById('toast')?.textContent").catch(() => ""));
+
+  // 13) Sprache: Englisch und zurück
+  await saveNow();
+  await c.eval("localStorage.setItem('vjlink.lang', 'en'), window.vj.setLang('en', true), true").catch(() => 0);
+  const en = await waitFor("document.querySelector('[data-tab=build]')?.textContent.trim() === 'GALLERY'", 30000);
+  await saveNow();
+  await c.eval("localStorage.setItem('vjlink.lang', 'de'), window.vj.setLang('de', true), true").catch(() => 0);
+  const de = await waitFor("document.querySelector('[data-tab=build]')?.textContent.trim() === 'GALERIE'", 30000);
+  log("Sprache wechseln (Englisch und zurück)", !!en && !!de);
+
+  // 14) Update-Prüfung (fragt GitHub nach der neuesten Version)
+  const up = await c.eval("window.vj.updateCheck(true).then(r => JSON.stringify(r))", 30000).catch(e => JSON.stringify({ error: e.message }));
+  const upo = JSON.parse(up || "null");
+  log("Update-Prüfung", !!upo && !upo.error, upo ? JSON.stringify(upo).slice(0, 160) : "");
+
+  // 15) Mitgelieferte Lizenzen (nur fertige App)
+  if (!dev) {
+    const res = process.platform === "darwin" ? path.join(path.dirname(exe), "..", "Resources") : path.join(path.dirname(exe), "resources");
+    const files = ["LICENSE.txt", "THIRD_PARTY_LICENSES.txt"].filter(f => fs.existsSync(path.join(res, f)));
+    log("Lizenzdateien im Programm", files.length === 2, files.join(", "));
+  }
+
+  // 16) Zum Schluss (verstellt den Zustand): Alle Tabs und Knöpfe durchklicken (ohne Löschen, Beenden, Dateidialoge)
+  await c.eval(`(()=>{ window.open=()=>null; window.confirm=()=>true; window.alert=()=>{}; window.prompt=()=>null;
+    const oc=HTMLInputElement.prototype.click; HTMLInputElement.prototype.click=function(){ if(this.type==='file') return; return oc.call(this); };
+    window.showOpenFilePicker=()=>Promise.reject(new DOMException('x','AbortError')); return true; })()`);
+  const before = report.errors.length; let clicks = 0;
+  const skip = "/quit|beenden|löschen|delete|entfernen|remove|neues projekt|new project|zurücksetzen|reset|×|✕|fehler melden|report a problem|github|lizenzen|licenses|website|instagram/i";
+  for (const tab of quick ? [] : ["visuals", "show", "build", "output", "connect"]) {
+    await c.eval(`document.querySelector('.tabs [data-tab=${tab}]').click(), true`); await wait(500);
+    const seen = new Set();
+    for (let n = 0; n < 400; n++) {
+      const sig = await c.eval(`(()=>{ const sec=document.getElementById('tab-${tab}'); const vis=e=>{const r=e.getBoundingClientRect(); return r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'};
+        const seen=new Set(${JSON.stringify([...seen])}); const sig=e=>(e.id||'')+'|'+e.className+'|'+(e.textContent||'').trim().slice(0,30)+'|'+(e.title||'').slice(0,20);
+        const b=[...sec.querySelectorAll('button, [role=button], .cell, input[type=checkbox], select')].filter(vis).find(e=>!seen.has(sig(e)) && !${skip}.test((e.textContent||'')+' '+(e.title||'')));
+        if(!b) return null; const s=sig(b);
+        if (b.tagName==='SELECT') { if (b.options.length>1) { b.selectedIndex=(b.selectedIndex+1)%b.options.length; b.dispatchEvent(new Event('change',{bubbles:true})); } } else b.click();
+        return s; })()`, 15000).catch(e => "AUSNAHME " + e.message);
+      if (!sig) break; seen.add(sig); clicks++; await wait(120);
+      const modal = await c.eval("!!document.querySelector('.report, dialog[open], .modal:not([hidden])')").catch(() => false);
+      if (modal) { await c.eval("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})), (document.activeElement||document.body).dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})), true"); await wait(150); }
+    }
+  }
+  log("Alle Tabs und Knöpfe bedienbar", report.errors.length === before, `${clicks} Bedienelemente geklickt${report.errors.length > before ? ", " + (report.errors.length - before) + " Fehler" : ""}`);
+
+  // 17) Einstellungen: jede Seite öffnen
+  await c.eval("document.getElementById('settings-btn').click(), true"); await wait(400);
+  const secs = await c.eval("[...document.querySelectorAll('.set-nav [data-sec]')].map(b=>b.dataset.sec)");
+  for (const s of secs) { await c.eval(`document.querySelector('.set-nav [data-sec=${s}]').click(), true`); await wait(250); }
+  await c.eval("document.getElementById('set-close')?.click(), true");
+  log("Einstellungen", secs.length > 0, `${secs.length} Seiten`);
+
+  // 18) Größe der Oberfläche
   log("Oberfläche skaliert", inf.zoom > 0, `Zoom × Pixeldichte ${inf.zoom.toFixed(2)}, Fläche ${inf.w} × ${inf.h} CSS-Pixel`);
 
-  // 9) Abschluss: Bildschirmfoto, Fehler
+  // 19) Abschluss: Bildschirmfoto, Fehler
   const shot = await c.send("Page.captureScreenshot", { format: "png" });
   if (shot.result?.data) fs.writeFileSync(path.join(outDir, "ende.png"), Buffer.from(shot.result.data, "base64"));
   log("Keine Fehler in der Konsole", report.errors.length === 0, report.errors.slice(0, 5).join(" | "));

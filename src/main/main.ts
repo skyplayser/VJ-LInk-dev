@@ -162,6 +162,8 @@ async function confirmDiscard(json: string): Promise<boolean> {
 async function saveTo(json: string, askPath: boolean): Promise<{ ok: boolean; name?: string; message?: string }> {
   if (!files || !control) return { ok: false };
   let target = askPath ? null : files.current;
+  // Nur im Testmodus (eigener Datenordner): Ziel ohne Dialog, für tests/e2e/smoke.cjs
+  if (process.env.VJLINK_DATA && process.env.VJLINK_TEST_SAVE) target = process.env.VJLINK_TEST_SAVE;
   if (!target) {
     const r = await dialog.showSaveDialog(control, {
       title: t("Projekt speichern"), defaultPath: files.current ?? path.join(app.getPath("documents"), `${projName()}.${PROJECT_EXT}`),

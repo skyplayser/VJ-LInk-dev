@@ -1646,5 +1646,7 @@ requestAnimationFrame(frame);
   // Test: Stand der Shader-Übersetzung (tests/e2e/smoke.cjs)
   gpu: () => Engine.progress(),
   genIds: () => READY_GENERATORS.map(g => g.id), fxIds: () => POST_EFFECTS.map(e => e.id),
+  file: (cmd: ProjectFileCmd, p?: string) => runFileCmd(cmd, p),
+  fps: () => engine?.info ?? null,
   demoOutputs: (d: DisplayInfo[], layout?: OutputLayout) => { displays = d; demoDisplays = true; if (layout) outLayout = layout; renderDisplays(); outputTab.render(); fitPreview(); },
 };
