@@ -917,11 +917,25 @@ function card(title: string, state: "ok" | "off" | "err", lines: string[], live 
   const head = el("div", "head"); head.append(el("b", "", title)); head.append(el("span", "dot"));
   c.append(head); for (const l of lines) c.append(el("em", "", l)); return c;
 }
-/** Verbindung im Tab VERBINDEN aufklappen (z. B. aus den Einstellungen). */
+/** Gewählte Verbindung (links); ihre Einstellungen stehen rechts. */
+let connSel = "artnet";
+try { connSel = localStorage.getItem("vjlink.conn") || "artnet"; } catch { /* ohne Speicher */ }
+function selectConn(id: string): void {
+  if (!document.querySelector(`#conn-list .conn[data-conn="${id}"]`)) id = "artnet";
+  connSel = id;
+  try { localStorage.setItem("vjlink.conn", id); } catch { /* ohne Speicher */ }
+  document.querySelectorAll<HTMLElement>("#conn-list .conn").forEach(c => {
+    const on = c.dataset.conn === id;
+    c.classList.toggle("sel", on);
+    c.querySelector(".conn-head")?.setAttribute("aria-selected", String(on));
+  });
+  document.querySelectorAll<HTMLElement>("#conn-detail .conn-pane").forEach(p => { p.hidden = p.dataset.for !== id; });
+  if ($("tab-connect").classList.contains("on")) drawConnect(Date.now());
+}
+/** Verbindung im Tab VERBINDEN zeigen (z. B. aus den Einstellungen). */
 function openConnection(id: string): void {
   document.querySelector<HTMLButtonElement>('.tabs [data-tab="connect"]')?.click();
-  const d = document.querySelector<HTMLDetailsElement>(`#conn-list details[data-conn="${id}"]`);
-  if (d) { d.open = true; d.scrollIntoView({ block: "nearest" }); }
+  selectConn(id);
 }
 /** Einstellungen der Netzwerk-Eingänge an den Hauptprozess. */
 const netConfig = (): NetConfig => ({
@@ -940,8 +954,9 @@ function connStatus(id: string, state: ConnState, text: string): void {
   const e = $(`st-c-${id}`);
   if (e.dataset.s !== state) e.dataset.s = state;
   if (e.textContent !== text) e.textContent = text;
-  const d = e.closest("details");
-  d?.classList.toggle("is-off", state === "off");
+  e.closest(".conn")?.classList.toggle("is-off", state === "off");
+  const ps = document.querySelector<HTMLElement>(`#conn-detail .conn-pane[data-for="${id}"] .pane-st`);
+  if (ps) { if (ps.dataset.s !== state) ps.dataset.s = state; if (ps.textContent !== text) ps.textContent = text; }
 }
 function connLines(id: string, lines: string[]): void {
   const box = $(`ln-${id}`);
@@ -1020,7 +1035,7 @@ function drawConnect(now: number): void {
     tcClock.receiveOn && tcClock.source === "mtc" && !n.midi ? t("⚠ MIDI ist ausgeschaltet: kein MIDI-Timecode-Empfang.") : ""].filter(Boolean)
     : [t("Weder Empfang noch Senden eingeschaltet.")]);
 
-  if (!$("conn-list").querySelector('details[data-conn="dmx"]')!.hasAttribute("open")) { /* Live-Werte nur aufgeklappt zeichnen */ }
+  if (connSel !== "dmx") { /* Live-Werte nur zeichnen, wenn sichtbar */ }
   else {
     const live = $("dmx-live");
     if (live.childElementCount !== DMX_MODE_STANDARD_CHANNELS) { live.replaceChildren(); for (let i = 0; i < DMX_MODE_STANDARD_CHANNELS; i++) live.append(el("i")); }
@@ -1031,7 +1046,7 @@ function drawConnect(now: number): void {
       bar.classList.toggle("slotc", i + 1 >= CH.slotBase && i + 1 < CH.layerBase);
     }
   }
-  if ($("conn-list").querySelector('details[data-conn="lj"]')!.hasAttribute("open")) {
+  if (connSel === "lj") {
     const decks = $("lj-decks"); decks.replaceChildren();
     if (!ctx.lj.decks.size) decks.append(card(t("Keine Decks"), "off", [t("Sobald LJ-Link sendet, erscheinen die Decks hier.")]));
     for (const d of ctx.lj.decks.values()) {
@@ -1064,8 +1079,29 @@ function bindConnections(): void {
   });
   document.querySelectorAll<HTMLButtonElement>("#conn-list [data-open-set]").forEach(b => b.addEventListener("click", () => openSettings(b.dataset.openSet)));
   $("conn-map-midi").addEventListener("click", () => { if (showLock.locked) showLock.hint(); else mapMode.open("midi"); });
-  // Aufklappen: gleich zeichnen (Live-Werte, Decks)
-  document.querySelectorAll<HTMLDetailsElement>("#conn-list details").forEach(d => d.addEventListener("toggle", () => drawConnect(Date.now())));
+  // Links die Liste, rechts die Einstellungen der gewählten Verbindung (Kopf mit Name, Beschreibung, Status)
+  const detail = $("conn-detail");
+  document.querySelectorAll<HTMLElement>("#conn-list .conn").forEach(c => {
+    const id = c.dataset.conn!, head = c.querySelector<HTMLElement>(".conn-head")!, body = c.querySelector<HTMLElement>(".conn-body");
+    const pane = el("div", "conn-pane"); pane.dataset.for = id; pane.hidden = true;
+    const ph = el("div", "pane-head");
+    const nm = head.querySelector(".conn-name");
+    ph.append(el("h3", "", nm?.querySelector("b")?.textContent ?? id), el("span", "conn-st pane-st"));
+    pane.append(ph, el("p", "muted small pane-sub", nm?.querySelector("small")?.textContent ?? ""));
+    if (body) pane.append(body);
+    detail.append(pane);
+    head.addEventListener("click", () => selectConn(id));
+    head.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { if (e.target === head) { e.preventDefault(); selectConn(id); } }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const all = Array.from(document.querySelectorAll<HTMLElement>("#conn-list .conn-head"));
+        const n = all[(all.indexOf(head) + (e.key === "ArrowDown" ? 1 : -1) + all.length) % all.length]!;
+        n.focus(); selectConn(n.closest<HTMLElement>(".conn")!.dataset.conn!);
+      }
+    });
+  });
+  selectConn(connSel);
 }
 /** „dieser Mac“ statt 127.0.0.1. */
 const proWhere = (h: string): string => !h || /^(127\.0\.0\.1|localhost)(:8080)?$/.test(h) ? (bridge?.platform === "darwin" ? t("dieser Mac") : t("dieser Rechner")) : h === "auto" ? t("automatisch") : h;

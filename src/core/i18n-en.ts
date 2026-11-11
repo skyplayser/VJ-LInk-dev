@@ -1016,6 +1016,7 @@ export const EN: Record<string, string> = {
   "Community": "Community",
   "Beim Beenden den Hinweis zu Feedback und Weitersagen zeigen": "Show the note about feedback and sharing when quitting",
   // ---- Übergänge, Auflösung, Verbindungen (0.1.5) ----
+  "Links wählen, rechts einstellen. Der Schalter schaltet eine Verbindung ein oder aus.": "Pick on the left, set up on the right. The switch turns a connection on or off.",
   " (eigener Übergang)": " (own transition)",
   "Ableton Link ein/aus": "Ableton Link on/off",
   "Art-Net ein/aus": "Art-Net on/off",

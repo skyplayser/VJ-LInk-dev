@@ -165,43 +165,44 @@
 
 <section id="tab-connect" class="tab">
   <div class="conn-wrap">
-  <div class="h2row"><h2 data-i18n>Verbindungen</h2><span class="muted small" data-i18n>Klick auf eine Verbindung zeigt ihre Einstellungen. Der Schalter links schaltet sie ein oder aus.</span></div>
-  <div class="conn-list" id="conn-list">
-    <details class="conn" data-conn="artnet">
-      <summary><input type="checkbox" class="conn-sw" id="on-artnet" aria-label="Art-Net ein/aus" data-i18n-aria><span class="conn-name"><b>Art-Net</b><small data-i18n>Lichtpult über Netzwerk (DMX)</small></span><span class="conn-st" id="st-c-artnet"></span></summary>
+  <div class="h2row"><h2 data-i18n>Verbindungen</h2><span class="muted small" data-i18n>Links wählen, rechts einstellen. Der Schalter schaltet eine Verbindung ein oder aus.</span></div>
+  <div class="conn-split">
+  <div class="conn-list" id="conn-list" role="tablist" aria-label="Verbindungen" data-i18n-aria>
+    <div class="conn" data-conn="artnet">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><input type="checkbox" class="conn-sw" id="on-artnet" aria-label="Art-Net ein/aus" data-i18n-aria><span class="conn-name"><b>Art-Net</b><small data-i18n>Lichtpult über Netzwerk (DMX)</small></span><span class="conn-st" id="st-c-artnet"></span></div>
       <div class="conn-body">
         <label class="conn-field"><span data-i18n>Art-Net Universe</span> <input type="number" id="cfg-universe" min="0" max="32767" value="0"></label>
         <div class="conn-lines" id="ln-artnet"></div>
         <p class="am-hint" data-i18n>UDP-Port 6454. Ausgeschaltet gibt VJ-Link den Port frei, zum Beispiel für eine Lichtsoftware auf demselben Rechner. Startadresse und Kanalliste stehen unter „DMX-Kanäle“.</p>
       </div>
-    </details>
-    <details class="conn" data-conn="sacn">
-      <summary><input type="checkbox" class="conn-sw" id="on-sacn" aria-label="sACN ein/aus" data-i18n-aria><span class="conn-name"><b>sACN</b><small data-i18n>Lichtpult über Netzwerk (E1.31)</small></span><span class="conn-st" id="st-c-sacn"></span></summary>
+    </div>
+    <div class="conn" data-conn="sacn">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><input type="checkbox" class="conn-sw" id="on-sacn" aria-label="sACN ein/aus" data-i18n-aria><span class="conn-name"><b>sACN</b><small data-i18n>Lichtpult über Netzwerk (E1.31)</small></span><span class="conn-st" id="st-c-sacn"></span></div>
       <div class="conn-body">
         <label class="conn-field"><span data-i18n>sACN Universe</span> <input type="number" id="cfg-sacn" min="1" max="63999" value="1"></label>
         <div class="conn-lines" id="ln-sacn"></div>
         <p class="am-hint" data-i18n>UDP-Port 5568, Multicast auf allen Netzwerk-Anschlüssen.</p>
       </div>
-    </details>
-    <details class="conn" data-conn="dmx">
-      <summary><span class="conn-sw-gap"></span><span class="conn-name"><b data-i18n>DMX-Kanäle</b><small data-i18n>Startadresse, Kanalliste, Live-Werte</small></span><span class="conn-st" id="st-c-dmx"></span></summary>
+    </div>
+    <div class="conn" data-conn="dmx">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><span class="conn-sw-gap"></span><span class="conn-name"><b data-i18n>DMX-Kanäle</b><small data-i18n>Startadresse, Kanalliste, Live-Werte</small></span><span class="conn-st" id="st-c-dmx"></span></div>
       <div class="conn-body">
         <div class="inline wrap"><label class="conn-field"><span data-i18n>Startadresse</span> <input type="number" id="cfg-address" min="1" max="445" value="1"></label>
         <button class="btn small-btn" id="dl-channels" data-i18n>Kanalliste speichern (CSV)</button></div>
         <span class="am-cap" data-i18n>Live-Werte (91 Kanäle)</span>
         <div id="dmx-live" class="dmx-live"></div>
       </div>
-    </details>
-    <details class="conn" data-conn="osc">
-      <summary><input type="checkbox" class="conn-sw" id="on-osc" aria-label="OSC ein/aus" data-i18n-aria><span class="conn-name"><b>OSC</b><small data-i18n>TouchOSC, Companion, QLab …</small></span><span class="conn-st" id="st-c-osc"></span></summary>
+    </div>
+    <div class="conn" data-conn="osc">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><input type="checkbox" class="conn-sw" id="on-osc" aria-label="OSC ein/aus" data-i18n-aria><span class="conn-name"><b>OSC</b><small data-i18n>TouchOSC, Companion, QLab …</small></span><span class="conn-st" id="st-c-osc"></span></div>
       <div class="conn-body">
         <label class="conn-field"><span data-i18n>UDP-Port</span> <input type="number" id="cfg-oscport" min="1024" max="65535" value="8000"></label>
         <div class="conn-lines" id="ln-osc"></div>
         <p class="am-hint" data-i18n>Beispiele: /vjlink/scene/go 3 · /vjlink/scene/next · /vjlink/ctl/master 0.8. Jedes Bedienelement ist als /vjlink/ctl/… erreichbar; die Namen siehst du unter MAPPING.</p>
       </div>
-    </details>
-    <details class="conn" data-conn="lj">
-      <summary><input type="checkbox" class="conn-sw" id="on-lj" aria-label="LJ-Link ein/aus" data-i18n-aria><span class="conn-name"><b>LJ-Link</b><small data-i18n>DJ-Decks, Titel, Tempo, Phrasen</small></span><span class="conn-st" id="st-c-lj"></span></summary>
+    </div>
+    <div class="conn" data-conn="lj">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><input type="checkbox" class="conn-sw" id="on-lj" aria-label="LJ-Link ein/aus" data-i18n-aria><span class="conn-name"><b>LJ-Link</b><small data-i18n>DJ-Decks, Titel, Tempo, Phrasen</small></span><span class="conn-st" id="st-c-lj"></span></div>
       <div class="conn-body">
         <div class="conn-lines" id="ln-lj"></div>
         <p class="muted small" data-i18n>VJ-Link findet LJ-Link automatisch, auf diesem Rechner und im Netzwerk (Bonjour). Normalerweise musst du nichts einstellen. Nur wenn LJ-Link nicht gefunden wird (z. B. in einem anderen Netz), trag hier die Adresse oder „Adresse:Port“ ein.</p>
@@ -217,36 +218,38 @@
         <p class="muted small" data-i18n>Leg den Clip „Now Playing“ (Bibliothek → LJ-Link) auf eine Ebene. Im Privatsphäre-Modus von LJ-Link bleibt die Bauchbinde leer.</p>
         <div id="lj-decks" class="cards"></div>
       </div>
-    </details>
-    <details class="conn" data-conn="link">
-      <summary><input type="checkbox" class="conn-sw" id="on-link" aria-label="Ableton Link ein/aus" data-i18n-aria><span class="conn-name"><b>Ableton Link</b><small data-i18n>Tempo mit Ableton Live, Traktor & Co.</small></span><span class="conn-st" id="st-c-link"></span></summary>
+    </div>
+    <div class="conn" data-conn="link">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><input type="checkbox" class="conn-sw" id="on-link" aria-label="Ableton Link ein/aus" data-i18n-aria><span class="conn-name"><b>Ableton Link</b><small data-i18n>Tempo mit Ableton Live, Traktor & Co.</small></span><span class="conn-st" id="st-c-link"></span></div>
       <div class="conn-body">
         <div class="conn-lines" id="ln-link"></div>
         <p class="am-hint" data-i18n>VJ-Link spricht Link über das freie Zusatzprogramm Carabiner (TCP-Port 17000). Starte Carabiner auf diesem Rechner, dann verbindet sich VJ-Link von selbst.</p>
       </div>
-    </details>
-    <details class="conn" data-conn="midi">
-      <summary><input type="checkbox" class="conn-sw" id="on-midi" aria-label="MIDI ein/aus" data-i18n-aria><span class="conn-name"><b>MIDI</b><small data-i18n>Controller, MIDI-Clock, MIDI-Timecode</small></span><span class="conn-st" id="st-c-midi"></span></summary>
+    </div>
+    <div class="conn" data-conn="midi">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><input type="checkbox" class="conn-sw" id="on-midi" aria-label="MIDI ein/aus" data-i18n-aria><span class="conn-name"><b>MIDI</b><small data-i18n>Controller, MIDI-Clock, MIDI-Timecode</small></span><span class="conn-st" id="st-c-midi"></span></div>
       <div class="conn-body">
         <div class="conn-lines" id="ln-midi"></div>
         <div class="inline wrap"><button class="btn small-btn" data-open-set="midi" data-i18n>MIDI-Einstellungen</button><button class="btn small-btn" id="conn-map-midi" data-i18n>Tasten zuweisen (MAPPING)</button></div>
       </div>
-    </details>
-    <details class="conn" data-conn="audio">
-      <summary><span class="conn-sw-gap"></span><span class="conn-name"><b data-i18n>Audio-Eingang</b><small data-i18n>Mikrofon oder Line-In</small></span><span class="conn-st" id="st-c-audio"></span></summary>
+    </div>
+    <div class="conn" data-conn="audio">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><span class="conn-sw-gap"></span><span class="conn-name"><b data-i18n>Audio-Eingang</b><small data-i18n>Mikrofon oder Line-In</small></span><span class="conn-st" id="st-c-audio"></span></div>
       <div class="conn-body">
         <div class="conn-lines" id="ln-audio"></div>
         <div class="am-meter" aria-hidden="true"><i id="conn-audio-level"></i></div>
         <div class="inline wrap"><button class="btn small-btn" data-open-set="audio" data-i18n>Eingang wählen</button></div>
       </div>
-    </details>
-    <details class="conn" data-conn="tc">
-      <summary><span class="conn-sw-gap"></span><span class="conn-name"><b>Timecode</b><small data-i18n>MIDI-Timecode und Art-Net-Timecode</small></span><span class="conn-st" id="st-c-tc"></span></summary>
+    </div>
+    <div class="conn" data-conn="tc">
+      <div class="conn-head" role="tab" tabindex="0" aria-selected="false"><span class="conn-sw-gap"></span><span class="conn-name"><b>Timecode</b><small data-i18n>MIDI-Timecode und Art-Net-Timecode</small></span><span class="conn-st" id="st-c-tc"></span></div>
       <div class="conn-body">
         <div class="conn-lines" id="ln-tc"></div>
         <div class="inline wrap"><button class="btn small-btn" data-open-set="timecode" data-i18n>Timecode-Einstellungen</button></div>
       </div>
-    </details>
+    </div>
+  </div>
+  <div class="conn-detail" id="conn-detail" role="tabpanel"></div>
   </div>
   </div>
 </section>
