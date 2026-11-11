@@ -8,7 +8,7 @@ import { EFFECT_BY_ID } from "./effects";
 import { t } from "./i18n";
 
 export const DRIVE_LABEL: Record<"auto" | "bpm" | "audio" | "static", string> = { auto: "Auto", bpm: t("Takt"), audio: "Audio", static: t("Statisch") };
-const LASER_LABEL: Record<"y" | "x" | "size" | "thick" | "rot", string> = { y: t("Y (Höhe)"), x: t("X (Seite)"), size: t("Größe"), thick: t("Stärke"), rot: t("Drehung") };
+const LASER_LABEL: Record<"y" | "x" | "size" | "thick" | "rot", string> = { y: t("Y (Höhe)"), x: t("X (Seite)"), size: t("Größe"), thick: t("Linienstärke"), rot: t("Drehung") };
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
 export const SCENE_SLOTS = 32;

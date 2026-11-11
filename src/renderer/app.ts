@@ -965,10 +965,14 @@ function connLines(id: string, lines: string[]): void {
   box.dataset.k = key;
   box.replaceChildren(...lines.map(l => el("div", l.startsWith("⚠") ? "warn" : "", l)));
 }
+/** Nur Entwicklung: vorgespielter Netzwerk-, MIDI- und Link-Status für Bilder in Website und Wiki (keine echten Gerätenamen). */
+let demoNet: { status: NetStatus; midiIn: string[]; midiOut: string[]; link: { connected: boolean; peers: number; bpm: number } } | null = null;
 function drawConnect(now: number): void {
-  const s = netStatus;
+  const s = demoNet?.status ?? netStatus;
+  const midiIn = demoNet?.midiIn ?? midi.devices, midiOut = demoNet?.midiOut ?? midi.outputs;
+  const link = demoNet?.link ?? linkState;
   const n = settings.net;
-  const desktop = !!bridge && !!s;
+  const desktop = (!!bridge || !!demoNet) && !!s;
   const net = (id: "artnet" | "sacn" | "osc", on: boolean, packets: number, error: string | undefined, listening: boolean, extra: string[]) => {
     if (!desktop) { connStatus(id, "off", t("nur Desktop-App")); connLines(id, [t("Nur in der Desktop-App verfügbar")]); return; }
     const live = receiving(id, packets, now);
@@ -1004,19 +1008,19 @@ function drawConnect(now: number): void {
   const dmxLive = now - lastDmxAt < 1500;
   connStatus("dmx", dmxLive ? "live" : "ok", dmxLive ? t("Werte kommen an") : t("Startadresse {a}", { a: settings.address }));
   // Ableton Link
-  if (!bridge) connStatus("link", "off", t("nur Desktop-App"));
+  if (!bridge && !demoNet) connStatus("link", "off", t("nur Desktop-App"));
   else if (!n.link) { connStatus("link", "off", t("aus")); connLines("link", [t("Ausgeschaltet.")]); }
   else {
-    connStatus("link", linkState.connected ? "live" : "ok", linkState.connected ? t("{n} Teilnehmer", { n: linkState.peers }) : t("sucht Carabiner …"));
-    connLines("link", linkState.connected ? [t("Verbunden über Carabiner"), `${linkState.bpm.toFixed(1)} BPM · ${t("{n} Teilnehmer", { n: linkState.peers })}`] : [t("Carabiner läuft nicht (Port 17000). VJ-Link versucht es alle 3 Sekunden.")]);
+    connStatus("link", link.connected ? "live" : "ok", link.connected ? t("{n} Teilnehmer", { n: link.peers }) : t("sucht Carabiner …"));
+    connLines("link", link.connected ? [t("Verbunden über Carabiner"), `${link.bpm.toFixed(1)} BPM · ${t("{n} Teilnehmer", { n: link.peers })}`] : [t("Carabiner läuft nicht (Port 17000). VJ-Link versucht es alle 3 Sekunden.")]);
   }
   // MIDI
   if (!n.midi) { connStatus("midi", "off", t("aus")); connLines("midi", [t("Ausgeschaltet: MIDI-Eingänge werden nicht ausgewertet.")]); }
   else {
-    connStatus("midi", midi.error ? "err" : midi.devices.length ? "live" : "ok", midi.error ? t("Fehler") : midi.devices.length ? t("{n} Gerät(e)", { n: midi.devices.length }) : t("kein Gerät"));
+    connStatus("midi", midi.error ? "err" : midiIn.length ? "live" : "ok", midi.error ? t("Fehler") : midiIn.length ? t("{n} Gerät(e)", { n: midiIn.length }) : t("kein Gerät"));
     connLines("midi", [
-      midi.devices.length ? t("Eingänge: {list}", { list: midi.devices.join(", ") }) : t("Keins gefunden. Sobald du ein Gerät ansteckst, erscheint es hier."),
-      ...(midi.outputs.length ? [t("Ausgänge: {list}", { list: midi.outputs.join(", ") })] : []),
+      midiIn.length ? t("Eingänge: {list}", { list: midiIn.join(", ") }) : t("Keins gefunden. Sobald du ein Gerät ansteckst, erscheint es hier."),
+      ...(midiOut.length ? [t("Ausgänge: {list}", { list: midiOut.join(", ") })] : []),
       ...(midi.error ? [`⚠ ${midi.error}`] : [])]);
   }
   // Audio
@@ -1834,6 +1838,8 @@ requestAnimationFrame(frame);
   genIds: () => READY_GENERATORS.map(g => g.id), fxIds: () => POST_EFFECTS.map(e => e.id),
   file: (cmd: ProjectFileCmd, p?: string) => runFileCmd(cmd, p),
   fps: () => engine?.info ?? null,
+  /** Nur Entwicklung: Verbindungs-Status für Bilder in Website und Wiki vorspielen (null = echt). */
+  demoNet: (d: typeof demoNet) => { demoNet = d; drawConnect(Date.now()); },
   // Test: Auflösung des Ausgabebilds setzen (tests/e2e)
   setRes: (r: OutputRes) => { outLayout.res = { ...r }; fitPreview(); resPanel.sync(); },
   demoOutputs: (d: DisplayInfo[], layout?: OutputLayout) => { displays = d; demoDisplays = true; if (layout) outLayout = layout; renderDisplays(); outputTab.render(); fitPreview(); },

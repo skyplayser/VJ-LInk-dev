@@ -26,7 +26,7 @@ const LASER_FIELDS: LaserField[] = [
   { key: "x", label: t("X · Seite"), scale: 100, unit: "" },
   { key: "size", label: t("Größe"), scale: 100, unit: " %" },
   { key: "rot", label: t("Drehung"), scale: 1, unit: "°" },
-  { key: "thick", label: t("Stärke"), scale: 100, unit: " %", laserOnly: true },
+  { key: "thick", label: t("Linienstärke"), scale: 100, unit: " %", laserOnly: true },
 ];
 
 const rgbCss = (c: readonly number[]) => `rgb(${c.map(v => Math.round(v * 255)).join(",")})`;
