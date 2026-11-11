@@ -20,6 +20,7 @@ protocol.registerSchemesAsPrivileged([
 let control: BrowserWindow | null = null;
 const outputs = new Map<number, BrowserWindow>();
 let net: Network | null = null;
+let link: LinkClient | null = null;
 let lastFrame: Frame | null = null;
 let storage: Storage | null = null;
 let files: ProjectFiles | null = null;
@@ -450,7 +451,7 @@ app.whenReady().then(async () => {
   createControl();
   net = new Network((e: ControlEvent) => { control?.webContents.send("control", e); });
   net.start();
-  const link = new LinkClient(s => control?.webContents.send("control", { type: "link", ...s }));
+  link = new LinkClient(s => control?.webContents.send("control", { type: "link", ...s }));
   link.start();
 
   ipcMain.handle("displays:list", () => listDisplays());
@@ -571,6 +572,9 @@ app.whenReady().then(async () => {
     if (e.sender !== control?.webContents) return;
     if (Number.isFinite(c?.sacnUniverse)) net?.joinSacn(c.sacnUniverse);
     if (typeof c?.ljHost === "string" && /^[A-Za-z0-9.:\[\]-]{0,253}$/.test(c.ljHost)) net?.setLjHost(c.ljHost);
+    const b = (v: unknown) => (typeof v === "boolean" ? v : undefined);
+    net?.setEnabled({ artnet: b(c?.artnet), sacn: b(c?.sacn), osc: b(c?.osc), lj: b(c?.lj) }, typeof c?.oscPort === "number" ? c.oscPort : undefined);
+    if (typeof c?.link === "boolean") { if (c.link) link?.start(); else link?.stop(); }
   });
   const fromControl = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => e.sender === control?.webContents;
   ipcMain.on("media:add", async (e, p: unknown) => {

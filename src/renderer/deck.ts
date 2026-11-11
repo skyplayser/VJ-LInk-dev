@@ -13,7 +13,10 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""):
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
 }
 
-export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
+/** Modulierter Wert eines Reglers (0–1) oder null, wenn keine Modulation auf ihm liegt. */
+export type LiveValue = (id: string) => number | null;
+
+export function buildDeck(ctx: ControlContext, mount: HTMLElement, live: LiveValue = () => null): () => void {
   const updaters: (() => void)[] = [];
   const defs = CONTROLS.filter(c => {
     if (!c.quick) return false;
@@ -28,7 +31,7 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
     box.append(el("h3", "", t(group)));
     const faders = el("div", "faders"), pads = el("div", "pads");
     for (const d of items) {
-      if (d.kind === "fader") faders.append(fader(d, ctx, updaters));
+      if (d.kind === "fader") faders.append(fader(d, ctx, updaters, live));
       else pads.append(pad(d, ctx, updaters));
     }
     if (faders.childElementCount) box.append(faders);
@@ -46,8 +49,10 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
   return () => { for (const u of updaters) u(); };
 }
 
-function fader(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HTMLElement {
+function fader(d: ControlDef, ctx: ControlContext, updaters: (() => void)[], live: LiveValue): HTMLElement {
   const wrap = el("label", "fader");
+  // Modulation: Markierung am Regler zeigt den Wert, der gerade im Bild ist (der Regler selbst bleibt am Grundwert)
+  const track = el("span", "ftrack"), mark = el("i", "fmod");
   const val = el("span", "val");
   const input = el("input"); input.type = "range"; input.min = "0"; input.max = "1000"; input.className = "v";
   input.setAttribute("aria-label", `${d.label} (${d.id})`);
@@ -59,8 +64,15 @@ function fader(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HT
   input.addEventListener("input", () => { setControl(ctx, d.id, Number(input.value) / 1000); show(); });
   input.addEventListener("dblclick", () => { setControl(ctx, d.id, d.id === "master" ? 1 : 0); });
   const show = () => { val.textContent = d.format ? d.format(ctx) : String(Math.round(d.get(ctx) * 100)); };
-  updaters.push(() => { if (!dragging) input.value = String(Math.round(d.get(ctx) * 1000)); show(); });
-  wrap.append(val, input, el("span", "name", d.label));
+  updaters.push(() => {
+    if (!dragging) input.value = String(Math.round(d.get(ctx) * 1000));
+    show();
+    const m = live(d.id);
+    wrap.classList.toggle("modded", m !== null);
+    if (m !== null) mark.style.setProperty("--m", m.toFixed(3));
+  });
+  track.append(input, mark);
+  wrap.append(val, track, el("span", "name", d.label));
   wrap.dataset.ctl = d.id;
   return wrap;
 }

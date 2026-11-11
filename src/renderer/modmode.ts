@@ -18,6 +18,8 @@ export class ModMode {
   private on = false;
   private target: string | null = null;
   private meter: HTMLElement | null = null;
+  /** Hinweis „kein Audio“ bei Audio-Quellen. */
+  private noAudio: HTMLElement | null = null;
   private timer = 0;
 
   constructor(private ctx: ControlContext, private beat: () => number, private bands: () => readonly number[],
@@ -73,6 +75,7 @@ export class ModMode {
   private tick(): void {
     const m = this.mods.find(x => x.target === this.target);
     if (m && this.meter) this.meter.style.setProperty("--v", String(m.on ? modSignal(m, this.beat(), this.bands()) : 0));
+    if (this.noAudio) this.noAudio.hidden = this.bands().some(v => v > 0.001);
   }
 
   private mark(): void {
@@ -88,6 +91,7 @@ export class ModMode {
   private render(): void {
     const box = this.panel;
     box.replaceChildren();
+    this.noAudio = null;
     const head = el("div", "map-head");
     head.append(el("span", "grip", "∿"), el("b", "", t("Modulation")));
     const done = el("button", "btn small-btn", t("Fertig")); done.title = t("Beenden (Esc)");
@@ -117,7 +121,9 @@ export class ModMode {
         sel.addEventListener("change", () => { m.beats = Number(sel.value); });
         r.append(sel, el("span")); ed.append(r);
       } else {
-        ed.append(el("p", "map-hint", t("Folgt dem Audio-Eingang (Einstellungen → Audio) oder LJ-Link. Ohne Audio bleibt der Regler auf seinem Grundwert minus der halben Stärke.")));
+        ed.append(el("p", "map-hint", t("Pumpt mit dem Audio vom Grundwert nach oben; steht der Regler ganz oben, von unten bis zum Grundwert. Quelle: Audio-Eingang (Einstellungen → Audio) oder LJ-Link.")));
+        this.noAudio = el("p", "map-hint warn", t("Gerade kommt kein Audio an. Wähl in den Einstellungen unter Audio einen Eingang oder verbinde LJ-Link."));
+        ed.append(this.noAudio);
       }
       const r = el("label", "mrow"); r.append(el("span", "", t("Stärke")));
       const depth = el("input"); depth.type = "range"; depth.min = "0"; depth.max = "100"; depth.value = String(Math.round(m.depth * 100));

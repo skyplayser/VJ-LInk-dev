@@ -125,11 +125,31 @@ export interface Transition {
   /** Alternativ in Sekunden: Start (Epoch-ms) und Dauer (ms). Hat Vorrang vor Beats. */
   startMs?: number;
   ms?: number;
-  /** „fade“ überblendet, „black“ geht über Schwarz. */
+  /** Art des Übergangs (Überblenden, über Schwarz, Wischen …). */
   style: TransitionStyle;
 }
 
-export type TransitionStyle = "fade" | "black";
+/** Übergangsarten. Reihenfolge = Reihenfolge in Auswahl, Regler und Shader (`uStyle`). */
+export const TRANSITION_STYLES = [
+  { id: "fade", label: t("Überblenden") },
+  { id: "black", label: t("Über Schwarz") },
+  { id: "white", label: t("Über Weiß") },
+  { id: "flash", label: t("Weißer Blitz") },
+  { id: "wipe-right", label: t("Wischen nach rechts") },
+  { id: "wipe-left", label: t("Wischen nach links") },
+  { id: "wipe-up", label: t("Wischen nach oben") },
+  { id: "wipe-down", label: t("Wischen nach unten") },
+  { id: "push-left", label: t("Schieben nach links") },
+  { id: "push-up", label: t("Schieben nach oben") },
+  { id: "iris", label: t("Kreis") },
+  { id: "zoom", label: t("Zoom") },
+  { id: "dissolve", label: t("Pixel") },
+  { id: "luma", label: t("Helle Stellen zuerst") },
+  { id: "glitch", label: t("Glitch") },
+] as const;
+export type TransitionStyle = typeof TRANSITION_STYLES[number]["id"];
+export const TRANSITION_IDS: readonly TransitionStyle[] = TRANSITION_STYLES.map(x => x.id);
+export const transitionLabel = (id: TransitionStyle): string => TRANSITION_STYLES.find(x => x.id === id)?.label ?? id;
 
 export interface StrobeState {
   /** Dauerhaft an (Schalter). */
@@ -179,8 +199,14 @@ export interface ShowState {
   safeFlash?: boolean;
   blackout: boolean;
   scene: number;
-  /** Übergangsdauer in Beats (0 = Schnitt). */
+  /** Regler „Blende“: Dauer des Übergangs in Beats bzw. Sekunden (0 = Schnitt). */
   transitionBeats: number;
+  /** Einheit des Reglers „Blende“ (fehlt = Beats). */
+  transitionUnit?: "beats" | "seconds";
+  /** Art des Übergangs für Szenen ohne eigene Einstellung (fehlt = Überblenden). */
+  transitionStyle?: TransitionStyle;
+  /** Regler „Blende“ gilt für alle Szenen, auch für solche mit eigenem Übergang. */
+  transitionAll?: boolean;
   transition: Transition | null;
   /** Wann die aktuelle Szene begann (für „weiter nach …“). */
   sceneStart: { beat: number; ms: number };

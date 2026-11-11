@@ -85,7 +85,7 @@
     <div class="left">
       <div class="monrow">
         <div class="mon">
-          <div class="lbl"><b data-i18n>● AUSGANG</b><span id="mon-info">–</span></div>
+          <div class="lbl"><b data-i18n>● AUSGANG</b><span class="res-wrap"><span id="mon-info">–</span><button class="btn small-btn res-btn" id="res-btn" type="button" title="Auflösung des Ausgabebilds: Auto, feste Pixel oder Format" data-i18n-title>Auflösung</button></span></div>
           <div class="mon-box" id="mon-box"><canvas id="preview" width="640" height="360" aria-label="Vorschau des Ausgangs" data-i18n-aria></canvas></div>
           <div class="img-tiles" id="img-tiles" hidden></div>
         </div>
@@ -164,30 +164,91 @@
 </section>
 
 <section id="tab-connect" class="tab">
-  <h2 data-i18n>Eingänge</h2>
-  <div class="cards" id="cards"></div>
-  <h2 data-i18n>DMX-Einstellungen</h2>
-  <div class="form">
-    <label><span data-i18n>Art-Net Universe</span> <input type="number" id="cfg-universe" min="0" max="32767" value="0"></label>
-    <label><span data-i18n>sACN Universe</span> <input type="number" id="cfg-sacn" min="1" max="63999" value="1"></label>
-    <label><span data-i18n>Startadresse</span> <input type="number" id="cfg-address" min="1" max="445" value="1"></label>
-    <button class="btn" id="dl-channels" data-i18n>Kanalliste speichern (CSV)</button>
+  <div class="conn-wrap">
+  <div class="h2row"><h2 data-i18n>Verbindungen</h2><span class="muted small" data-i18n>Klick auf eine Verbindung zeigt ihre Einstellungen. Der Schalter links schaltet sie ein oder aus.</span></div>
+  <div class="conn-list" id="conn-list">
+    <details class="conn" data-conn="artnet">
+      <summary><input type="checkbox" class="conn-sw" id="on-artnet" aria-label="Art-Net ein/aus" data-i18n-aria><span class="conn-name"><b>Art-Net</b><small data-i18n>Lichtpult über Netzwerk (DMX)</small></span><span class="conn-st" id="st-c-artnet"></span></summary>
+      <div class="conn-body">
+        <label class="conn-field"><span data-i18n>Art-Net Universe</span> <input type="number" id="cfg-universe" min="0" max="32767" value="0"></label>
+        <div class="conn-lines" id="ln-artnet"></div>
+        <p class="am-hint" data-i18n>UDP-Port 6454. Ausgeschaltet gibt VJ-Link den Port frei, zum Beispiel für eine Lichtsoftware auf demselben Rechner. Startadresse und Kanalliste stehen unter „DMX-Kanäle“.</p>
+      </div>
+    </details>
+    <details class="conn" data-conn="sacn">
+      <summary><input type="checkbox" class="conn-sw" id="on-sacn" aria-label="sACN ein/aus" data-i18n-aria><span class="conn-name"><b>sACN</b><small data-i18n>Lichtpult über Netzwerk (E1.31)</small></span><span class="conn-st" id="st-c-sacn"></span></summary>
+      <div class="conn-body">
+        <label class="conn-field"><span data-i18n>sACN Universe</span> <input type="number" id="cfg-sacn" min="1" max="63999" value="1"></label>
+        <div class="conn-lines" id="ln-sacn"></div>
+        <p class="am-hint" data-i18n>UDP-Port 5568, Multicast auf allen Netzwerk-Anschlüssen.</p>
+      </div>
+    </details>
+    <details class="conn" data-conn="dmx">
+      <summary><span class="conn-sw-gap"></span><span class="conn-name"><b data-i18n>DMX-Kanäle</b><small data-i18n>Startadresse, Kanalliste, Live-Werte</small></span><span class="conn-st" id="st-c-dmx"></span></summary>
+      <div class="conn-body">
+        <div class="inline wrap"><label class="conn-field"><span data-i18n>Startadresse</span> <input type="number" id="cfg-address" min="1" max="445" value="1"></label>
+        <button class="btn small-btn" id="dl-channels" data-i18n>Kanalliste speichern (CSV)</button></div>
+        <span class="am-cap" data-i18n>Live-Werte (91 Kanäle)</span>
+        <div id="dmx-live" class="dmx-live"></div>
+      </div>
+    </details>
+    <details class="conn" data-conn="osc">
+      <summary><input type="checkbox" class="conn-sw" id="on-osc" aria-label="OSC ein/aus" data-i18n-aria><span class="conn-name"><b>OSC</b><small data-i18n>TouchOSC, Companion, QLab …</small></span><span class="conn-st" id="st-c-osc"></span></summary>
+      <div class="conn-body">
+        <label class="conn-field"><span data-i18n>UDP-Port</span> <input type="number" id="cfg-oscport" min="1024" max="65535" value="8000"></label>
+        <div class="conn-lines" id="ln-osc"></div>
+        <p class="am-hint" data-i18n>Beispiele: /vjlink/scene/go 3 · /vjlink/scene/next · /vjlink/ctl/master 0.8. Jedes Bedienelement ist als /vjlink/ctl/… erreichbar; die Namen siehst du unter MAPPING.</p>
+      </div>
+    </details>
+    <details class="conn" data-conn="lj">
+      <summary><input type="checkbox" class="conn-sw" id="on-lj" aria-label="LJ-Link ein/aus" data-i18n-aria><span class="conn-name"><b>LJ-Link</b><small data-i18n>DJ-Decks, Titel, Tempo, Phrasen</small></span><span class="conn-st" id="st-c-lj"></span></summary>
+      <div class="conn-body">
+        <div class="conn-lines" id="ln-lj"></div>
+        <p class="muted small" data-i18n>VJ-Link findet LJ-Link automatisch, auf diesem Rechner und im Netzwerk (Bonjour). Normalerweise musst du nichts einstellen. Nur wenn LJ-Link nicht gefunden wird (z. B. in einem anderen Netz), trag hier die Adresse oder „Adresse:Port“ ein.</p>
+        <div class="inline wrap lj-host">
+          <label class="inline"><span data-i18n>LJ-Link auf</span> <input id="cfg-ljhost" type="text" placeholder="automatisch" spellcheck="false" autocomplete="off" maxlength="253" data-i18n-ph></label>
+          <button class="btn small-btn" id="lj-open" title="Weboberfläche von LJ-Link im Browser öffnen" data-i18n-title data-i18n>LJ-Link öffnen</button>
+        </div>
+        <div class="inline wrap lj-host">
+          <label class="inline"><span data-i18n>Now-Playing-Bauchbinde zeigen</span>
+            <select id="cfg-ljhold"><option value="8" data-i18n>8 s nach Trackwechsel</option><option value="15" data-i18n>15 s nach Trackwechsel</option><option value="30" data-i18n>30 s nach Trackwechsel</option><option value="0" data-i18n>immer</option></select></label>
+          <button class="btn small-btn" id="lj-np-show" title="Bauchbinde jetzt noch einmal einblenden" data-i18n-title data-i18n>Jetzt einblenden</button>
+        </div>
+        <p class="muted small" data-i18n>Leg den Clip „Now Playing“ (Bibliothek → LJ-Link) auf eine Ebene. Im Privatsphäre-Modus von LJ-Link bleibt die Bauchbinde leer.</p>
+        <div id="lj-decks" class="cards"></div>
+      </div>
+    </details>
+    <details class="conn" data-conn="link">
+      <summary><input type="checkbox" class="conn-sw" id="on-link" aria-label="Ableton Link ein/aus" data-i18n-aria><span class="conn-name"><b>Ableton Link</b><small data-i18n>Tempo mit Ableton Live, Traktor & Co.</small></span><span class="conn-st" id="st-c-link"></span></summary>
+      <div class="conn-body">
+        <div class="conn-lines" id="ln-link"></div>
+        <p class="am-hint" data-i18n>VJ-Link spricht Link über das freie Zusatzprogramm Carabiner (TCP-Port 17000). Starte Carabiner auf diesem Rechner, dann verbindet sich VJ-Link von selbst.</p>
+      </div>
+    </details>
+    <details class="conn" data-conn="midi">
+      <summary><input type="checkbox" class="conn-sw" id="on-midi" aria-label="MIDI ein/aus" data-i18n-aria><span class="conn-name"><b>MIDI</b><small data-i18n>Controller, MIDI-Clock, MIDI-Timecode</small></span><span class="conn-st" id="st-c-midi"></span></summary>
+      <div class="conn-body">
+        <div class="conn-lines" id="ln-midi"></div>
+        <div class="inline wrap"><button class="btn small-btn" data-open-set="midi" data-i18n>MIDI-Einstellungen</button><button class="btn small-btn" id="conn-map-midi" data-i18n>Tasten zuweisen (MAPPING)</button></div>
+      </div>
+    </details>
+    <details class="conn" data-conn="audio">
+      <summary><span class="conn-sw-gap"></span><span class="conn-name"><b data-i18n>Audio-Eingang</b><small data-i18n>Mikrofon oder Line-In</small></span><span class="conn-st" id="st-c-audio"></span></summary>
+      <div class="conn-body">
+        <div class="conn-lines" id="ln-audio"></div>
+        <div class="am-meter" aria-hidden="true"><i id="conn-audio-level"></i></div>
+        <div class="inline wrap"><button class="btn small-btn" data-open-set="audio" data-i18n>Eingang wählen</button></div>
+      </div>
+    </details>
+    <details class="conn" data-conn="tc">
+      <summary><span class="conn-sw-gap"></span><span class="conn-name"><b>Timecode</b><small data-i18n>MIDI-Timecode und Art-Net-Timecode</small></span><span class="conn-st" id="st-c-tc"></span></summary>
+      <div class="conn-body">
+        <div class="conn-lines" id="ln-tc"></div>
+        <div class="inline wrap"><button class="btn small-btn" data-open-set="timecode" data-i18n>Timecode-Einstellungen</button></div>
+      </div>
+    </details>
   </div>
-  <h2 data-i18n>Live-Werte (91 Kanäle)</h2>
-  <div id="dmx-live" class="dmx-live"></div>
-  <h2>LJ-Link</h2>
-  <p class="muted small" data-i18n>VJ-Link findet LJ-Link automatisch, auf diesem Rechner und im Netzwerk (Bonjour). Normalerweise musst du nichts einstellen. Nur wenn LJ-Link nicht gefunden wird (z. B. in einem anderen Netz), trag hier die Adresse oder „Adresse:Port“ ein.</p>
-  <div class="inline wrap lj-host">
-    <label class="inline"><span data-i18n>LJ-Link auf</span> <input id="cfg-ljhost" type="text" placeholder="automatisch" spellcheck="false" autocomplete="off" maxlength="253" data-i18n-ph></label>
-    <button class="btn small-btn" id="lj-open" title="Weboberfläche von LJ-Link im Browser öffnen" data-i18n-title data-i18n>LJ-Link öffnen</button>
   </div>
-  <div class="inline wrap lj-host">
-    <label class="inline"><span data-i18n>Now-Playing-Bauchbinde zeigen</span>
-      <select id="cfg-ljhold"><option value="8" data-i18n>8 s nach Trackwechsel</option><option value="15" data-i18n>15 s nach Trackwechsel</option><option value="30" data-i18n>30 s nach Trackwechsel</option><option value="0" data-i18n>immer</option></select></label>
-    <button class="btn small-btn" id="lj-np-show" title="Bauchbinde jetzt noch einmal einblenden" data-i18n-title data-i18n>Jetzt einblenden</button>
-    <span class="muted small" data-i18n>Leg den Clip „Now Playing“ (Bibliothek → LJ-Link) auf eine Ebene. Im Privatsphäre-Modus von LJ-Link bleibt die Bauchbinde leer.</span>
-  </div>
-  <div id="lj-decks" class="cards"></div>
 </section>
 </main>
 <div class="settings" id="settings" role="dialog" aria-modal="true" aria-label="Einstellungen" hidden data-i18n-aria>

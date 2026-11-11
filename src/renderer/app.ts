@@ -25,7 +25,8 @@ import { MapMode } from "./mapmode";
 import { LibraryPanel } from "./librarypanel";
 import { AudioIn } from "./audioin";
 import { OutputTab } from "./outputtab";
-import { canvasBounds, defaultLayout, type OutputLayout } from "../core/layout";
+import { ResPanel } from "./respanel";
+import { canvasBounds, defaultLayout, resAspect, type OutputLayout, type OutputRes } from "../core/layout";
 import { TimecodeClock, MtcDecoder, formatFrames, parseTc, tcToFrames } from "../core/timecode";
 import { TcPanel, defaultTcSettings, type TcSettings } from "./tcpanel";
 import { cueRenders, cueTick, isVideoClip, newCueState, videoClip, videoIdOf, type CueEnv } from "../core/video";
@@ -37,9 +38,9 @@ import { AUDIO_CLIPS, micDrives } from "../core/audio";
 import { MidiIn } from "./midi";
 import type { TempoSource } from "../core/tempo";
 import { DjLink } from "./djlink";
-import { WINDOW_SIZES, frameBeat, type VjStatus, type ControlEvent, type DisplayInfo, type Frame, type NetStatus } from "../core/frame";
+import { WINDOW_SIZES, frameBeat, type VjStatus, type ControlEvent, type DisplayInfo, type Frame, type NetStatus, type NetConfig } from "../core/frame";
 import { bridge } from "./bridge";
-import { resolveControl, setControl } from "../core/controls";
+import { CONTROL_BY_ID, resolveControl, setControl } from "../core/controls";
 import { buildDeck } from "./deck";
 import { ThumbView } from "./thumbs";
 import { MediaLibrary } from "./medialib";
@@ -96,12 +97,15 @@ interface Settings {
   safetyAck: boolean;
   /** Beim Beenden den Hinweis „Community-Projekt“ zeigen (Standard an). */
   farewell: boolean;
+  /** Verbindungen an/aus (VERBINDEN) und OSC-Port. */
+  net: { artnet: boolean; sacn: boolean; osc: boolean; lj: boolean; link: boolean; midi: boolean; oscPort: number };
 }
 function loadSettings(): Settings {
-  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "", ljHold: 15, safeFlash: true, autoUpdate: true, safetyAck: false, farewell: true };
+  const d: Settings = { universe: 0, sacn: 1, address: 1, uiScale: "auto", audioDevice: "", audioGain: 1, audioScope: "audio", audioOut: "", tc: defaultTcSettings(), ljHost: "", ljHold: 15, safeFlash: true, autoUpdate: true, safetyAck: false, farewell: true,
+    net: { artnet: true, sacn: true, osc: true, lj: true, link: true, midi: true, oscPort: 8000 } };
   try {
     const raw = JSON.parse(localStorage.getItem("vjlink.settings") ?? "{}") as Partial<Settings>;
-    return { ...d, ...raw, tc: { ...d.tc, ...(raw.tc ?? {}) } };
+    return { ...d, ...raw, tc: { ...d.tc, ...(raw.tc ?? {}) }, net: { ...d.net, ...(raw.net ?? {}) } };
   } catch { return d; }
 }
 const settings = loadSettings();
@@ -136,7 +140,7 @@ let uiCanvas = "main";
 
 // ---- Zuweisungen (Mapping) -------------------------------------------------------------
 const mappings = new MappingTable(defaultKeyMappings());
-let linkState = { connected: false, peers: 0 };
+let linkState = { connected: false, peers: 0, bpm: 0 };
 const dmxPrev = new Map<number, Uint8Array>();
 const leds = new LedFeedback();
 const clock = new MidiClock();
@@ -213,7 +217,7 @@ function onControl(e: ControlEvent): void {
     }
     case "timecode": tcClock.receive(e.tc, e.fps, "artnet", now, e.from); break;
     case "link":
-      linkState = { connected: e.connected, peers: e.peers };
+      linkState = { connected: e.connected, peers: e.peers, bpm: e.bpm };
       if (e.connected && e.bpm > 0) ctx.tempo.update("link", e.bpm, now, e.beat);
       break;
     case "lj": { const m = parseLjMessage(e.raw); if (m) handleLj(ctx, m, now); break; }
@@ -738,10 +742,12 @@ function buildMidiSection(): void {
   if (midi.error) box.append(el("p", "am-hint", midi.error));
 }
 
-// DMX-Felder und Oberflächen-Größe wohnen jetzt in den Einstellungen
-$("set-dmx").append(...Array.from(document.querySelectorAll("#tab-connect .form")));
-$("set-dmx").append(el("p", "am-hint", t("Live-Werte und Status der Eingänge findest du im Tab VERBINDEN.")));
-document.querySelectorAll("#tab-connect h2").forEach(h => { if (h.textContent === t("DMX-Einstellungen")) h.remove(); });
+// DMX und Netzwerk stellt man im Tab VERBINDEN ein (jede Verbindung zum Ausklappen); hier nur der Weg dorthin
+{
+  const go = el("button", "btn", t("Verbindungen öffnen"));
+  go.addEventListener("click", () => { closeSettings(); openConnection("artnet"); });
+  $("set-dmx").append(el("p", "am-hint", t("Art-Net, sACN, DMX-Kanäle, OSC, LJ-Link, Ableton Link und MIDI stellst du im Tab VERBINDEN ein: Klick auf eine Verbindung zeigt ihre Einstellungen, der Schalter schaltet sie ein oder aus.")), go);
+}
 // Ebenen hinzufügen
 $("layer-add").addEventListener("click", () => {
   const i = addLayer(ctx.show);
@@ -822,6 +828,7 @@ function buildCatalog(): void {
 
 // ---- Ausgabe --------------------------------------------------------------------------
 let outLayout: OutputLayout = defaultLayout();
+const resPanel = new ResPanel($<HTMLButtonElement>("res-btn"), () => outLayout, () => fitPreview());
 const outputTab = new OutputTab(() => outLayout, l => { outLayout = l; }, () => displays, () => fitPreview(), {
   // Projektionsmapping: Raster-Testbild auf die Leinwände
   on: () => ctx.show.testCard && ctx.show.testPattern === "grid",
@@ -910,39 +917,155 @@ function card(title: string, state: "ok" | "off" | "err", lines: string[], live 
   const head = el("div", "head"); head.append(el("b", "", title)); head.append(el("span", "dot"));
   c.append(head); for (const l of lines) c.append(el("em", "", l)); return c;
 }
+/** Verbindung im Tab VERBINDEN aufklappen (z. B. aus den Einstellungen). */
+function openConnection(id: string): void {
+  document.querySelector<HTMLButtonElement>('.tabs [data-tab="connect"]')?.click();
+  const d = document.querySelector<HTMLDetailsElement>(`#conn-list details[data-conn="${id}"]`);
+  if (d) { d.open = true; d.scrollIntoView({ block: "nearest" }); }
+}
+/** Einstellungen der Netzwerk-Eingänge an den Hauptprozess. */
+const netConfig = (): NetConfig => ({
+  sacnUniverse: settings.sacn, ljHost: settings.ljHost, artnet: settings.net.artnet, sacn: settings.net.sacn, osc: settings.net.osc,
+  lj: settings.net.lj, link: settings.net.link, oscPort: settings.net.oscPort,
+});
+/** Paketzähler je Eingang: wann zuletzt etwas ankam (für „empfängt“). */
+const pktSeen: Record<string, { n: number; at: number }> = {};
+function receiving(key: string, n: number, now: number): boolean {
+  const p = (pktSeen[key] ??= { n, at: 0 });
+  if (n !== p.n) { p.n = n; p.at = now; }
+  return now - p.at < 2000;
+}
+type ConnState = "live" | "ok" | "off" | "err";
+function connStatus(id: string, state: ConnState, text: string): void {
+  const e = $(`st-c-${id}`);
+  if (e.dataset.s !== state) e.dataset.s = state;
+  if (e.textContent !== text) e.textContent = text;
+  const d = e.closest("details");
+  d?.classList.toggle("is-off", state === "off");
+}
+function connLines(id: string, lines: string[]): void {
+  const box = $(`ln-${id}`);
+  const key = lines.join("\n");
+  if (box.dataset.k === key) return;
+  box.dataset.k = key;
+  box.replaceChildren(...lines.map(l => el("div", l.startsWith("⚠") ? "warn" : "", l)));
+}
 function drawConnect(now: number): void {
-  const s = netStatus; const cards = $("cards"); cards.replaceChildren();
-  if (!bridge || !s) { cards.append(card(t("Netzwerk"), "off", [t("Nur in der Desktop-App verfügbar")])); }
+  const s = netStatus;
+  const n = settings.net;
+  const desktop = !!bridge && !!s;
+  const net = (id: "artnet" | "sacn" | "osc", on: boolean, packets: number, error: string | undefined, listening: boolean, extra: string[]) => {
+    if (!desktop) { connStatus(id, "off", t("nur Desktop-App")); connLines(id, [t("Nur in der Desktop-App verfügbar")]); return; }
+    const live = receiving(id, packets, now);
+    connStatus(id, !on ? "off" : error ? "err" : live ? "live" : listening ? "ok" : "off",
+      !on ? t("aus") : error ? t("Fehler") : live ? t("empfängt") : listening ? t("bereit") : t("startet …"));
+    connLines(id, on ? [...extra, t("{n} Pakete", { n: packets }), ...(error ? [`⚠ ${error}`] : [])] : [t("Ausgeschaltet. Der Port ist frei.")]);
+  };
+  if (s) {
+    const au = otherUniverse("artnet", now), su = otherUniverse("sacn", now);
+    net("artnet", n.artnet, s.artnet.packets, s.artnet.error, s.artnet.listening, [
+      `UDP 6454 · Universe ${settings.universe}`, s.artnet.lastFrom ? t("von {host}", { host: s.artnet.lastFrom }) : t("wartet auf ein Pult"),
+      ...(au !== null ? [t("⚠ Pult sendet auf Universe {u}", { u: au })] : [])]);
+    net("sacn", n.sacn, s.sacn.packets, s.sacn.error, s.sacn.listening, [
+      `UDP 5568 · Universe ${settings.sacn}`, ...(su !== null ? [t("⚠ Pult sendet auf Universe {u}", { u: su })] : [])]);
+    net("osc", n.osc, s.osc.packets, s.osc.error, s.osc.listening, [
+      `UDP ${s.osc.port}`, s.osc.lastFrom ? t("von {host}", { host: s.osc.lastFrom }) : t("wartet auf Nachrichten")]);
+    // LJ-Link
+    const lj = s.lj;
+    if (!n.lj) { connStatus("lj", "off", t("aus")); connLines("lj", [t("Ausgeschaltet.")]); }
+    else {
+      const conn = lj.clients > 0 || !!lj.pro?.connected;
+      connStatus("lj", conn ? "live" : lj.error ? "err" : "ok", conn ? t("verbunden") : lj.error ? t("Fehler") : t("sucht …"));
+      connLines("lj", [
+        lj.pro?.connected ? t("LJ-Link verbunden: {host}", { host: proWhere(lj.pro.host) }) + (lj.pro.native ? t(" (direkt)") : t(" (über Weboberfläche)")) : t("sucht LJ-Link ({host})", { host: proWhere(lj.pro?.host ?? "auto") }),
+        lj.pro?.auto ? (lj.pro.found?.length ? t("im Netz gefunden: {list}", { list: lj.pro.found.join(", ") }) : t("im Netz noch keins gefunden (Bonjour)")) : t("feste Adresse"),
+        lj.clients > 0 ? t("WebSocket {port}: {n} verbunden", { port: lj.port, n: lj.clients }) : t("WebSocket {port} offen", { port: lj.port }),
+        ...(lj.error ? [`⚠ ${lj.error}`] : [])]);
+    }
+  } else {
+    for (const id of ["artnet", "sacn", "osc", "lj"]) { connStatus(id, "off", t("nur Desktop-App")); connLines(id, [t("Nur in der Desktop-App verfügbar")]); }
+  }
+  // DMX-Kanäle
+  const dmxLive = now - lastDmxAt < 1500;
+  connStatus("dmx", dmxLive ? "live" : "ok", dmxLive ? t("Werte kommen an") : t("Startadresse {a}", { a: settings.address }));
+  // Ableton Link
+  if (!bridge) connStatus("link", "off", t("nur Desktop-App"));
+  else if (!n.link) { connStatus("link", "off", t("aus")); connLines("link", [t("Ausgeschaltet.")]); }
   else {
-    const dmxLive = now - lastDmxAt < 1500;
-    cards.append(
-      card("Art-Net", s.artnet.error ? "err" : s.artnet.listening ? "ok" : "off", [`UDP 6454 · Universe ${settings.universe}`, t("{n} Pakete", { n: s.artnet.packets }), s.artnet.lastFrom ? t("von {host}", { host: s.artnet.lastFrom }) : (s.artnet.error ?? t("wartet")),
-        ...(otherUniverse("artnet", now) !== null ? [t("⚠ Pult sendet auf Universe {u}", { u: otherUniverse("artnet", now)! })] : [])]),
-      card("sACN", s.sacn.error ? "err" : s.sacn.listening ? "ok" : "off", [`UDP 5568 · Universe ${settings.sacn}`, t("{n} Pakete", { n: s.sacn.packets }), s.sacn.error ?? t("wartet"),
-        ...(otherUniverse("sacn", now) !== null ? [t("⚠ Pult sendet auf Universe {u}", { u: otherUniverse("sacn", now)! })] : [])]),
-      card("OSC", s.osc.error ? "err" : s.osc.listening ? "ok" : "off", [`UDP ${s.osc.port}`, t("{n} Pakete", { n: s.osc.packets }), s.osc.error ?? "/vjlink/…"]),
-      card("LJ-Link", s.lj.clients > 0 || s.lj.pro?.connected ? "ok" : s.lj.error ? "err" : "off", [
-        s.lj.pro?.connected ? t("LJ-Link verbunden: {host}", { host: proWhere(s.lj.pro.host) }) + (s.lj.pro.native ? t(" (direkt)") : t(" (über Weboberfläche)")) : t("sucht LJ-Link ({host})", { host: proWhere(s.lj.pro?.host ?? "auto") }),
-        s.lj.pro?.auto ? (s.lj.pro.found?.length ? t("im Netz gefunden: {list}", { list: s.lj.pro.found.join(", ") }) : t("im Netz noch keins gefunden (Bonjour)")) : t("feste Adresse"),
-        s.lj.clients > 0 ? t("WebSocket {port}: {n} verbunden", { port: s.lj.port, n: s.lj.clients }) : t("WebSocket {port} offen", { port: s.lj.port }), s.lj.error ?? ""].filter(Boolean)),
-    );
-    void dmxLive;
+    connStatus("link", linkState.connected ? "live" : "ok", linkState.connected ? t("{n} Teilnehmer", { n: linkState.peers }) : t("sucht Carabiner …"));
+    connLines("link", linkState.connected ? [t("Verbunden über Carabiner"), `${linkState.bpm.toFixed(1)} BPM · ${t("{n} Teilnehmer", { n: linkState.peers })}`] : [t("Carabiner läuft nicht (Port 17000). VJ-Link versucht es alle 3 Sekunden.")]);
   }
-  const live = $("dmx-live");
-  if (live.childElementCount !== DMX_MODE_STANDARD_CHANNELS) { live.replaceChildren(); for (let i = 0; i < DMX_MODE_STANDARD_CHANNELS; i++) live.append(el("i")); }
-  const base = settings.address - 1;
-  for (let i = 0; i < DMX_MODE_STANDARD_CHANNELS; i++) {
-    const bar = live.children[i] as HTMLElement; const v = lastDmx?.[base + i] ?? 0;
-    bar.style.height = `${Math.max(1, (v / 255) * 100)}%`;
-    bar.classList.toggle("slotc", i + 1 >= CH.slotBase && i + 1 < CH.layerBase);
+  // MIDI
+  if (!n.midi) { connStatus("midi", "off", t("aus")); connLines("midi", [t("Ausgeschaltet: MIDI-Eingänge werden nicht ausgewertet.")]); }
+  else {
+    connStatus("midi", midi.error ? "err" : midi.devices.length ? "live" : "ok", midi.error ? t("Fehler") : midi.devices.length ? t("{n} Gerät(e)", { n: midi.devices.length }) : t("kein Gerät"));
+    connLines("midi", [
+      midi.devices.length ? t("Eingänge: {list}", { list: midi.devices.join(", ") }) : t("Keins gefunden. Sobald du ein Gerät ansteckst, erscheint es hier."),
+      ...(midi.outputs.length ? [t("Ausgänge: {list}", { list: midi.outputs.join(", ") })] : []),
+      ...(midi.error ? [`⚠ ${midi.error}`] : [])]);
   }
-  const decks = $("lj-decks"); decks.replaceChildren();
-  if (!ctx.lj.decks.size) decks.append(card(t("Keine Decks"), "off", [t("Sobald LJ-Link sendet, erscheinen die Decks hier.")]));
-  for (const d of ctx.lj.decks.values()) {
-    decks.append(card(`Deck ${d.deck}${d.model ? ` · ${d.model}` : ""}`, d.playing ? "ok" : "off",
-      [`${d.bpm.toFixed(2)} BPM${d.key ? ` · ${d.key}` : ""}`, d.title ? `${d.title}${d.artist ? ` – ${d.artist}` : ""}` : (ctx.lj.privacy ? t("Privatsphäre-Modus") : "–"),
-        `${d.onAir ? "ON AIR " : ""}${d.master ? "MASTER " : ""}${d.phrase ? d.phrase.toUpperCase() : ""}`.trim() || "–"], d.onAir));
+  // Audio
+  const mic = ctx.show.audio.mic;
+  connStatus("audio", mic ? "live" : "off", mic ? (audioIn.label.replace(/\s*\(.*\)\s*$/, "").slice(0, 24) || t("läuft")) : t("aus"));
+  connLines("audio", mic ? [audioIn.label, t("Wirkt auf: {scope}", { scope: audioIn.scope === "all" ? t("alle Visuals") : t("Audio-Visuals") })]
+    : [t("Kein Eingang gewählt. Audio-Visuals und Audio-Modulationen bekommen dann nur Daten von LJ-Link.")]);
+  $("conn-audio-level").style.width = `${Math.round((mic ? Math.max(...mic.bands) : 0) * 100)}%`;
+  // Timecode
+  const tin = tcClock.incoming(now), tout = tcClock.outgoing(now);
+  const tcOn = tcClock.receiveOn || tcClock.sendOn;
+  connStatus("tc", !tcOn ? "off" : tin?.running || tout?.running ? "live" : "ok",
+    !tcOn ? t("aus") : tcClock.receiveOn ? t("Empfang ({src})", { src: tcClock.source === "artnet" ? "Art-Net" : "MIDI" }) : t("Senden"));
+  connLines("tc", tcOn ? [tin ? `▼ ${formatFrames(Math.floor(tin.frames), tin.fps)}` : "", tout ? `▲ ${formatFrames(Math.floor(tout.frames), tout.fps)}` : "",
+    tcClock.receiveOn && tcClock.source === "artnet" && !n.artnet ? t("⚠ Art-Net ist ausgeschaltet: kein Art-Net-Timecode-Empfang.") : "",
+    tcClock.receiveOn && tcClock.source === "mtc" && !n.midi ? t("⚠ MIDI ist ausgeschaltet: kein MIDI-Timecode-Empfang.") : ""].filter(Boolean)
+    : [t("Weder Empfang noch Senden eingeschaltet.")]);
+
+  if (!$("conn-list").querySelector('details[data-conn="dmx"]')!.hasAttribute("open")) { /* Live-Werte nur aufgeklappt zeichnen */ }
+  else {
+    const live = $("dmx-live");
+    if (live.childElementCount !== DMX_MODE_STANDARD_CHANNELS) { live.replaceChildren(); for (let i = 0; i < DMX_MODE_STANDARD_CHANNELS; i++) live.append(el("i")); }
+    const base = settings.address - 1;
+    for (let i = 0; i < DMX_MODE_STANDARD_CHANNELS; i++) {
+      const bar = live.children[i] as HTMLElement; const v = lastDmx?.[base + i] ?? 0;
+      bar.style.height = `${Math.max(1, (v / 255) * 100)}%`;
+      bar.classList.toggle("slotc", i + 1 >= CH.slotBase && i + 1 < CH.layerBase);
+    }
   }
+  if ($("conn-list").querySelector('details[data-conn="lj"]')!.hasAttribute("open")) {
+    const decks = $("lj-decks"); decks.replaceChildren();
+    if (!ctx.lj.decks.size) decks.append(card(t("Keine Decks"), "off", [t("Sobald LJ-Link sendet, erscheinen die Decks hier.")]));
+    for (const d of ctx.lj.decks.values()) {
+      decks.append(card(`Deck ${d.deck}${d.model ? ` · ${d.model}` : ""}`, d.playing ? "ok" : "off",
+        [`${d.bpm.toFixed(2)} BPM${d.key ? ` · ${d.key}` : ""}`, d.title ? `${d.title}${d.artist ? ` – ${d.artist}` : ""}` : (ctx.lj.privacy ? t("Privatsphäre-Modus") : "–"),
+          `${d.onAir ? "ON AIR " : ""}${d.master ? "MASTER " : ""}${d.phrase ? d.phrase.toUpperCase() : ""}`.trim() || "–"], d.onAir));
+    }
+  }
+}
+/** Schalter, Port und Knöpfe im Tab VERBINDEN. */
+function bindConnections(): void {
+  const sw = (id: string, key: keyof Settings["net"] & ("artnet" | "sacn" | "osc" | "lj" | "link" | "midi")) => {
+    const box = $<HTMLInputElement>(id);
+    box.checked = settings.net[key] as boolean;
+    box.addEventListener("click", e => e.stopPropagation());
+    box.addEventListener("change", () => {
+      (settings.net[key] as boolean) = box.checked; saveSettings();
+      if (key === "midi") midi.enabled = box.checked; else bridge?.configure(netConfig());
+      drawConnect(Date.now());
+    });
+  };
+  sw("on-artnet", "artnet"); sw("on-sacn", "sacn"); sw("on-osc", "osc"); sw("on-lj", "lj"); sw("on-link", "link"); sw("on-midi", "midi");
+  midi.enabled = settings.net.midi;
+  const port = $<HTMLInputElement>("cfg-oscport");
+  port.value = String(settings.net.oscPort);
+  port.addEventListener("change", () => {
+    const v = Math.round(Number(port.value));
+    if (!Number.isFinite(v) || v < 1024 || v > 65535) { port.value = String(settings.net.oscPort); toast(t("OSC-Port: bitte eine Zahl von 1024 bis 65535.")); return; }
+    settings.net.oscPort = v; saveSettings(); bridge?.configure(netConfig());
+  });
+  document.querySelectorAll<HTMLButtonElement>("#conn-list [data-open-set]").forEach(b => b.addEventListener("click", () => openSettings(b.dataset.openSet)));
+  $("conn-map-midi").addEventListener("click", () => { if (showLock.locked) showLock.hint(); else mapMode.open("midi"); });
+  // Aufklappen: gleich zeichnen (Live-Werte, Decks)
+  document.querySelectorAll<HTMLDetailsElement>("#conn-list details").forEach(d => d.addEventListener("toggle", () => drawConnect(Date.now())));
 }
 /** „dieser Mac“ statt 127.0.0.1. */
 const proWhere = (h: string): string => !h || /^(127\.0\.0\.1|localhost)(:8080)?$/.test(h) ? (bridge?.platform === "darwin" ? t("dieser Mac") : t("dieser Rechner")) : h === "auto" ? t("automatisch") : h;
@@ -951,7 +1074,7 @@ function bindSettings(): void {
   u.value = String(settings.universe); s.value = String(settings.sacn); a.value = String(settings.address);
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number.isFinite(v) ? v : lo)));
   u.addEventListener("change", () => { settings.universe = clamp(Number(u.value), 0, 32767); saveSettings(); });
-  s.addEventListener("change", () => { settings.sacn = clamp(Number(s.value), 1, 63999); saveSettings(); bridge?.configure({ sacnUniverse: settings.sacn, ljHost: settings.ljHost }); });
+  s.addEventListener("change", () => { settings.sacn = clamp(Number(s.value), 1, 63999); saveSettings(); bridge?.configure(netConfig()); });
   const hold = $<HTMLSelectElement>("cfg-ljhold");
   hold.value = String(settings.ljHold); if (!hold.value) hold.value = "15";
   djLink.hold = Number(hold.value);
@@ -963,14 +1086,15 @@ function bindSettings(): void {
   lh.addEventListener("change", () => {
     const v = lh.value.trim();
     if (v && !/^[A-Za-z0-9.:\[\]-]{1,253}$/.test(v)) { lh.value = settings.ljHost; toast(t("Bitte nur IP-Adresse oder Rechnername eingeben.")); return; }
-    settings.ljHost = v; saveSettings(); bridge?.configure({ sacnUniverse: settings.sacn, ljHost: v });
+    settings.ljHost = v; saveSettings(); bridge?.configure(netConfig());
   });
   a.addEventListener("change", () => { settings.address = clamp(Number(a.value), 1, 512 - DMX_MODE_STANDARD_CHANNELS + 1); decoder.startAddress = settings.address; saveSettings(); });
   $("dl-channels").addEventListener("click", () => {
     const url = URL.createObjectURL(new Blob([channelListCsv(settings.address)], { type: "text/csv" }));
     const link = el("a"); link.href = url; link.download = t("vj-link-kanalliste.csv"); link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-  bridge?.configure({ sacnUniverse: settings.sacn, ljHost: settings.ljHost });
+  bridge?.configure(netConfig());
+  bindConnections();
   const sc = $<HTMLSelectElement>("ui-scale");
   sc.value = String(settings.uiScale);
   if (sc.value === "") sc.value = "auto";
@@ -984,8 +1108,10 @@ function bindSettings(): void {
 // ---- Hauptschleife --------------------------------------------------------------------
 const preview = $<HTMLCanvasElement>("preview");
 
-/** Seitenverhältnis wie der erste offene Ausgang (z. B. LED-Wand 6:1), sonst 16:9. */
+/** Seitenverhältnis: feste Auflösung bzw. Format, sonst wie der erste offene Ausgang (z. B. LED-Wand 6:1), sonst 16:9. */
 function previewAspect(): number {
+  const fixed = outLayout.mode !== "canvas" ? resAspect(outLayout.res) : null;
+  if (fixed) return fixed;
   if (outLayout.mode === "canvas") {
     const open = outLayout.screens.filter(sc => displays.some(d => d.open && d.id === sc.id));
     if (open.length) { const b = canvasBounds(open); return b.w / b.h; }
@@ -1039,6 +1165,8 @@ try {
 }
 const SOURCE_LABEL: Record<string, string> = { ljlink: "LJ-LINK", link: "ABLETON LINK", osc: "OSC", midi: "MIDI-CLOCK", audio: "AUDIO", tap: "TAP", manual: t("MANUELL") };
 let lastUi = 0, lastPublish = 0;
+/** Zuletzt gezeigter (modulierter) Zustand. */
+let lastShown: ShowState = ctx.show;
 /** Animationszeit der Ebenen: hier gezählt, an alle Ausgänge geschickt. */
 const layerClock = new LayerClock();
 function setPill(id: string, state: "ok" | "off" | "warn", text?: string): void {
@@ -1067,6 +1195,7 @@ function frame(): void {
   const lt = layerClock.tick(now, ctx.show.layers);
   // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert
   let shown = modulatedShow(ctx, ctx.mods ?? [], beat, liveBands(ctx.show.audio, beat, now / 1000));
+  lastShown = shown;
   // Timeline: Effekt-Blöcke (Strobe, Flash, White, W-Flash, Blinder, Blackout) und Helligkeit je Bild
   const tlo = timelineOverride(ctx.cues, now, cueEnv, imageList(ctx.show).map(im => im.id), multiImage() ? showImage() : "");
   if (tlo) {
@@ -1143,9 +1272,11 @@ function updateUi(now: number, beat: number): void {
   $("st-fps").textContent = engine ? `${Math.round(engine.info.fps)} FPS · ${engine.info.frameMs.toFixed(1)} ms` : "– FPS";
   if (engine) {
     const tr = s.transition;
-    $("mon-info").textContent = tr
-      ? `${t("Überblendung")} ${Math.round(transitionProgress(tr, beat, now) * 100)} % · ${preview.width} × ${preview.height}`
-      : `${preview.width} × ${preview.height}`;
+    const out = outLayout.mode !== "canvas" && outLayout.res && outLayout.res.mode === "pixels" ? `${outLayout.res.w} × ${outLayout.res.h}` : "";
+    const size = out ? `${out} · ${t("Vorschau")} ${preview.width} × ${preview.height}` : `${preview.width} × ${preview.height}`;
+    const info = tr ? `${t("Übergang")} ${Math.round(transitionProgress(tr, beat, now) * 100)} % · ${size}` : size;
+    if ($("mon-info").textContent !== info) $("mon-info").textContent = info;
+    resPanel.sync();
   }
   $("blackout").classList.toggle("on", s.blackout);
 
@@ -1170,6 +1301,12 @@ function updateUi(now: number, beat: number): void {
   updateAudioUi();
   updateTcUi();
   updateDeck();
+  // Modulierte Regler außerhalb der Fader-Leiste (Deckkraft im Raster, Effekte): Wert im Bild als Balken
+  document.querySelectorAll<HTMLInputElement>("input[type=range][data-ctl]:not(.v)").forEach(r => {
+    const m = liveValue(r.dataset.ctl!);
+    if (r.classList.contains("modded") !== (m !== null)) r.classList.toggle("modded", m !== null);
+    if (m !== null) r.style.setProperty("--m", m.toFixed(3));
+  });
   for (const msg of leds.compute(mappings, ctx, beat)) midi.send(msg.device, msg.bytes);
   fxPanel.update();
   layerPanel.update();
@@ -1193,6 +1330,7 @@ const showTab = new ShowTab({
   multiImage: () => multiImage(),
 });
 const scenePanel = new ScenePanel(ctx, $("scenes"), $<HTMLButtonElement>("scene-auto"), $<HTMLButtonElement>("scene-add"));
+scenePanel.progress = () => { const n = Date.now(); return transitionProgress(ctx.show.transition, ctx.tempo.beatAt(n), n); };
 rebuildGrid(); buildSidebar(); bindSettings();
 fxPanel.select(0);
 const thumbs = new ThumbView($("grid"), () => ({ cells: clipCells, clips: rowClips }), ctx);
@@ -1620,8 +1758,14 @@ async function loadProject(): Promise<void> {
   }
 }
 void (async () => { if (bridge) displays = await bridge.listDisplays(); renderDisplays(); outputTab.render(); fitPreview(); })();
-let updateDeck = buildDeck(ctx, $("deck"));
-function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck")); }
+/** Wert im Bild für Regler mit Modulation (für die Markierung an den Fadern). */
+const liveValue = (id: string): number | null => {
+  const m = ctx.mods?.find(x => x.target === id && x.on && x.depth > 0.001);
+  if (!m || lastShown === ctx.show) return null;
+  return CONTROL_BY_ID.get(id)?.get({ ...ctx, show: lastShown }) ?? null;
+};
+let updateDeck = buildDeck(ctx, $("deck"), liveValue);
+function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck"), liveValue); }
 // Erst laden, wenn alle Teile der Oberfläche stehen (im Browser läuft das Laden ohne Wartezeit durch).
 void loadProject().then(() => { if (StartScreen.shouldShow()) void startScreen.show(); });
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.
@@ -1643,5 +1787,7 @@ requestAnimationFrame(frame);
   genIds: () => READY_GENERATORS.map(g => g.id), fxIds: () => POST_EFFECTS.map(e => e.id),
   file: (cmd: ProjectFileCmd, p?: string) => runFileCmd(cmd, p),
   fps: () => engine?.info ?? null,
+  // Test: Auflösung des Ausgabebilds setzen (tests/e2e)
+  setRes: (r: OutputRes) => { outLayout.res = { ...r }; fitPreview(); resPanel.sync(); },
   demoOutputs: (d: DisplayInfo[], layout?: OutputLayout) => { displays = d; demoDisplays = true; if (layout) outLayout = layout; renderDisplays(); outputTab.render(); fitPreview(); },
 };

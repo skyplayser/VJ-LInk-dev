@@ -17,9 +17,13 @@ export class LinkClient {
 
   constructor(private onStatus: (s: LinkState) => void) {}
 
-  start(): void { this.connect(); }
+  private on = false;
+  private retryTimer: NodeJS.Timeout | null = null;
+
+  start(): void { if (this.on) return; this.on = true; this.connect(); }
 
   private connect(): void {
+    if (!this.on) return;
     const s = net.createConnection({ host: "127.0.0.1", port: CARABINER_PORT });
     this.sock = s;
     s.setEncoding("utf8");
@@ -48,11 +52,19 @@ export class LinkClient {
       this.state = { connected: false, peers: 0, bpm: 0, beat: 0 };
       if (was) this.onStatus(this.state);
       this.sock = null;
-      setTimeout(() => this.connect(), 3000).unref();
+      if (!this.on) return;
+      this.retryTimer = setTimeout(() => this.connect(), 3000); this.retryTimer.unref();
     };
     s.on("error", () => { /* Carabiner läuft nicht: still neu versuchen */ });
     s.on("close", retry);
   }
 
-  stop(): void { if (this.poll) clearInterval(this.poll); this.sock?.destroy(); }
+  /** Verbindung trennen und nicht mehr neu versuchen. */
+  stop(): void {
+    this.on = false;
+    if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null; }
+    if (this.poll) { clearInterval(this.poll); this.poll = null; }
+    this.sock?.destroy();
+    if (this.state.connected) { this.state = { connected: false, peers: 0, bpm: 0, beat: 0 }; this.onStatus(this.state); }
+  }
 }

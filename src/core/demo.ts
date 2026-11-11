@@ -5,7 +5,7 @@
 import type { ControlContext } from "./control";
 import { EFFECTS } from "./effects";
 import { newModulation, type Modulation } from "./modulation";
-import { addLayer, applyScene, defaultLayer, MAX_LAYERS, type EffectSlot, type LayerState, type Rgb, type Scene } from "./show";
+import { addLayer, applyScene, defaultLayer, MAX_LAYERS, type EffectSlot, type LayerState, type Rgb, type Scene, type TransitionStyle } from "./show";
 import { newCue, type Cue } from "./video";
 import { t } from "./i18n";
 
@@ -60,21 +60,22 @@ function demoLayers(m: DemoMedia): Partial<LayerState>[] {
 
 /**
  * Eine Partynacht in 14 Szenen, von Disco-House über Pop-Drop bis Peak-Time-Techno: jede Szene mit eigenen
- * Clips, Farben, vollen Effekt-Stapeln und eigenem Übergang. Ebene 8 (Logo) bleibt immer stehen.
+ * Clips, Farben und vollen Effekt-Stapeln. Ohne eigenen Übergang gilt der Regler „Blende“ (4 Beats); besondere
+ * Momente haben eigene Übergänge (Blitz, Kreis, Glitch, Schnitt …). Ebene 8 (Logo) bleibt immer stehen.
  */
 function demoScenes(m: DemoMedia): Scene[] {
   const bars = (n: number) => ({ after: "bars" as const, value: n });
-  const beats = (n: number, style: "fade" | "black" = "fade") => ({ unit: "beats" as const, value: n, style });
+  const beats = (n: number, style: TransitionStyle = "fade") => ({ unit: "beats" as const, value: n, style });
   const off = { clip: null };
   const L = (clip: string | null, colorSource: LayerState["colorSource"], opacity = 1, more: Partial<LayerState> = {}): Partial<LayerState> =>
     ({ clip, colorSource, opacity, ...more });
   return [
-    { name: "Opening", transition: beats(4), next: bars(8), layers: [
+    { name: "Opening", next: bars(8), layers: [
       L("wormhole", "D", 1, { speed: 0.8, effects: stack(["kaleidoscope", 0], ["rgb-shift", 0.15], ["zoom-blur", 0.3], ["bloom", 0.55]) }),
       off, off, off, off,
       L("hyperspace", "original", 0.6),
       L(m.title, "original", 1), null] },
-    { name: "Disco House", transition: beats(4), next: bars(8), layers: [
+    { name: "Disco House", next: bars(8), layers: [
       L("mirror-ball", "original", 1, { speed: 1, effects: stack(["kaleidoscope", 0.25], ["hue-cycle", 0.3], ["zoom-blur", 0], ["bloom", 0.75]) }),
       off,
       L("spectrum-circle", "gradient", 0.7),
@@ -89,7 +90,7 @@ function demoScenes(m: DemoMedia): Scene[] {
       off, off,
       L("bokeh", "original", 0.6),
       off, null] },
-    { name: "Pop Drop", transition: beats(0), next: bars(8), layers: [
+    { name: "Pop Drop", transition: beats(1, "flash"), next: bars(8), layers: [
       L("kaleido-burst", "A", 1, { speed: 1.2, effects: stack(["kaleidoscope", 0.5], ["color-strobe", 0.5], ["zoom-blur", 0.35], ["bloom", 0.6]) }),
       L("star-polygons", "B", 0.8),
       L("radial-eq", "rainbow", 0.9),
@@ -103,25 +104,25 @@ function demoScenes(m: DemoMedia): Scene[] {
       off, off, off,
       L("particle-ring", "original", 0.9),
       off, null] },
-    { name: "Tunnel Vision", transition: beats(0), next: bars(8), layers: [
+    { name: "Tunnel Vision", transition: beats(2, "iris"), next: bars(8), layers: [
       L("ring-tunnel", "C", 1, { speed: 1.4, effects: stack(["kaleidoscope", 0], ["rgb-shift", 0.45], ["zoom-blur", 0.45], ["bloom", 0.5]) }),
       L("neon-triangles", "A", 0.8),
       off,
       L("laser-propeller", "multi", 0.9, { colorSlots: [0, 3] }),
       L("strobe-grid", "A", 0.55),
       off, off, null] },
-    { name: "Acid", transition: beats(4), next: bars(8), layers: [
+    { name: "Acid", transition: beats(4, "luma"), next: bars(8), layers: [
       L("julia", "original", 1, { speed: 1.2, effects: stack(["kaleidoscope", 0.45], ["liquid", 0.4], ["hue-cycle", 0.5], ["bloom", 0.35]) }),
       L("electric", "E", 0.8),
       L("oscilloscope", "E", 0.8),
       off, off, off, off, null] },
-    { name: "Warehouse", transition: beats(2, "black"), next: bars(8), layers: [
+    { name: "Warehouse", transition: beats(2, "push-up"), next: bars(8), layers: [
       L("cube-tunnel", "original", 1, { speed: 1.4, effects: stack(["edges", 0.5], ["rgb-shift", 0.35], ["feedback", 0.4], ["vignette", 0.5]) }),
       off, off,
       L("beam-scanner", "B", 1),
       L("mono-bars", "original", 0.35),
       off, off, null] },
-    { name: "Laser Storm", transition: beats(2, "black"), next: bars(8), layers: [
+    { name: "Laser Storm", transition: beats(2, "wipe-right"), next: bars(8), layers: [
       L("sphere-field", "D", 0.35, { speed: 0.8, effects: stack(["kaleidoscope", 0], ["rgb-shift", 0.2], ["vignette", 0.6], ["bloom", 0.5]) }),
       L("laser-fans", "C", 0.9),
       off,
@@ -129,7 +130,7 @@ function demoScenes(m: DemoMedia): Scene[] {
       off,
       L("dust-storm", "original", 0.6),
       off, null] },
-    { name: "Glitch", transition: beats(0), next: bars(4), layers: [
+    { name: "Glitch", transition: beats(1, "glitch"), next: bars(4), layers: [
       L("glitch-wall", "original", 1, { speed: 1.2, effects: stack(["datamosh", 0.5], ["slices", 0.5], ["rgb-shift", 0.55], ["pixel-sort", 0.3]) }),
       L("code-rain", "E", 0.6),
       off, off,
@@ -150,7 +151,7 @@ function demoScenes(m: DemoMedia): Scene[] {
       off, off, off,
       L("fireflies", "original", 0.55),
       off, null] },
-    { name: "Hands Up", transition: beats(1), next: bars(8), layers: [
+    { name: "Hands Up", transition: beats(2, "white"), next: bars(8), layers: [
       L("hyperspace", "original", 1, { speed: 1.3, effects: stack(["kaleidoscope", 0.4], ["rgb-shift", 0.4], ["zoom-blur", 0.5], ["bloom", 0.65]) }),
       off,
       L("spectrum-circle", "rainbow", 0.8),
@@ -229,6 +230,9 @@ export function applyDemo(c: ControlContext, m: DemoMedia): void {
   // Party-Tempo, solange kein Pult, LJ-Link oder Tap das Tempo vorgibt
   if (c.tempo.source === "manual") c.tempo.setManual(126, Date.now());
   s.transitionBeats = 4;
+  s.transitionUnit = "beats";
+  s.transitionStyle = "fade";
+  s.transitionAll = false;
   s.fxMaster = 1;
   c.scenes.splice(0, c.scenes.length, ...demoScenes(m));
   if (c.mods) c.mods.splice(0, c.mods.length, ...demoMods()); else c.mods = demoMods();

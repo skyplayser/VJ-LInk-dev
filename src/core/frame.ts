@@ -33,10 +33,11 @@ export type ControlEvent =
   | { type: "timecode"; source: "artnet"; tc: Tc; fps: TcFps; from: string };
 
 export interface NetStatus {
-  artnet: { listening: boolean; packets: number; lastFrom?: string; error?: string };
-  sacn: { listening: boolean; packets: number; error?: string };
-  osc: { listening: boolean; port: number; packets: number; error?: string };
-  lj: { listening: boolean; port: number; clients: number; error?: string;
+  /** `off`: in VERBINDEN ausgeschaltet (Port freigegeben). */
+  artnet: { listening: boolean; packets: number; lastFrom?: string; error?: string; off?: boolean };
+  sacn: { listening: boolean; packets: number; error?: string; off?: boolean };
+  osc: { listening: boolean; port: number; packets: number; error?: string; off?: boolean; lastFrom?: string };
+  lj: { listening: boolean; port: number; clients: number; error?: string; off?: boolean;
     /** LJ-Link PRO: VJ-Link verbindet sich selbst (Rechner, verbunden). */
     pro?: { host: string; connected: boolean; native?: boolean;
       /** Automatisch gesucht (keine feste Adresse) und per Bonjour gefundene LJ-Links. */
@@ -64,6 +65,12 @@ export interface NetConfig {
   sacnUniverse: number;
   /** Rechner mit LJ-Link PRO (IP oder Name); leer = dieser Rechner. */
   ljHost?: string;
+  /** Eingänge an/aus (fehlt = unverändert). */
+  artnet?: boolean; sacn?: boolean; osc?: boolean; lj?: boolean;
+  /** Ableton Link über Carabiner. */
+  link?: boolean;
+  /** UDP-Port für OSC (1024–65535). */
+  oscPort?: number;
 }
 
 export type MediaEvent = { type: "add"; item: MediaPayload } | { type: "remove"; id: string }

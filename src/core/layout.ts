@@ -42,7 +42,83 @@ export interface Mask {
   on: boolean;
 }
 
-export interface OutputLayout { mode: OutputMode; screens: ScreenRect[]; surfaces?: Surface[]; masks?: Mask[] }
+export interface OutputLayout { mode: OutputMode; screens: ScreenRect[]; surfaces?: Surface[]; masks?: Mask[]; res?: OutputRes }
+
+// ---- Auflösung des Ausgabebilds ------------------------------------------------------------
+
+/**
+ * Auflösung, in der die Visuals gerechnet werden.
+ * auto:   so groß wie der jeweilige Ausgang (Standard)
+ * pixels: feste Pixelgröße (z. B. 1920 × 1080 für eine LED-Wand oder ein Aufnahmegerät)
+ * format: festes Seitenverhältnis (z. B. 9:16), so groß wie in den Ausgang passt
+ * `fit` legt fest, wie das Bild auf einen Ausgang mit anderem Seitenverhältnis kommt.
+ */
+export interface OutputRes { mode: "auto" | "pixels" | "format"; w: number; h: number; aspect: string; fit: ResFit }
+export type ResFit = "contain" | "cover" | "stretch";
+export const RES_FITS: readonly ResFit[] = ["contain", "cover", "stretch"];
+export const defaultRes = (): OutputRes => ({ mode: "auto", w: 1920, h: 1080, aspect: "16:9", fit: "contain" });
+
+/** Seitenverhältnisse zur Auswahl (LED-Bänder 3:1 bis 6:1, Hochformat für Stelen). */
+export const ASPECTS = ["16:9", "16:10", "4:3", "5:4", "1:1", "4:5", "9:16", "21:9", "32:9", "3:1", "4:1", "6:1"] as const;
+/** Gängige Pixelgrößen. */
+export const RES_PRESETS: readonly [number, number][] = [
+  [1280, 720], [1920, 1080], [2560, 1440], [3840, 2160], [1080, 1920], [1920, 1200], [1024, 768], [1280, 1024], [1080, 1080], [3840, 1080], [1152, 192],
+];
+export const MAX_RES = 8192;
+
+/** „16:9“ → 1.777…; ungültig → null. Erlaubt auch Dezimalzahlen („2.35:1“). */
+export function parseAspect(a: string): number | null {
+  const m = /^\s*(\d+(?:[.,]\d+)?)\s*[:x×/]\s*(\d+(?:[.,]\d+)?)\s*$/.exec(a);
+  if (!m) return null;
+  const w = Number(m[1]!.replace(",", ".")), h = Number(m[2]!.replace(",", "."));
+  const r = w / h;
+  return w > 0 && h > 0 && r >= 0.05 && r <= 20 ? r : null;
+}
+
+/** Seitenverhältnis des Ausgabebilds, oder null bei „Auto“. */
+export function resAspect(r: OutputRes | undefined): number | null {
+  if (!r || r.mode === "auto") return null;
+  if (r.mode === "pixels") return r.w / r.h;
+  return parseAspect(r.aspect);
+}
+
+/** Rechengröße des Ausgabebilds für einen Ausgang mit outW × outH Pixeln. */
+export function renderSize(r: OutputRes | undefined, outW: number, outH: number): { w: number; h: number } {
+  if (!r || r.mode === "auto") return { w: outW, h: outH };
+  const lim = (v: number) => Math.max(16, Math.min(MAX_RES, Math.round(v)));
+  if (r.mode === "pixels") return { w: lim(r.w), h: lim(r.h) };
+  const a = parseAspect(r.aspect);
+  if (!a || outW < 1 || outH < 1) return { w: outW, h: outH };
+  // Füllen: so groß, dass der Ausgang ganz bedeckt ist; sonst so groß, dass alles hineinpasst
+  const wide = outW / outH > a;
+  const cover = r.fit === "cover";
+  const w = wide === cover ? outW : outH * a, h = wide === cover ? outW / a : outH;
+  const k = Math.min(1, MAX_RES / Math.max(w, h));
+  return { w: lim(w * k), h: lim(h * k) };
+}
+
+/**
+ * Wohin ein Bild sw × sh auf einem Ausgang dw × dh kommt: Rechteck (Pixel, Ursprung unten links wie in WebGL)
+ * und der sichtbare Ausschnitt des Bilds (0–1).
+ */
+export function fitRect(sw: number, sh: number, dw: number, dh: number, fit: ResFit):
+  { x: number; y: number; w: number; h: number; region: [number, number, number, number] } {
+  if (fit === "stretch" || sw < 1 || sh < 1) return { x: 0, y: 0, w: dw, h: dh, region: [0, 0, 1, 1] };
+  if (fit === "cover") {
+    const s = Math.max(dw / sw, dh / sh);
+    const fw = Math.min(1, dw / (sw * s)), fh = Math.min(1, dh / (sh * s));
+    return { x: 0, y: 0, w: dw, h: dh, region: [(1 - fw) / 2, (1 - fh) / 2, fw, fh] };
+  }
+  const s = Math.min(dw / sw, dh / sh);
+  const w = Math.max(1, Math.round(sw * s)), h = Math.max(1, Math.round(sh * s));
+  return { x: Math.floor((dw - w) / 2), y: Math.floor((dh - h) / 2), w, h, region: [0, 0, 1, 1] };
+}
+
+/** Kurzbeschreibung für die Oberfläche, z. B. „Auto“, „1920 × 1080“, „9:16“. */
+export function resLabel(r: OutputRes | undefined): string {
+  if (!r || r.mode === "auto") return t("Auto");
+  return r.mode === "pixels" ? `${r.w} × ${r.h}` : r.aspect;
+}
 
 export const defaultLayout = (): OutputLayout => ({ mode: "mirror", screens: [], surfaces: [] });
 

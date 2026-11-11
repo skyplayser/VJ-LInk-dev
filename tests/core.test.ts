@@ -1960,3 +1960,101 @@ describe("Feedback mit Sternen (Hinweis beim Beenden)", () => {
     expect(siteUrl("en")).toBe("https://skyplayser.github.io/VJ-LINK/");
   });
 });
+
+describe("Übergänge zwischen Szenen", () => {
+  it("Regler „Blende“ gilt für Szenen ohne eigenen Übergang, „für alle“ übersteuert eigene", async () => {
+    const { sceneTransition, recallScene } = await import("../src/core/control");
+    const c = ctx();
+    c.show.transitionBeats = 2; c.show.transitionStyle = "iris"; c.show.transitionUnit = "seconds";
+    const own = { name: "A", layers: [], transition: { unit: "beats" as const, value: 0, style: "fade" as const } };
+    const plain = { name: "B", layers: [] };
+    expect(sceneTransition(c, plain)).toEqual({ unit: "seconds", value: 2, style: "iris" });
+    expect(sceneTransition(c, own).value).toBe(0);
+    c.show.transitionAll = true;
+    expect(sceneTransition(c, own)).toEqual({ unit: "seconds", value: 2, style: "iris" });
+    c.scenes.splice(0, c.scenes.length, plain, own);
+    recallScene(c, 1, 1000);
+    expect(c.show.transition?.style).toBe("iris");
+    expect(c.show.transition?.ms).toBe(2000);
+  });
+  it("neue Szenen haben keinen eigenen Übergang (der Regler wirkt)", async () => {
+    const { addSceneFromCurrent } = await import("../src/core/control");
+    const c = ctx();
+    const i = addSceneFromCurrent(c);
+    expect(c.scenes[i]!.transition).toBeUndefined();
+  });
+  it("jede Übergangsart hat einen Namen und wird gespeichert", async () => {
+    const { TRANSITION_STYLES } = await import("../src/core/show");
+    expect(new Set(TRANSITION_STYLES.map(s => s.id)).size).toBe(TRANSITION_STYLES.length);
+    const c = ctx();
+    c.show.transitionStyle = "glitch"; c.show.transitionUnit = "seconds"; c.show.transitionBeats = 3; c.show.transitionAll = true;
+    c.scenes[0]!.transition = { unit: "beats", value: 2, style: "wipe-down" };
+    const p = parseProject(serializeProject(c, []))!;
+    const d = ctx(); applyProject(d, p);
+    expect([d.show.transitionStyle, d.show.transitionUnit, d.show.transitionBeats, d.show.transitionAll]).toEqual(["glitch", "seconds", 3, true]);
+    expect(d.scenes[0]!.transition?.style).toBe("wipe-down");
+    // Unbekannte Art in alter oder kaputter Datei: Überblenden
+    const raw = JSON.parse(serializeProject(c, [])); raw.transitionStyle = "quatsch"; raw.scenes[0].transition.style = "quatsch";
+    const q = parseProject(JSON.stringify(raw))!;
+    expect(q.transitionStyle).toBe("fade");
+    expect(q.scenes[0]!.transition?.style).toBe("fade");
+  });
+  it("Regler: Stufen, Anzeige in Sekunden, Art per Regler", async () => {
+    const { CONTROL_BY_ID, setControl } = await import("../src/core/controls");
+    const c = ctx();
+    c.show.transitionBeats = 3; // per Eingabe zwischen den Stufen
+    expect(CONTROL_BY_ID.get("transition.beats")!.get(c)).toBeGreaterThan(0);
+    c.show.transitionUnit = "seconds"; c.show.transitionBeats = 2;
+    expect(CONTROL_BY_ID.get("transition.beats")!.format!(c)).toBe("2 s");
+    setControl(c, "transition.style", 1);
+    expect(c.show.transitionStyle).toBe("glitch");
+  });
+});
+
+describe("Auflösung des Ausgabebilds", () => {
+  it("Rechengröße: Auto, Pixel, Format (einpassen und füllen)", async () => {
+    const { renderSize, parseAspect } = await import("../src/core/layout");
+    const r = (mode: "auto" | "pixels" | "format", more = {}) => ({ mode, w: 1920, h: 1080, aspect: "16:9", fit: "contain" as const, ...more });
+    expect(renderSize(r("auto"), 2560, 1600)).toEqual({ w: 2560, h: 1600 });
+    expect(renderSize(r("pixels", { w: 1280, h: 720 }), 3840, 2160)).toEqual({ w: 1280, h: 720 });
+    expect(renderSize(r("pixels", { w: 99999, h: 5 }), 100, 100)).toEqual({ w: 8192, h: 16 });
+    expect(renderSize(r("format", { aspect: "9:16" }), 1920, 1080)).toEqual({ w: 608, h: 1080 });
+    expect(renderSize(r("format", { aspect: "9:16", fit: "cover" }), 1920, 1080)).toEqual({ w: 1920, h: 3413 });
+    expect(parseAspect("2.35:1")).toBeCloseTo(2.35, 6);
+    expect(parseAspect("16x9")).toBeCloseTo(16 / 9, 6);
+    expect(parseAspect("0:1")).toBeNull();
+    expect(parseAspect("abc")).toBeNull();
+  });
+  it("Einpassen, Füllen, Strecken", async () => {
+    const { fitRect } = await import("../src/core/layout");
+    expect(fitRect(1920, 1080, 1920, 1200, "contain")).toEqual({ x: 0, y: 60, w: 1920, h: 1080, region: [0, 0, 1, 1] });
+    const c = fitRect(1000, 1000, 2000, 1000, "cover");
+    expect([c.w, c.h]).toEqual([2000, 1000]);
+    expect(c.region[3]).toBeCloseTo(0.5, 6);
+    expect(c.region[1]).toBeCloseTo(0.25, 6);
+    expect(fitRect(10, 10, 300, 100, "stretch").region).toEqual([0, 0, 1, 1]);
+  });
+  it("wird mit dem Projekt gespeichert, kaputte Werte werden ersetzt", () => {
+    const c = ctx();
+    const json = serializeProject(c, [], [], [], { mode: "mirror", screens: [], surfaces: [], res: { mode: "format", w: 1920, h: 1080, aspect: "21:9", fit: "cover" } });
+    expect(parseProject(json)!.outputs.res).toEqual({ mode: "format", w: 1920, h: 1080, aspect: "21:9", fit: "cover" });
+    const raw = JSON.parse(json); raw.outputs.res = { mode: "x", w: -5, aspect: "kaputt", fit: 3 };
+    expect(parseProject(JSON.stringify(raw))!.outputs.res).toEqual({ mode: "auto", w: 16, h: 1080, aspect: "16:9", fit: "contain" });
+  });
+});
+
+describe("Audio-Modulation", () => {
+  it("pumpt vom Grundwert nach oben, ganz oben von unten bis zum Grundwert", async () => {
+    const { audioModValue, modulatedShow } = await import("../src/core/modulation");
+    expect(audioModValue(0.2, 0.5, 0)).toBeCloseTo(0.2, 6);
+    expect(audioModValue(0.2, 0.5, 1)).toBeCloseTo(0.7, 6);
+    expect(audioModValue(1, 0.5, 0)).toBeCloseTo(0.5, 6);
+    expect(audioModValue(1, 0.5, 1)).toBeCloseTo(1, 6);
+    const c = ctx();
+    c.show.layers[0]!.opacity = 1;
+    const mods = [{ target: "layer.1.opacity", source: "bass" as const, beats: 4, depth: 0.8, on: true }];
+    expect(modulatedShow(c, mods, 0, [0, 0, 0, 0, 0, 0, 0, 0]).layers[0]!.opacity).toBeCloseTo(0.2, 6);
+    expect(modulatedShow(c, mods, 0, [1, 1, 0, 0, 0, 0, 0, 0]).layers[0]!.opacity).toBeCloseTo(1, 6);
+    expect(c.show.layers[0]!.opacity).toBe(1);
+  });
+});

@@ -30,9 +30,14 @@ export interface ControlContext {
   mods?: import("./modulation").Modulation[];
 }
 
-/** Übergang, der für diese Szene gilt: eigener Wert der Szene, sonst der Regler „Blende“. */
+/** Übergang laut Regler „Blende“ (Dauer, Einheit, Art). */
+export function globalTransition(c: ControlContext): SceneTransition {
+  return { unit: c.show.transitionUnit ?? "beats", value: c.show.transitionBeats, style: c.show.transitionStyle ?? "fade" };
+}
+
+/** Übergang, der für diese Szene gilt: eigener Wert der Szene, sonst (oder bei „für alle Szenen“) der Regler „Blende“. */
 export function sceneTransition(c: ControlContext, sc: Scene): SceneTransition {
-  return sc.transition ?? { unit: "beats", value: c.show.transitionBeats, style: "fade" };
+  return !sc.transition || c.show.transitionAll ? globalTransition(c) : sc.transition;
 }
 
 /**
@@ -90,7 +95,7 @@ export function addSceneFromCurrent(c: ControlContext, name?: string): number {
     name: name ?? t("Szene {n}", { n: c.scenes.length + 1 }),
     layers: (syncStacks(c.show), cloneLayers(mainLayers(c.show))),
     stacks: cloneSideStacks(c.show),
-    transition: { unit: "beats", value: c.show.transitionBeats || 1, style: "fade" },
+    // Ohne eigenen Übergang: es gilt der Regler „Blende“
     next: { after: "off", value: 16 },
   });
   c.show.scene = c.scenes.length;

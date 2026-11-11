@@ -3,7 +3,7 @@
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
 import { SAFE_FLASH_HZ, STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
-import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAIN_STACK, MAX_IMAGES, MAX_LAYERS, SLOT_NAMES, allStacks, clamp01, imageList, selectCanvas, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
+import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAIN_STACK, MAX_IMAGES, MAX_LAYERS, SLOT_NAMES, TRANSITION_IDS, allStacks, clamp01, imageList, transitionLabel, selectCanvas, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
 import { t } from "./i18n";
 
@@ -36,7 +36,13 @@ export interface ControlDef {
 
 /** Stufen-Fader: Wert 0–1 auf eine Liste verteilen. */
 const stepIndex = (v: number, n: number): number => Math.min(n - 1, Math.floor(clamp01(v) * n));
-const beatsLabel = (b: number): string => b === 0 ? t("Schnitt") : b < 1 ? `${b === 0.25 ? "¼" : "½"} Beat` : `${b} ${b === 1 ? "Beat" : "Beats"}`;
+const beatsLabel = (b: number): string => b === 0 ? t("Schnitt") : b === 0.25 || b === 0.5 ? `${b === 0.25 ? "¼" : "½"} Beat` : `${b} ${b === 1 ? "Beat" : "Beats"}`;
+/** Anzeige des Reglers „Blende“: Schnitt, Beats oder Sekunden. */
+export const blendLabel = (v: number, unit: "beats" | "seconds" = "beats"): string =>
+  unit === "seconds" ? (v === 0 ? t("Schnitt") : `${v} s`) : beatsLabel(v);
+/** Nächste Stufe einer Liste (für Werte, die per Eingabefeld zwischen den Stufen liegen). */
+const nearestIndex = (list: readonly number[], v: number): number =>
+  list.reduce((best, x, i) => (Math.abs(x - v) < Math.abs(list[best]! - v) ? i : best), 0);
 
 const on = (v: number): boolean => v >= 0.5;
 
@@ -74,9 +80,15 @@ export function buildControls(): ControlDef[] {
       set: (c, v) => { c.tempo.factor = TEMPO_FACTORS[stepIndex(v, TEMPO_FACTORS.length)]!; },
       format: c => `${c.tempo.factor}×` },
     { id: "transition.beats", label: t("Blende"), group: "Szenen", kind: "fader", quick: true,
-      get: c => Math.max(0, TRANSITION_BEATS.indexOf(c.show.transitionBeats as typeof TRANSITION_BEATS[number])) / (TRANSITION_BEATS.length - 1),
+      get: c => nearestIndex(TRANSITION_BEATS, c.show.transitionBeats) / (TRANSITION_BEATS.length - 1),
       set: (c, v) => { c.show.transitionBeats = TRANSITION_BEATS[stepIndex(v, TRANSITION_BEATS.length)]!; },
-      format: c => beatsLabel(c.show.transitionBeats) },
+      format: c => blendLabel(c.show.transitionBeats, c.show.transitionUnit) },
+    { id: "transition.style", label: t("Übergangsart"), group: "Szenen", kind: "fader", quick: false,
+      get: c => Math.max(0, TRANSITION_IDS.indexOf(c.show.transitionStyle ?? "fade")) / (TRANSITION_IDS.length - 1),
+      set: (c, v) => { c.show.transitionStyle = TRANSITION_IDS[stepIndex(v, TRANSITION_IDS.length)]!; },
+      format: c => transitionLabel(c.show.transitionStyle ?? "fade") },
+    { id: "transition.all", label: t("Blende für alle Szenen"), group: "Szenen", kind: "toggle", quick: false,
+      get: c => (c.show.transitionAll ? 1 : 0), set: (c, v) => { c.show.transitionAll = on(v); } },
   ];
 
   list.push({ id: "tempo.bpm", label: "BPM", group: "Tempo", kind: "fader", quick: false,

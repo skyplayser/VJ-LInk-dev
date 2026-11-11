@@ -5,13 +5,13 @@ import { POST_BY_ID } from "./effects";
 import { isValidMediaId, type MediaItem } from "./media";
 import { parseMappings, type Mapping } from "./mapping";
 import { FITS, newCue, type Cue, type VideoItem, type VideoSettings } from "./video";
-import { defaultLayout, type OutputLayout } from "./layout";
+import { MAX_RES, RES_FITS, defaultLayout, parseAspect, type OutputLayout, type OutputRes } from "./layout";
 import { parseMods, type Modulation } from "./modulation";
 import { parseTextSpec } from "./text";
 import { t } from "./i18n";
 import {
-  BLEND_MODES, COLOR_SOURCES_ALL, mainLayers, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, clamp01, defaultLayer, defaultMedia,
-  type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
+  BLEND_MODES, COLOR_SOURCES_ALL, mainLayers, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, TRANSITION_IDS, clamp01, defaultLayer, defaultMedia,
+  type TransitionStyle, type EffectSlot, type LayerState, type MediaSettings, type Rgb, type Scene, type SceneNext, type SceneTransition,
 } from "./show";
 
 export const PROJECT_VERSION = 1;
@@ -26,6 +26,9 @@ export interface ProjectFile {
   scenes: Scene[];
   slots: Rgb[];
   transitionBeats: number;
+  transitionUnit?: "beats" | "seconds";
+  transitionStyle?: TransitionStyle;
+  transitionAll?: boolean;
   fxMaster: number;
   strobe: { speed: number; intensity: number; sync: boolean };
   media: MediaItem[];
@@ -49,6 +52,7 @@ export function serializeProject(c: ControlContext, media: readonly MediaItem[],
   const p: ProjectFile = {
     version: PROJECT_VERSION,
     layers: mainLayers(s), stacks: sideStacks(s), images: s.images, scenes: c.scenes, slots: s.slots, transitionBeats: s.transitionBeats, fxMaster: s.fxMaster,
+    transitionUnit: s.transitionUnit ?? "beats", transitionStyle: s.transitionStyle ?? "fade", transitionAll: !!s.transitionAll,
     strobe: { speed: s.strobe.speed, intensity: s.strobe.intensity, sync: s.strobe.sync },
     media: [...media],
     videos: [...videos],
@@ -169,7 +173,14 @@ function layout(v: unknown): OutputLayout {
     pts: (Array.isArray(m.pts) ? m.pts : []).slice(0, 32).map((c: unknown) => Array.isArray(c) ? [cl(c[0], 0.5), cl(c[1], 0.5)] as [number, number] : [0.5, 0.5] as [number, number]),
     invert: m.invert === true, feather: num(m.feather, 0, 0, 400), on: m.on !== false,
   })).filter(m => m.pts.length >= 3);
-  return { mode: oneOf(v.mode, ["mirror", "canvas", "mapping"] as const, "mirror"), screens, surfaces, masks };
+  const r = isObj(v.res) ? v.res : null;
+  const res: OutputRes | undefined = r ? {
+    mode: oneOf(r.mode, ["auto", "pixels", "format"] as const, "auto"),
+    w: Math.round(num(r.w, 1920, 16, MAX_RES)), h: Math.round(num(r.h, 1080, 16, MAX_RES)),
+    aspect: typeof r.aspect === "string" && parseAspect(r.aspect) ? r.aspect.trim().slice(0, 12) : "16:9",
+    fit: oneOf(r.fit, RES_FITS, "contain"),
+  } : undefined;
+  return { mode: oneOf(v.mode, ["mirror", "canvas", "mapping"] as const, "mirror"), screens, surfaces, masks, ...(res ? { res } : {}) };
 }
 
 /** Leinwand-IDs: kurz und schlicht. */
@@ -221,7 +232,7 @@ function fullLayer(v: unknown): LayerState {
 
 function transition(v: unknown): SceneTransition | undefined {
   if (!isObj(v)) return undefined;
-  return { unit: oneOf(v.unit, ["beats", "seconds"] as const, "beats"), value: num(v.value, 1, 0, 600), style: oneOf(v.style, ["fade", "black"] as const, "fade") };
+  return { unit: oneOf(v.unit, ["beats", "seconds"] as const, "beats"), value: num(v.value, 1, 0, 600), style: oneOf(v.style, TRANSITION_IDS, "fade") };
 }
 function next(v: unknown): SceneNext | undefined {
   if (!isObj(v)) return undefined;
@@ -263,7 +274,9 @@ export function parseProject(json: string): ProjectFile | null {
     }));
   return {
     version: PROJECT_VERSION, layers, scenes, slots,
-    transitionBeats: num(raw.transitionBeats, 1, 0, 8), fxMaster: clamp01(num(raw.fxMaster, 1)),
+    transitionBeats: num(raw.transitionBeats, 1, 0, 600),
+    transitionUnit: oneOf(raw.transitionUnit, ["beats", "seconds"] as const, "beats"), transitionStyle: oneOf(raw.transitionStyle, TRANSITION_IDS, "fade"),
+    transitionAll: raw.transitionAll === true, fxMaster: clamp01(num(raw.fxMaster, 1)),
     strobe: { speed: clamp01(num(st.speed, 0.5)), intensity: clamp01(num(st.intensity, 1)), sync: st.sync !== false },
     media: mediaList,
     mappings: parseMappings(raw.mappings) ?? undefined,
@@ -299,6 +312,9 @@ export function applyProject(c: ControlContext, p: ProjectFile): void {
   c.scenes.splice(0, c.scenes.length, ...p.scenes);
   s.slots = p.slots;
   s.transitionBeats = p.transitionBeats;
+  s.transitionUnit = p.transitionUnit ?? "beats";
+  s.transitionStyle = p.transitionStyle ?? "fade";
+  s.transitionAll = !!p.transitionAll;
   s.fxMaster = p.fxMaster;
   Object.assign(s.strobe, p.strobe);
   s.scene = 0;

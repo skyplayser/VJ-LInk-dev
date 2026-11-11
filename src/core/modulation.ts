@@ -1,6 +1,7 @@
 // Modulation: ein Regler schwingt automatisch um seine eingestellte Position, angetrieben von einem LFO im Takt
 // oder von einem Audio-Band. Der eingestellte Wert (Grundwert) bleibt unverändert; nur das Bild, das an Vorschau und
-// Ausgänge geht, bekommt den modulierten Wert. MIDI, DMX und OSC hängen über das Mapping an Reglern.
+// Ausgänge geht, bekommt den modulierten Wert (die Regler zeigen ihn als Markierung). MIDI, DMX und OSC hängen über
+// das Mapping an Reglern.
 import { CONTROL_BY_ID } from "./controls";
 import type { ControlContext } from "./control";
 import { clamp01, type ShowState } from "./show";
@@ -33,7 +34,7 @@ export const newModulation = (target: string): Modulation => ({ target, source: 
 export function modulatable(id: string): boolean {
   const d = CONTROL_BY_ID.get(id);
   if (!d || d.kind !== "fader") return false;
-  if (id.startsWith("tempo.") || id === "transition.beats") return false;
+  if (id.startsWith("tempo.") || id.startsWith("transition.")) return false;
   return !/^layer\.\d+\.(color|blend|drive)$/.test(id);
 }
 
@@ -67,8 +68,21 @@ export function modSignal(m: Modulation, beat: number, bands: readonly number[])
   return MOD_LFO.has(m.source) ? lfo(m.source, beat, m.beats, seedOf(m.target)) : clamp01(bandLevel(m.source, bands));
 }
 
-/** Modulierter Wert: schwingt um den Grundwert, ±depth/2. */
+/** Modulierter Wert eines LFO: schwingt um den Grundwert, ±depth/2. */
 export const modValue = (base: number, depth: number, signal: number): number => clamp01(base + clamp01(depth) * (signal - 0.5));
+
+/**
+ * Modulierter Wert bei Audio (Bass, Mitten, Höhen): pumpt vom Grundwert aus nach oben, Stille = Grundwert.
+ * Ist oben kein Platz (z. B. Deckkraft 100 %), pumpt er von unten bis zum Grundwert: Stille = dunkler, Schlag = voll.
+ */
+export const audioModValue = (base: number, depth: number, signal: number): number => {
+  const d = clamp01(depth);
+  return clamp01(Math.min(clamp01(base), 1 - d) + d * clamp01(signal));
+};
+
+/** Wert einer Modulation für einen Grundwert. */
+export const modulate = (m: Modulation, base: number, beat: number, bands: readonly number[]): number =>
+  MOD_LFO.has(m.source) ? modValue(base, m.depth, modSignal(m, beat, bands)) : audioModValue(base, m.depth, modSignal(m, beat, bands));
 
 /**
  * Bild-Zustand mit allen Modulationen. Ohne aktive Modulation kommt der Original-Zustand zurück (keine Kopie).
@@ -81,7 +95,7 @@ export function modulatedShow(c: ControlContext, mods: readonly Modulation[], be
   const view: ControlContext = { ...c, show };
   for (const m of active) {
     const d = CONTROL_BY_ID.get(m.target)!;
-    d.set(view, modValue(d.get(c), m.depth, modSignal(m, beat, bands)));
+    d.set(view, modulate(m, d.get(c), beat, bands));
   }
   return show;
 }

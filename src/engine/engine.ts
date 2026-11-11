@@ -5,10 +5,10 @@
 import { CAM_LOOKS, camIdOf, isCamClip, isMaskLook, usesFigure } from "../core/camera";
 import { SAFE_FLASH_HZ, WAVE_POINTS, bandsFrom, beatPulse, layerDrive, strobeGain, strobeGate, strobeWhite } from "../core/audio";
 import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
-  MAX_LAYERS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
+  MAX_LAYERS, TRANSITION_IDS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
-import type { Mask, View, Warp } from "../core/layout";
+import { fitRect, renderSize, type Mask, type OutputRes, type View, type Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
 import { HISTORY_FX, COMPOSITE_FRAG, FINAL_FRAG, GEN_IDS, genFrag, postFrag, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG, DJWAVE_FRAG } from "./shaders";
 import { t } from "../core/i18n";
@@ -253,6 +253,9 @@ export class Engine {
   private bindTex(unit: number, t: Target): void {
     const gl = this.gl; gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t.tex);
   }
+
+  /** Auflösung des Ausgabebilds (Auto, feste Pixel oder festes Format); null = Größe der Zeichenfläche. */
+  outRes: OutputRes | null = null;
 
   /** Zeichenfläche auf Pixelgröße des Ausgangs setzen (z. B. 1152×192). */
   resize(width: number, height: number): void {
@@ -584,10 +587,14 @@ export class Engine {
     const outW = this.canvas.width, outH = this.canvas.height;
     // Leinwand: in Leinwand-Pixeln rechnen (Obergrenze ca. 8K × 4K), sonst direkt in Fenstergröße
     const k = view ? Math.min(1, 8192 / Math.max(view.cw, view.ch), Math.sqrt(33e6 / (view.cw * view.ch))) : 1;
-    const w = view ? Math.max(1, Math.round(view.cw * k)) : outW, h = view ? Math.max(1, Math.round(view.ch * k)) : outH;
+    // Feste Auflösung bzw. festes Format (nicht bei „Leinwand“: dort bestimmt die Anordnung die Größe)
+    const fixed = !view && this.outRes && this.outRes.mode !== "auto" ? renderSize(this.outRes, outW, outH) : null;
+    const w = view ? Math.max(1, Math.round(view.cw * k)) : fixed ? fixed.w : outW, h = view ? Math.max(1, Math.round(view.ch * k)) : fixed ? fixed.h : outH;
     // Projektionsmapping: erst das ganze Bild in Ausgangsgröße, dann jede Leinwand verzerrt daraus zeichnen
     const mapping = !view && !!warps;
-    const dest = view || mapping ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
+    // Gleiches Bild mit fester Auflösung: erst in dieser Größe rechnen, dann eingepasst ausgeben
+    const scaled = !view && !mapping && !!fixed && (w !== outW || h !== outH);
+    const dest = view || mapping || scaled ? (this.canvasT = this.target(this.canvasT, w, h)) : null;
     // SHOW-Ablauf: im Projektionsmapping auf dem gewählten Bild, sonst auf dem Hauptbild
     const cueImg = mapping ? (show.cueImage ?? "main") : "main";
     const mainCues = !show.blackout && show.cues.length > 0 && cueImg === "main";
@@ -607,6 +614,19 @@ export class Engine {
       this.bindTex(0, dest);
       this.bindTarget(null, 0, 0, outW, outH);
       gl.disable(gl.BLEND);
+      this.draw();
+    }
+    if (dest && scaled) {
+      const r = fitRect(w, h, outW, outH, this.outRes!.fit);
+      this.bindTarget(null, 0, 0, outW, outH);
+      gl.disable(gl.BLEND);
+      gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(this.comp.p);
+      gl.uniform1i(this.loc(this.comp, "uTex"), 0);
+      gl.uniform1f(this.loc(this.comp, "uOpacity"), 1);
+      gl.uniform4f(this.loc(this.comp, "uRegion"), r.region[0], r.region[1], r.region[2], r.region[3]);
+      this.bindTex(0, dest);
+      this.bindTarget(null, r.x, r.y, r.w, r.h);
       this.draw();
     }
     if (dest && mapping) {
@@ -787,7 +807,8 @@ export class Engine {
     gl.uniform1i(this.loc(this.fin, "uFrom"), 0);
     gl.uniform1i(this.loc(this.fin, "uTo"), 1);
     gl.uniform1f(this.loc(this.fin, "uMix"), mix);
-    gl.uniform1i(this.loc(this.fin, "uDip"), show.transition?.style === "black" ? 1 : 0);
+    gl.uniform1i(this.loc(this.fin, "uStyle"), show.transition && mix < 1 ? Math.max(0, TRANSITION_IDS.indexOf(show.transition.style)) : 0);
+    gl.uniform1f(this.loc(this.fin, "uAspect"), w / Math.max(1, h));
     gl.uniform1f(this.loc(this.fin, "uGain"), show.master * gain * (deferFlash ? 1 : strobeGain(show.strobe, beat, sec, bpm, flashLimit(show))));
     // Strobe White und Blinder wirken auch bei Master 0, aber nicht bei Blackout
     gl.uniform1f(this.loc(this.fin, "uWhite"), deferFlash ? 0 : Math.max(strobeWhite(show.strobe, beat, sec, bpm, flashLimit(show)), show.blinder ?? 0));

@@ -52,7 +52,54 @@ export class Network {
 
   constructor(private emit: (e: ControlEvent) => void) {}
 
+  /** Welche Eingänge laufen (in VERBINDEN schaltbar). */
+  private on = { artnet: true, sacn: true, osc: true, lj: true };
+  private oscPort = OSC_PORT;
+  private osc?: dgram.Socket;
+  private sacnUniverse = 1;
+  private statusTimer?: NodeJS.Timeout;
+
   start(sacnUniverse = 1): void {
+    this.sacnUniverse = sacnUniverse;
+    if (this.on.artnet) this.startArtnet();
+    if (this.on.sacn) this.startSacn();
+    if (this.on.osc) this.startOsc();
+    if (this.on.lj) this.startLj();
+    this.statusTimer = setInterval(() => this.emit({ type: "status", status: this.status }), 500);
+    this.statusTimer.unref();
+  }
+
+  /**
+   * Eingänge ein- und ausschalten, OSC-Port ändern. Ausgeschaltet gibt VJ-Link den Port frei (z. B. wenn ein
+   * anderes Programm auf demselben Rechner Art-Net empfangen soll).
+   */
+  setEnabled(want: Partial<{ artnet: boolean; sacn: boolean; osc: boolean; lj: boolean }>, oscPort?: number): void {
+    const port = oscPort !== undefined && Number.isInteger(oscPort) && oscPort >= 1024 && oscPort <= 65535 ? oscPort : this.oscPort;
+    const flip = (k: keyof typeof this.on, start: () => void, stop: () => void) => {
+      const v = want[k];
+      if (v === undefined || v === this.on[k]) return;
+      this.on[k] = v;
+      if (v) start(); else stop();
+    };
+    flip("artnet", () => this.startArtnet(), () => this.stopArtnet());
+    flip("sacn", () => this.startSacn(), () => this.stopSacn());
+    flip("lj", () => this.startLj(), () => this.stopLj());
+    if (want.osc !== undefined && want.osc !== this.on.osc) {
+      this.on.osc = want.osc; this.oscPort = port;
+      if (want.osc) this.startOsc(); else this.stopOsc();
+    } else if (port !== this.oscPort) {
+      this.oscPort = port;
+      if (this.on.osc) { this.stopOsc(); this.startOsc(); }
+    }
+    this.status.artnet.off = !this.on.artnet;
+    this.status.sacn.off = !this.on.sacn;
+    this.status.osc.off = !this.on.osc;
+    this.status.osc.port = this.oscPort;
+    this.status.lj.off = !this.on.lj;
+  }
+
+  private startArtnet(): void {
+    if (this.artnet) return;
     this.artnet = this.udp("artnet", ARTNET_PORT, (msg, from) => {
       const p = parseArtDmx(msg);
       if (p) { this.emit({ type: "dmx", source: "artnet", universe: p.universe, data: p.data }); return; }
@@ -60,14 +107,31 @@ export class Network {
       if (t) { this.emit({ type: "timecode", source: "artnet", tc: t.tc, fps: t.fps, from }); return; }
       return false;
     });
-    this.artnet.on("listening", () => { try { this.artnet!.setBroadcast(true); } catch { /* ohne Broadcast */ } });
+    this.artnet.on("listening", () => { try { this.artnet?.setBroadcast(true); } catch { /* ohne Broadcast */ } });
+  }
+  private stopArtnet(): void { this.close("artnet", this.artnet); this.artnet = undefined; }
+
+  private startSacn(): void {
+    if (this.sacn) return;
     this.sacn = this.udp("sacn", SACN_PORT, msg => {
       const p = parseSacn(msg);
       if (p) this.emit({ type: "dmx", source: "sacn", universe: p.universe, data: p.data });
       else return false;
     });
-    this.joinSacn(sacnUniverse);
-    this.udp("osc", OSC_PORT, msg => {
+    this.joined = undefined; this.joinedIfaces.clear();
+    this.joinSacn(this.sacnUniverse);
+  }
+  private stopSacn(): void {
+    clearInterval(this.rejoinTimer); this.rejoinTimer = undefined;
+    this.pendingSacn = null;
+    this.close("sacn", this.sacn); this.sacn = undefined;
+    this.joined = undefined; this.joinedIfaces.clear();
+  }
+
+  private startOsc(): void {
+    if (this.osc) return;
+    this.status.osc.port = this.oscPort;
+    this.osc = this.udp("osc", this.oscPort, msg => {
       const list = parseOsc(msg);
       if (!list.length) return false;
       for (const m of list) {
@@ -77,10 +141,34 @@ export class Network {
         this.emit({ type: "osc", address: m.address, args, tags });
       }
     });
+  }
+  private stopOsc(): void { this.close("osc", this.osc); this.osc = undefined; }
+
+  private startLj(): void {
+    if (this.wss) return;
     this.ws(LJ_DEFAULT_PORT);
     this.startDiscovery();
-    this.connectPro();
-    setInterval(() => this.emit({ type: "status", status: this.status }), 500).unref();
+    this.restartPro();
+  }
+  private stopLj(): void {
+    const w = this.wss; this.wss = undefined;
+    if (w) { for (const c of w.clients) { try { c.terminate(); } catch { /* weg */ } } w.close(); }
+    clearTimeout(this.proTimer);
+    const old = this.pro; this.pro = undefined; old?.terminate();
+    if (this.proAdapter) for (const m of this.proAdapter.clear()) this.emit({ type: "lj", raw: JSON.stringify(m) });
+    this.proAdapter = undefined; this.proAttempt = undefined;
+    clearInterval(this.discoTimer); this.discoTimer = undefined;
+    try { this.bonjour?.destroy(); } catch { /* schon zu */ }
+    this.bonjour = undefined; this.found.clear();
+    this.status.lj = { ...this.status.lj, listening: false, clients: 0, error: undefined,
+      pro: { host: this.proHost || "auto", connected: false, auto: !this.proHost, found: [] } };
+    this.emit({ type: "lj-connection", clients: 0 });
+  }
+
+  /** Socket eines Eingangs schließen und den Port freigeben. */
+  private close(key: "artnet" | "sacn" | "osc", s: dgram.Socket | undefined): void {
+    if (s) { try { s.close(); } catch { /* schon zu */ } this.sockets = this.sockets.filter(x => x !== s); }
+    this.status[key].listening = false; this.status[key].error = undefined;
   }
 
   private udp(key: "artnet" | "sacn" | "osc", port: number, onMsg: (b: Buffer, from: string) => false | void): dgram.Socket {
@@ -90,6 +178,7 @@ export class Network {
       const st = this.status[key];
       st.packets++;
       if (key === "artnet") this.status.artnet.lastFrom = rinfo.address;
+      if (key === "osc") this.status.osc.lastFrom = rinfo.address;
     });
     s.on("error", err => { this.status[key].error = err.message; this.status[key].listening = false; });
     s.bind(port, () => { this.status[key].listening = true; this.status[key].error = undefined; });
@@ -99,6 +188,7 @@ export class Network {
 
   /** Multicast-Gruppe für das gewählte sACN-Universe betreten, die alte verlassen. */
   joinSacn(universe: number): void {
+    this.sacnUniverse = universe;
     const s = this.sacn; if (!s) return;
     const addr = sacnMulticastAddress(Math.max(1, Math.min(63999, universe)));
     // Erst nach dem Binden anmelden: addMembership auf einem ungebundenen Socket bindet ihn unter macOS
@@ -294,12 +384,25 @@ export class Network {
 
   /** Art-Net-Timecode senden (VJ-Link ist die Uhr). Ziel: IP oder Broadcast-Adresse. */
   sendArtnet(bytes: Uint8Array, host: string): void {
-    if (!this.artnet || !/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return;
-    this.artnet.send(bytes, ARTNET_PORT, host, () => { /* Fehler zählen nicht */ });
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return;
+    // Art-Net-Eingang aus: eigener, ungebundener Socket nur zum Senden
+    let s = this.artnet;
+    if (!s) {
+      if (!this.sendSock) {
+        this.sendSock = dgram.createSocket({ type: "udp4" });
+        this.sendSock.on("error", () => { /* Senden scheitert still */ });
+        this.sendSock.bind(() => { try { this.sendSock?.setBroadcast(true); } catch { /* ohne Broadcast */ } });
+      }
+      s = this.sendSock;
+    }
+    s.send(bytes, ARTNET_PORT, host, () => { /* Fehler zählen nicht */ });
   }
+  private sendSock?: dgram.Socket;
 
   stop(): void {
     clearInterval(this.rejoinTimer); this.rejoinTimer = undefined;
+    clearInterval(this.statusTimer);
+    try { this.sendSock?.close(); } catch { /* schon zu */ }
     for (const s of this.sockets) { try { s.close(); } catch { /* schon zu */ } }
     this.wss?.close();
     clearTimeout(this.proTimer);

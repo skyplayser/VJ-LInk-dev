@@ -6,6 +6,8 @@ export class MidiIn {
   devices: string[] = [];
   outputs: string[] = [];
   error = "";
+  /** In VERBINDEN ausgeschaltet: Nachrichten werden nicht ausgewertet. */
+  enabled = true;
   private access: MIDIAccess | null = null;
 
   constructor(private onMessage: MidiHandler, private onChange: () => void) {}
@@ -30,7 +32,7 @@ export class MidiIn {
       if (input.state !== "connected") return;
       names.push(input.name ?? t("MIDI-Gerät"));
       input.onmidimessage = e => {
-        if (!e.data) return;
+        if (!e.data || !this.enabled) return;
         // Zeitstempel des Ereignisses in Epoch-ms (genauer für MIDI-Clock)
         const t = Date.now() - (performance.now() - e.timeStamp);
         this.onMessage(e.data, input.name ?? "", t);

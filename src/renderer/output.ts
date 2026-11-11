@@ -135,6 +135,7 @@ function loop(): void {
     const key = frame.show.testCard && !mappingMode ? `${frame.show.testPattern}|${canvas.width}x${canvas.height}|${JSON.stringify(frame.layout ?? null)}|${frame.openOutputs?.join(",")}` : "";
     if (key !== testKey) { testKey = key; overlay.style.display = key ? "block" : "none"; if (key) drawOverlay(frame); }
     const lt = frame.layerClock ? layerTimesAt(frame.layerClock, now, frame.show.layers) : null;
+    engine.outRes = frame.layout?.res ?? null;
     engine.render(frame.show, frameBeat(frame, now), now, frame.bpm, viewFor(frame.layout, frame.openOutputs ?? [], displayId), lt,
       warpFor(frame.layout, displayId), "", masksFor(frame.layout, displayId));
   } else {

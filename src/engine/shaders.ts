@@ -2504,7 +2504,7 @@ uniform float uOpacity;
 uniform vec4 uRegion;  // Ausschnitt (x, y, Breite, Höhe) in 0–1; (0,0,1,1) = ganzes Bild
 void main(){ outColor = texture(uTex, uRegion.xy + vUv * uRegion.zw) * uOpacity; }`;
 
-/** Letzter Schritt: Überblendung alt → neu, Master und Strobe. */
+/** Letzter Schritt: Übergang alt → neu (Art laut TRANSITION_STYLES), Master und Strobe. */
 export const FINAL_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -2513,13 +2513,54 @@ uniform sampler2D uFrom;
 uniform sampler2D uTo;
 uniform float uMix;
 uniform float uGain;
-uniform int   uDip;   // 1 = über Schwarz
-uniform float uWhite; // Strobe White: Anteil Weiß
+uniform int   uStyle;  // Index in TRANSITION_STYLES
+uniform float uAspect; // Breite / Höhe
+uniform float uWhite;  // Strobe White: Anteil Weiß
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+// Weiche Kante: 1, solange x hinter der wandernden Grenze liegt
+float sweep(float x, float p){ const float e = 0.04; float t = p * (1.0 + 2.0 * e) - e; return 1.0 - smoothstep(t - e, t + e, x); }
 void main(){
-  vec3 a = texture(uFrom, vUv).rgb, b = texture(uTo, vUv).rgb;
-  vec3 c = uDip == 1
-    ? (uMix < 0.5 ? a * (1.0 - uMix * 2.0) : b * (uMix * 2.0 - 1.0))
-    : mix(a, b, uMix);
+  vec2 uv = vUv;
+  float p = uMix;
+  vec3 a = texture(uFrom, uv).rgb, b = texture(uTo, uv).rgb;
+  vec3 c;
+  if (uStyle == 1) c = p < 0.5 ? a * (1.0 - p * 2.0) : b * (p * 2.0 - 1.0);
+  else if (uStyle == 2) c = p < 0.5 ? mix(a, vec3(1.0), p * 2.0) : mix(vec3(1.0), b, p * 2.0 - 1.0);
+  else if (uStyle == 3) { float w = p < 0.12 ? p / 0.12 : pow(1.0 - (p - 0.12) / 0.88, 2.0); c = mix(p < 0.12 ? a : b, vec3(1.0), w); }
+  else if (uStyle == 4) c = mix(a, b, sweep(uv.x, p));
+  else if (uStyle == 5) c = mix(a, b, sweep(1.0 - uv.x, p));
+  else if (uStyle == 6) c = mix(a, b, sweep(uv.y, p));
+  else if (uStyle == 7) c = mix(a, b, sweep(1.0 - uv.y, p));
+  else if (uStyle == 8 || uStyle == 9) {
+    float s = smoothstep(0.0, 1.0, p);
+    float x = (uStyle == 8 ? uv.x : uv.y) + s;
+    vec2 q = uStyle == 8 ? vec2(x, uv.y) : vec2(uv.x, x);
+    c = x < 1.0 ? texture(uFrom, q).rgb : texture(uTo, uStyle == 8 ? vec2(x - 1.0, uv.y) : vec2(uv.x, x - 1.0)).rgb;
+  }
+  else if (uStyle == 10) {
+    float d = length((uv - 0.5) * vec2(uAspect, 1.0)), r = 0.5 * length(vec2(uAspect, 1.0)) + 0.03;
+    c = mix(a, b, 1.0 - smoothstep(p * r - 0.03, p * r, d));
+  }
+  else if (uStyle == 11) {
+    float s = smoothstep(0.0, 1.0, p);
+    vec3 za = texture(uFrom, 0.5 + (uv - 0.5) / (1.0 + s * 2.0)).rgb;
+    vec3 zb = texture(uTo, 0.5 + (uv - 0.5) / (1.0 + (1.0 - s) * 0.8)).rgb;
+    c = mix(za, zb, smoothstep(0.25, 0.75, p));
+  }
+  else if (uStyle == 12) c = mix(a, b, step(hash(floor(gl_FragCoord.xy / 6.0)), p));
+  else if (uStyle == 13) c = mix(a, b, sweep(1.0 - lum(b), p));
+  else if (uStyle == 14) {
+    float band = floor(uv.y * 18.0), k = sin(p * 3.14159);
+    float off = (hash(vec2(band, floor(p * 12.0))) - 0.5) * 0.25 * k;
+    vec2 q = vec2(fract(uv.x + off), uv.y);
+    float m = step(hash(vec2(band, 7.0)), p);
+    float sh = 0.012 * k;
+    vec3 ga = vec3(texture(uFrom, q + vec2(sh, 0.0)).r, texture(uFrom, q).g, texture(uFrom, q - vec2(sh, 0.0)).b);
+    vec3 gb = vec3(texture(uTo, q + vec2(sh, 0.0)).r, texture(uTo, q).g, texture(uTo, q - vec2(sh, 0.0)).b);
+    c = mix(ga, gb, m);
+  }
+  else c = mix(a, b, p);
   outColor = vec4(mix(c * uGain, vec3(1.0), uWhite), 1.0);
 }`;
 

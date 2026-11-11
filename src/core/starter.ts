@@ -3,7 +3,7 @@
 // sofort abrufen kann (Pult, MIDI, Tastatur). Text und Logo legt die Oberfläche an und übergibt die Clip-IDs.
 import type { ControlContext } from "./control";
 import { EFFECTS } from "./effects";
-import { addLayer, applyScene, defaultLayer, type EffectSlot, type LayerState, type Rgb, type Scene } from "./show";
+import { addLayer, applyScene, defaultLayer, type EffectSlot, type LayerState, type Rgb, type Scene, type TransitionStyle } from "./show";
 import { t } from "./i18n";
 
 export interface StarterMedia {
@@ -44,24 +44,27 @@ function starterLayers(m: StarterMedia): Partial<LayerState>[] {
   ];
 }
 
-/** Acht Szenen von ruhig bis Drop. Ebene 6 (Logo) bleibt stehen, Ebene 5 (Text) geht aus. */
+/**
+ * Acht Szenen von ruhig bis Drop. Ebene 6 (Logo) bleibt stehen, Ebene 5 (Text) geht aus.
+ * Ohne eigenen Übergang gilt der Regler „Blende“; Scan, Drop, Laser und Schwarz haben eigene.
+ */
 export function starterScenes(): Scene[] {
   const bars = (n: number) => ({ after: "bars" as const, value: n });
-  const beats = (n: number, style: "fade" | "black" = "fade") => ({ unit: "beats" as const, value: n, style });
+  const beats = (n: number, style: TransitionStyle = "fade") => ({ unit: "beats" as const, value: n, style });
   const off = { clip: null };
   return [
-    { name: "Start", transition: beats(4), next: bars(8), layers: [
+    { name: "Start", next: bars(8), layers: [
       { clip: "ring-tunnel", colorSource: "A", opacity: 1, speed: 0.7, effects: RAUM_FX(0, 0, 0.35) },
       off, off, off, off, null] },
-    { name: "Groove", transition: beats(4), next: bars(8), layers: [
+    { name: "Groove", next: bars(8), layers: [
       { clip: "infinite-squares", colorSource: "A", opacity: 1, speed: 1, effects: RAUM_FX(0.1, 0, 0.3) },
       { clip: "frame-zoom", colorSource: "B", opacity: 0.7 },
       off, off, off, null] },
-    { name: "Neon", transition: beats(4), next: bars(8), layers: [
+    { name: "Neon", next: bars(8), layers: [
       { clip: "neon-corridor", colorSource: "E", opacity: 1, speed: 1.2, effects: RAUM_FX(0.15, 0, 0.75) },
       { clip: "line-scan", colorSource: "C", opacity: 0.6 },
       off, off, off, null] },
-    { name: "Scan", transition: beats(2, "black"), next: bars(8), layers: [
+    { name: "Scan", transition: beats(2, "wipe-down"), next: bars(8), layers: [
       { clip: "gyroid", colorSource: "D", opacity: 0.45, speed: 0.6, effects: RAUM_FX(0, 0, 0.3) },
       off, off,
       { clip: "beam-scanner", colorSource: "A", opacity: 1 },
@@ -71,12 +74,12 @@ export function starterScenes(): Scene[] {
       off,
       { clip: "strobe-grid", colorSource: "B", opacity: 0.6 },
       off, off, null] },
-    { name: "Laser", transition: beats(2, "black"), next: bars(8), layers: [
+    { name: "Laser", transition: beats(2, "iris"), next: bars(8), layers: [
       { clip: "point-sphere", colorSource: "A", opacity: 0.5, speed: 0.8, effects: RAUM_FX(0, 0, 0.3) },
       off, off,
       { clip: "laser-propeller", colorSource: "B", opacity: 1 },
       off, null] },
-    { name: "Raster", transition: beats(4), next: bars(8), layers: [
+    { name: "Raster", next: bars(8), layers: [
       { clip: "box-field", colorSource: "C", opacity: 1, speed: 1, effects: RAUM_FX(0.2, 0.15, 0.35) },
       { clip: "line-scan", colorSource: "A", opacity: 0.5 },
       off, off, off, null] },
@@ -100,6 +103,9 @@ export function applyStarter(c: ControlContext, m: StarterMedia): void {
   if (m.logo && s.layers[5]) s.layers[5].clip = m.logo;
   s.slots = STARTER_SLOTS.map(x => [...x] as unknown as Rgb);
   s.transitionBeats = 4;
+  s.transitionUnit = "beats";
+  s.transitionStyle = "fade";
+  s.transitionAll = false;
   s.fxMaster = 1;
   c.scenes.splice(0, c.scenes.length, ...starterScenes());
   applyScene(s, c.scenes[0]!);
