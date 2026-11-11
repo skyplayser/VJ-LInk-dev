@@ -65,7 +65,7 @@ import { textName } from "../core/text";
 import { DRIVE_LABEL } from "../core/controls";
 const DRIVE_ICON: Record<Drive, string> = { auto: "◎", bpm: "♩", audio: "∿", static: "—" };
 import { ModMode } from "./modmode";
-import { modulatedShow } from "../core/modulation";
+import { modSignal, modulatable, modulatedShow } from "../core/modulation";
 import { timelineOverride } from "../core/video";
 import { KickDetector, liveBands } from "../core/audio";
 const kickDet = new KickDetector();
@@ -1165,8 +1165,30 @@ try {
 }
 const SOURCE_LABEL: Record<string, string> = { ljlink: "LJ-LINK", link: "ABLETON LINK", osc: "OSC", midi: "MIDI-CLOCK", audio: "AUDIO", tap: "TAP", manual: t("MANUELL") };
 let lastUi = 0, lastPublish = 0;
-/** Zuletzt gezeigter (modulierter) Zustand. */
-let lastShown: ShowState = ctx.show;
+/**
+ * Modulation sichtbar machen (jedes Bild, damit es im Takt pumpt): Regler mit Modulation bekommen
+ * --m = Wert im Bild (pinker Balken) und --sig = Ausschlag 0–1 (je stärker, desto kräftiger pink und heller).
+ * Die Regler selbst bleiben auf ihrem Grundwert.
+ */
+let modStyled = new Set<HTMLElement>();
+function modFeedback(shown: ShowState, beat: number, bands: readonly number[]): void {
+  const next = new Set<HTMLElement>();
+  const view = { ...ctx, show: shown };
+  for (const m of ctx.mods ?? []) {
+    if (!m.on || m.depth <= 0.001 || !modulatable(m.target)) continue;
+    const def = CONTROL_BY_ID.get(m.target);
+    if (!def) continue;
+    const val = def.get(view).toFixed(3), sig = modSignal(m, beat, bands).toFixed(3);
+    document.querySelectorAll<HTMLElement>(`[data-ctl="${m.target}"]`).forEach(e => {
+      next.add(e);
+      if (!e.classList.contains("modded")) e.classList.add("modded");
+      e.style.setProperty("--m", val);
+      e.style.setProperty("--sig", sig);
+    });
+  }
+  for (const e of modStyled) if (!next.has(e)) { e.classList.remove("modded"); e.style.removeProperty("--m"); e.style.removeProperty("--sig"); }
+  modStyled = next;
+}
 /** Animationszeit der Ebenen: hier gezählt, an alle Ausgänge geschickt. */
 const layerClock = new LayerClock();
 function setPill(id: string, state: "ok" | "off" | "warn", text?: string): void {
@@ -1194,8 +1216,9 @@ function frame(): void {
   const beat = ctx.tempo.beatAt(now);
   const lt = layerClock.tick(now, ctx.show.layers);
   // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert
-  let shown = modulatedShow(ctx, ctx.mods ?? [], beat, liveBands(ctx.show.audio, beat, now / 1000));
-  lastShown = shown;
+  const modBands = liveBands(ctx.show.audio, beat, now / 1000);
+  let shown = modulatedShow(ctx, ctx.mods ?? [], beat, modBands);
+  modFeedback(shown, beat, modBands);
   // Timeline: Effekt-Blöcke (Strobe, Flash, White, W-Flash, Blinder, Blackout) und Helligkeit je Bild
   const tlo = timelineOverride(ctx.cues, now, cueEnv, imageList(ctx.show).map(im => im.id), multiImage() ? showImage() : "");
   if (tlo) {
@@ -1301,12 +1324,6 @@ function updateUi(now: number, beat: number): void {
   updateAudioUi();
   updateTcUi();
   updateDeck();
-  // Modulierte Regler außerhalb der Fader-Leiste (Deckkraft im Raster, Effekte): Wert im Bild als Balken
-  document.querySelectorAll<HTMLInputElement>("input[type=range][data-ctl]:not(.v)").forEach(r => {
-    const m = liveValue(r.dataset.ctl!);
-    if (r.classList.contains("modded") !== (m !== null)) r.classList.toggle("modded", m !== null);
-    if (m !== null) r.style.setProperty("--m", m.toFixed(3));
-  });
   for (const msg of leds.compute(mappings, ctx, beat)) midi.send(msg.device, msg.bytes);
   fxPanel.update();
   layerPanel.update();
@@ -1758,14 +1775,8 @@ async function loadProject(): Promise<void> {
   }
 }
 void (async () => { if (bridge) displays = await bridge.listDisplays(); renderDisplays(); outputTab.render(); fitPreview(); })();
-/** Wert im Bild für Regler mit Modulation (für die Markierung an den Fadern). */
-const liveValue = (id: string): number | null => {
-  const m = ctx.mods?.find(x => x.target === id && x.on && x.depth > 0.001);
-  if (!m || lastShown === ctx.show) return null;
-  return CONTROL_BY_ID.get(id)?.get({ ...ctx, show: lastShown }) ?? null;
-};
-let updateDeck = buildDeck(ctx, $("deck"), liveValue);
-function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck"), liveValue); }
+let updateDeck = buildDeck(ctx, $("deck"));
+function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck")); }
 // Erst laden, wenn alle Teile der Oberfläche stehen (im Browser läuft das Laden ohne Wartezeit durch).
 void loadProject().then(() => { if (StartScreen.shouldShow()) void startScreen.show(); });
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.
