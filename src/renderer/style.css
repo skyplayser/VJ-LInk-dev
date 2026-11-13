@@ -899,3 +899,16 @@ input[type=range].modded{accent-color:color-mix(in srgb,var(--accent) calc(35% +
 .modded:not(.fader):not(input[type=range]){box-shadow:0 0 calc(2px + var(--sig,0) * 14px) color-mix(in srgb,var(--accent) calc(var(--sig,0) * 100%),transparent)}
 .map-hint.warn{color:var(--warn);border-color:#5a4313}
 .map-hint[hidden]{display:none}
+
+/* Chase (Ebenen-Panel und Clip-Raster) */
+.lp-chase-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+.lp-chase-head .lp-sub{margin:0}
+.lp-chase-head .toggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.lp-chase-lab{display:block;margin:6px 0 4px}
+.lp-chase-clips{display:flex;flex-wrap:wrap;gap:4px;max-height:132px;overflow:auto}
+.lp-chase-clips .lp-chip{font-size:11px}
+.lp-chase-clips .lp-chip.live{outline:2px solid var(--accent);outline-offset:1px}
+#grid .lrow.chasing .lname b::after{content:" ⟳";color:var(--accent)}
+#grid .cell.on.chase-dim{opacity:.55}
+.lp-seg.lp-chase-seg{display:flex;flex-wrap:wrap;gap:2px}
+.lp-seg.lp-chase-seg button{flex:1 0 auto;white-space:nowrap;padding:5px 8px;min-width:34px}

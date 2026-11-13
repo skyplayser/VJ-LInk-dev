@@ -35,7 +35,7 @@ export function modulatable(id: string): boolean {
   const d = CONTROL_BY_ID.get(id);
   if (!d || d.kind !== "fader") return false;
   if (id.startsWith("tempo.") || id.startsWith("transition.")) return false;
-  return !/^layer\.\d+\.(color|blend|drive)$/.test(id);
+  return !/^layer\.\d+\.(color|blend|drive|chase\.step|chase\.order)$/.test(id);
 }
 
 const fract = (x: number) => x - Math.floor(x);

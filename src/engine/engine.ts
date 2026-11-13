@@ -8,6 +8,7 @@ import { TEST_IDS, defaultLaser, layerPalette, mainLayers,
   MAX_LAYERS, TRANSITION_IDS, isMediaClip, mediaIdOf, transitionProgress, type BlendMode, type ColorSource, type LayerState, type Rgb, type ShowState,
 } from "../core/show";
 import { mediaTransform } from "../core/media";
+import { chaseAt } from "../core/chase";
 import { fitRect, renderSize, type Mask, type OutputRes, type View, type Warp } from "../core/layout";
 import { clipVideoTime, isVideoClip, loopRange, videoIdOf, type CueRender, type Fit } from "../core/video";
 import { HISTORY_FX, COMPOSITE_FRAG, FINAL_FRAG, GEN_IDS, genFrag, postFrag, IMAGE_FRAG, MASK_FRAG, MESH_FRAG, MESH_VERT, POST_FRAG, POST_IDS, SOLID_FRAG, VERT, WARP_FRAG, DJWAVE_FRAG } from "./shaders";
@@ -539,7 +540,10 @@ export class Engine {
     this.bindTarget(out);
     gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
     for (let i = 0; i < layers.length && i < MAX_LAYERS; i++) {
-      const l = layers[i]!;
+      let l = layers[i]!;
+      // Chase: Clip und Sichtbarkeit aus der gemeinsamen Beat-Position (alle Ausgänge gleich)
+      const ch = chaseAt(l, beat, this.bpm, show.safeFlash !== false, i);
+      if (ch) { if (!ch.visible) continue; if (ch.clip !== l.clip) l = { ...l, clip: ch.clip }; }
       const op = l.opacity * strobeGate(beat, l.strobe, this.bpm, flashLimit(show));
       if (op <= 0.001 || !l.clip) continue;
       const img = this.renderLayer(l, `${prefix}${i}`, this.layerTime[i]!, out.w, out.h, show, beat, pulse, bands, i > 0);

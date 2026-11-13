@@ -5,9 +5,11 @@ import { SAFE_FLASH_HZ, STROBE_DIVISIONS, strobeHz } from "./audio";
 import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
 import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAIN_STACK, MAX_IMAGES, MAX_LAYERS, SLOT_NAMES, TRANSITION_IDS, allStacks, clamp01, imageList, transitionLabel, selectCanvas, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
+import { CHASE_ORDERS, CHASE_STEPS, defaultChase, type ChaseOrder } from "./chase";
 import { t } from "./i18n";
 
 export const DRIVE_LABEL: Record<"auto" | "bpm" | "audio" | "static", string> = { auto: "Auto", bpm: t("Takt"), audio: "Audio", static: t("Statisch") };
+export const CHASE_ORDER_LABEL: Record<ChaseOrder, string> = { forward: t("Vorwärts"), pingpong: t("Hin und her"), random: t("Zufall") };
 const LASER_LABEL: Record<"y" | "x" | "size" | "thick" | "rot", string> = { y: t("Y (Höhe)"), x: t("X (Seite)"), size: t("Größe"), thick: t("Linienstärke"), rot: t("Drehung") };
 
 /** So viele Szenen sind per MIDI, OSC und Registry direkt abrufbar. */
@@ -131,6 +133,23 @@ export function buildControls(): ControlDef[] {
         get: c => c.show.layers[i]?.effects[k]?.amount ?? 0,
         set: (c, v) => { const slot = c.show.layers[i]?.effects[k]; if (slot) slot.amount = clamp01(v); } });
     }
+    // Chase: im Takt durch die Clips der Zeile
+    const ch = (c: ControlContext) => { const l = c.show.layers[i]; if (!l) return null; return (l.chase ??= defaultChase()); };
+    list.push(
+      { id: `layer.${i + 1}.chase`, label: t("E{n} Chase", { n: i + 1 }), group: "Ebenen", kind: "toggle", quick: false,
+        get: c => (c.show.layers[i]?.chase?.on ? 1 : 0), set: (c, v) => { const x = ch(c); if (x) x.on = on(v); } },
+      { id: `layer.${i + 1}.chase.step`, label: t("E{n} Chase-Schritt", { n: i + 1 }), group: "Ebenen", kind: "fader", quick: false,
+        get: c => Math.max(0, CHASE_STEPS.indexOf((c.show.layers[i]?.chase?.beats ?? 1) as typeof CHASE_STEPS[number])) / (CHASE_STEPS.length - 1),
+        set: (c, v) => { const x = ch(c); if (x) x.beats = CHASE_STEPS[stepIndex(v, CHASE_STEPS.length)]!; },
+        format: c => beatsLabel(c.show.layers[i]?.chase?.beats ?? 1) },
+      { id: `layer.${i + 1}.chase.order`, label: t("E{n} Chase-Reihenfolge", { n: i + 1 }), group: "Ebenen", kind: "fader", quick: false,
+        get: c => Math.max(0, CHASE_ORDERS.indexOf(c.show.layers[i]?.chase?.order ?? "forward")) / (CHASE_ORDERS.length - 1),
+        set: (c, v) => { const x = ch(c); if (x) x.order = CHASE_ORDERS[stepIndex(v, CHASE_ORDERS.length)]!; },
+        format: c => CHASE_ORDER_LABEL[c.show.layers[i]?.chase?.order ?? "forward"] },
+      { id: `layer.${i + 1}.chase.gate`, label: t("E{n} Chase sichtbar", { n: i + 1 }), group: "Ebenen", kind: "fader", quick: false,
+        get: c => clamp01(((c.show.layers[i]?.chase?.gate ?? 1) - 0.05) / 0.95),
+        set: (c, v) => { const x = ch(c); if (x) x.gate = 0.05 + clamp01(v) * 0.95; } },
+    );
   }
   // Farbslots per Drehregler: Farbton bei voller Sättigung
   SLOT_NAMES.forEach((n, i) => {

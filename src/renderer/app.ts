@@ -66,6 +66,7 @@ import { DRIVE_LABEL } from "../core/controls";
 const DRIVE_ICON: Record<Drive, string> = { auto: "◎", bpm: "♩", audio: "∿", static: "—" };
 import { ModMode } from "./modmode";
 import { modSignal, modulatable, modulatedShow } from "../core/modulation";
+import { chaseAt } from "../core/chase";
 import { timelineOverride } from "../core/video";
 import { KickDetector, liveBands } from "../core/audio";
 const kickDet = new KickDetector();
@@ -1346,7 +1347,12 @@ function updateUi(now: number, beat: number): void {
   if (!document.activeElement || document.activeElement !== bpmIn) bpmBtn.textContent = ctx.tempo.bpm.toFixed(2);
   for (let l = 0; l < s.layers.length; l++) {
     const layer = s.layers[l]!;
-    clipCells[l]?.forEach((b, c) => b.classList.toggle("on", rowClips[l]?.[c] === layer.clip));
+    // Chase: der gerade laufende Clip leuchtet, die Zeile ist markiert
+    const ch = chaseAt(layer, beat, ctx.tempo.bpm, settings.safeFlash !== false, l);
+    const cur = ch ? ch.clip : layer.clip;
+    clipCells[l]?.forEach((b, c) => { b.classList.toggle("on", rowClips[l]?.[c] === cur); b.classList.toggle("chase-dim", !!ch && !ch.visible && rowClips[l]?.[c] === cur); });
+    const rowEl = clipCells[l]?.[0]?.closest(".lrow");
+    if (rowEl && rowEl.classList.contains("chasing") !== !!ch) rowEl.classList.toggle("chasing", !!ch);
     const op = opSliders[l]; if (op && document.activeElement !== op) op.value = String(Math.round(layer.opacity * 100));
   }
   const rows = document.querySelectorAll<HTMLElement>("#grid .lrow");
@@ -1378,6 +1384,8 @@ function updateUi(now: number, beat: number): void {
 
 const fxPanel = new FxPanel(ctx, $("fx-title"), $("fx-list"), $<HTMLSelectElement>("fx-add"));
 const layerPanel = new LayerPanel(ctx, $("layer-panel"), () => fxPanel.layer, () => { rebuildGrid(); rebuildDeck(); });
+layerPanel.clipsOf = l => layerClips(l).map(c => ({ id: c.id, name: c.name }));
+layerPanel.clock = () => ({ beat: ctx.tempo.beatAt(Date.now()), bpm: ctx.tempo.bpm });
 const mediaPanel = new MediaPanel(ctx, library, $("media-panel"), () => fxPanel.layer, () => rebuildGrid());
 const videoPanel = new VideoPanel(ctx, videoLib, $("video-panel"), () => fxPanel.layer, () => rebuildGrid());
 const camPanel = new CamPanel(ctx, $("cam-panel"), () => fxPanel.layer, () => personMasks.state);

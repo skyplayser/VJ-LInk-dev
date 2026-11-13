@@ -2085,3 +2085,61 @@ describe("Szenen mit mehreren Bildern (Projektionsmapping)", () => {
     expect(c.show.stacks![MAIN_STACK]![0]!.clip).toBe("plasma");
   });
 });
+
+describe("Chase (Community-Funktion)", () => {
+  it("Reihenfolgen: vorwärts, hin und her, Zufall ohne direkte Wiederholung", async () => {
+    const { chaseIndex } = await import("../src/core/chase");
+    expect([0, 1, 2, 3, 4].map(n => chaseIndex("forward", n, 3))).toEqual([0, 1, 2, 0, 1]);
+    expect([0, 1, 2, 3, 4, 5, 6].map(n => chaseIndex("pingpong", n, 4))).toEqual([0, 1, 2, 3, 2, 1, 0]);
+    for (const len of [2, 3, 4, 7]) {
+      const r = Array.from({ length: 300 }, (_, n) => chaseIndex("random", n - 50, len, 3));
+      for (let i = 1; i < r.length; i++) expect(r[i]).not.toBe(r[i - 1]);
+      // jede Runde zeigt jeden Clip einmal
+      expect(new Set(r.slice(50, 50 + len)).size).toBe(len);
+    }
+    expect(chaseIndex("random", 5, 1)).toBe(0);
+  });
+  it("Sichere Blitze: höchstens 3 Wechsel pro Sekunde", async () => {
+    const { chaseStep } = await import("../src/core/chase");
+    expect(chaseStep(0.25, 128, true)).toBe(1);      // 128 BPM: ¼ Beat wäre 8,5 Wechsel/s
+    expect(chaseStep(0.25, 128, false)).toBe(0.25);
+    expect(chaseStep(2, 128, true)).toBe(2);
+    expect(chaseStep(0.5, 60, true)).toBe(0.5);       // 60 BPM: ½ Beat = 2 Wechsel/s
+  });
+  it("Clip und Sichtbarkeit aus der Beat-Position, nur ausgewählte Clips", async () => {
+    const { chaseAt, defaultChase } = await import("../src/core/chase");
+    const l = { clips: ["a", "b", "c"], chase: { ...defaultChase(), on: true, beats: 1, gate: 0.25 } };
+    expect(chaseAt(l, 0.1, 120, false)).toMatchObject({ clip: "a", visible: true });
+    expect(chaseAt(l, 0.5, 120, false)).toMatchObject({ clip: "a", visible: false });
+    expect(chaseAt(l, 1.1, 120, false)!.clip).toBe("b");
+    l.chase.clips = ["c", "a", "x"];
+    expect([0.1, 1.1, 2.1].map(b => chaseAt(l, b, 120, false)!.clip)).toEqual(["a", "c", "a"]);
+    expect(chaseAt({ clips: ["a"], chase: { ...defaultChase(), on: false } }, 0, 120, false)).toBeNull();
+    expect(chaseAt({ clips: [], chase: { ...defaultChase(), on: true } }, 0, 120, false)).toBeNull();
+  });
+  it("wird mit Projekt und Szene gespeichert, Szenen teilen nichts", async () => {
+    const { addSceneFromCurrent, recallScene } = await import("../src/core/control");
+    const c = ctx();
+    c.show.layers[0]!.chase = { on: true, beats: 0.5, order: "pingpong", clips: ["tunnel"], gate: 0.3 };
+    const p = parseProject(serializeProject(c, []))!;
+    expect(p.layers[0]!.chase).toEqual({ on: true, beats: 0.5, order: "pingpong", clips: ["tunnel"], gate: 0.3 });
+    const i = addSceneFromCurrent(c);
+    c.show.layers[0]!.chase!.clips.push("plasma"); c.show.layers[0]!.chase!.on = false;
+    recallScene(c, i, 0);
+    expect(c.show.layers[0]!.chase).toMatchObject({ on: true, clips: ["tunnel"] });
+    c.show.layers[0]!.chase!.clips.push("x");
+    expect((c.scenes[i]!.layers[0] as { chase: { clips: string[] } }).chase.clips).toEqual(["tunnel"]);
+  });
+  it("Mapping: an/aus, Schritt, Reihenfolge, Sichtbar; Schritt und Reihenfolge nicht modulierbar", async () => {
+    const { setControl, CONTROL_BY_ID } = await import("../src/core/controls");
+    const { modulatable } = await import("../src/core/modulation");
+    const c = ctx();
+    setControl(c, "layer.2.chase", 1); setControl(c, "layer.2.chase.step", 0); setControl(c, "layer.2.chase.order", 1); setControl(c, "layer.2.chase.gate", 0);
+    expect(c.show.layers[1]!.chase).toMatchObject({ on: true, beats: 0.25, order: "random" });
+    expect(c.show.layers[1]!.chase!.gate).toBeCloseTo(0.05, 6);
+    expect(CONTROL_BY_ID.get("layer.2.chase.step")!.format!(c)).toBe("¼ Beat");
+    expect(modulatable("layer.2.chase.gate")).toBe(true);
+    expect(modulatable("layer.2.chase.step")).toBe(false);
+    expect(modulatable("layer.2.chase.order")).toBe(false);
+  });
+});

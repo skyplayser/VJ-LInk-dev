@@ -3,6 +3,7 @@ import { defaultCam, type CamSettings, type CameraSource } from "./camera";
 import { STARTER_CLIP_IDS } from "./effects";
 import { defaultVideo, type CueRender, type PlayStart, type VideoSettings } from "./video";
 import { t } from "./i18n";
+import { defaultChase, type ChaseSettings } from "./chase";
 export type BlendMode = "normal" | "add" | "screen" | "multiply";
 export const BLEND_MODES: readonly BlendMode[] = ["normal", "add", "screen", "multiply"];
 export type ColorSource = "original" | "A" | "B" | "C" | "D" | "E" | "gradient" | "rainbow" | "multi";
@@ -71,6 +72,8 @@ export interface LayerState {
   cam: CamSettings;
   /** Wann der aktuelle Clip startete (für Videos; setzt der Steuer-Kern). */
   videoStart: PlayStart;
+  /** Chase: im Takt durch die Clips der Zeile schalten (fehlt = aus). */
+  chase?: ChaseSettings;
 }
 
 export type MediaAnim = "none" | "pulse" | "spin" | "bounce" | "float" | "wobble" | "zoom";
@@ -260,12 +263,14 @@ export const defaultLayer = (): LayerState => ({
   video: defaultVideo(),
   cam: defaultCam(),
   videoStart: { clip: null, ms: 0, beat: 0 },
+  chase: defaultChase(),
 });
 
 /** Tiefe Kopie der Ebenen (Szenen und Überblendungen dürfen nichts teilen). */
 export const cloneLayer = (l: LayerState): LayerState =>
   ({ ...l, clips: [...l.clips], effects: l.effects.map(e => ({ ...e })), media: { ...l.media }, video: { ...l.video }, cam: { ...l.cam }, videoStart: { ...l.videoStart },
-    colorSlots: [...(l.colorSlots ?? [0, 1])], laser: { ...(l.laser ?? defaultLaser()) } });
+    colorSlots: [...(l.colorSlots ?? [0, 1])], laser: { ...(l.laser ?? defaultLaser()) },
+    chase: l.chase ? { ...l.chase, clips: [...l.chase.clips] } : defaultChase() });
 
 /** Palette einer Ebene: die gewählten Slots (bei „multi“), sonst leer. */
 export function layerPalette(l: Pick<LayerState, "colorSource" | "colorSlots">, slots: readonly Rgb[]): Rgb[] {
@@ -395,6 +400,7 @@ function applyStack(layers: LayerState[], patches: readonly (Partial<LayerState>
     if (patch.video) layer.video = { ...patch.video };
     if (patch.laser) layer.laser = { ...patch.laser };
     if (patch.colorSlots) layer.colorSlots = [...patch.colorSlots];
+    if (patch.chase) layer.chase = { ...patch.chase, clips: [...patch.chase.clips] };
   });
 }
 

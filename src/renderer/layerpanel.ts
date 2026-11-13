@@ -1,6 +1,7 @@
 // Ebene: Antrieb (Takt, Audio, ruhig), Farben (auch mehrere Slots) und bei Laser-Visuals Lage, Größe und Stärke.
 import type { ControlContext } from "../core/control";
-import { DRIVE_LABEL } from "../core/controls";
+import { CHASE_ORDER_LABEL, DRIVE_LABEL } from "../core/controls";
+import { CHASE_ORDERS, CHASE_STEPS, chaseAt, chaseList, chaseStep, defaultChase } from "../core/chase";
 import { EFFECT_BY_ID } from "../core/effects";
 import { t } from "../core/i18n";
 import {
@@ -36,6 +37,11 @@ export class LayerPanel {
   /** Ebene, für die das Panel gebaut wurde: nach dem Laden eines Projekts sind es neue Objekte. */
   private built: LayerState | null = null;
   private ranges = new Map<NumKey, { input: HTMLInputElement; val: HTMLElement }>();
+  /** Clips der Zeile mit Anzeigenamen (setzt die Oberfläche). */
+  clipsOf: (layer: number) => { id: string; name: string }[] = () => [];
+  /** Beat und Tempo jetzt (für die Anzeige des laufenden Chase-Schritts). */
+  clock: () => { beat: number; bpm: number } = () => ({ beat: 0, bpm: 120 });
+  private chaseUi: { gate: HTMLInputElement; gateVal: HTMLElement; info: HTMLElement; chips: HTMLButtonElement[] } | null = null;
 
   constructor(private ctx: ControlContext, private root: HTMLElement, private layerOf: () => number, private onRename: () => void = () => {}) {}
 
@@ -51,8 +57,10 @@ export class LayerPanel {
     const isLaser = l.clip ? isLz(l.clip) : l.clips.some(isLz);
     const isGen = !l.clip || EFFECT_BY_ID.get(l.clip)?.kind === "generator";
     const slots = this.ctx.show.slots.map(rgbCss).join(";");
-    const sig = `${this.layerOf()}|${l.laser?.override ? 1 : 0}|${l.drive}|${l.colorSource}|${(l.colorSlots ?? []).join(",")}|${isLaser}|${isGen}|${slots}`;
+    const c = l.chase;
+    const sig = `${this.layerOf()}|${l.laser?.override ? 1 : 0}|${l.drive}|${l.colorSource}|${(l.colorSlots ?? []).join(",")}|${isLaser}|${isGen}|${slots}|${c?.on}|${c?.beats}|${c?.order}|${(c?.clips ?? []).join(",")}|${l.clips.join(",")}`;
     if (force || sig !== this.sig || l !== this.built) { this.sig = sig; this.built = l; this.build(l, isLaser, isGen); }
+    this.updateChase(l);
     const z = l.laser ?? defaultLaser();
     for (const f of LASER_FIELDS) {
       const r = this.ranges.get(f.key); if (!r) continue;
@@ -60,6 +68,87 @@ export class LayerPanel {
       if (document.activeElement !== r.input) r.input.value = String(Math.round(v * f.scale));
       r.val.textContent = `${Math.round(v * f.scale)}${f.unit}`;
     }
+  }
+
+  /**
+   * Chase (Community-Funktion, Wunsch von Harald): Die Ebene schaltet im Takt von selbst durch ihre Clips,
+   * wahlweise nur durch ausgewählte und nur kurz aufblitzend.
+   */
+  private buildChase(l: LayerState, n: number): void {
+    const c = (l.chase ??= defaultChase());
+    const head = el("div", "lp-chase-head");
+    head.append(el("h4", "lp-sub", t("Chase")));
+    const tog = el("button", `btn small-btn toggle${c.on ? " on" : ""}`, c.on ? t("An") : t("Aus"));
+    tog.setAttribute("aria-pressed", String(c.on)); tog.dataset.ctl = `layer.${n + 1}.chase`;
+    tog.title = t("Schaltet im Takt von selbst durch die Clips dieser Zeile");
+    tog.addEventListener("click", () => { c.on = !c.on; this.update(true); });
+    head.append(tog);
+    this.root.append(head);
+    this.chaseUi = null;
+    if (!c.on) { this.root.append(el("p", "muted small lp-hint", t("Schaltet im Takt durch die Clips dieser Zeile, z. B. verschiedene Blitzbilder abwechselnd auf jeden Beat."))); return; }
+    // Schritt
+    const sr = el("div", "lp-row"); sr.append(el("span", "lp-lab", t("Schritt")));
+    const steps = el("div", "seg2 lp-seg lp-chase-seg"); steps.setAttribute("role", "radiogroup"); steps.dataset.ctl = `layer.${n + 1}.chase.step`;
+    for (const b of CHASE_STEPS) {
+      const lbl = b === 0.25 ? "¼" : b === 0.5 ? "½" : String(b);
+      const btn = el("button", c.beats === b ? "on" : "", lbl); btn.setAttribute("role", "radio"); btn.setAttribute("aria-checked", String(c.beats === b));
+      btn.title = t("{n} Beats pro Clip", { n: lbl });
+      btn.addEventListener("click", () => { c.beats = b; this.update(true); });
+      steps.append(btn);
+    }
+    sr.append(steps); this.root.append(sr);
+    // Reihenfolge
+    const or = el("div", "lp-row"); or.append(el("span", "lp-lab", t("Reihenfolge")));
+    const ord = el("div", "seg2 lp-seg lp-chase-seg"); ord.setAttribute("role", "radiogroup"); ord.dataset.ctl = `layer.${n + 1}.chase.order`;
+    for (const o of CHASE_ORDERS) {
+      const btn = el("button", c.order === o ? "on" : "", CHASE_ORDER_LABEL[o]); btn.setAttribute("role", "radio"); btn.setAttribute("aria-checked", String(c.order === o));
+      btn.addEventListener("click", () => { c.order = o; this.update(true); });
+      ord.append(btn);
+    }
+    or.append(ord); this.root.append(or);
+    // Sichtbar (Anteil des Schritts)
+    const gr = el("label", "mrow"); gr.dataset.ctl = `layer.${n + 1}.chase.gate`;
+    gr.append(el("span", "", t("Sichtbar")));
+    const gate = el("input"); gate.type = "range"; gate.min = "5"; gate.max = "100"; gate.value = String(Math.round(c.gate * 100));
+    gate.setAttribute("aria-label", t("Sichtbar: Anteil jedes Schritts, in dem der Clip zu sehen ist"));
+    const gateVal = el("span", "mval", `${Math.round(c.gate * 100)} %`);
+    gate.addEventListener("input", () => { c.gate = Number(gate.value) / 100; gateVal.textContent = `${gate.value} %`; });
+    gate.addEventListener("dblclick", () => { c.gate = 1; gate.value = "100"; gateVal.textContent = "100 %"; });
+    gr.append(gate, gateVal); this.root.append(gr);
+    // Clips: alle oder nur ausgewählte
+    const items = this.clipsOf(n);
+    const box = el("div", "lp-chase-clips");
+    const chips: HTMLButtonElement[] = [];
+    for (const it of items) {
+      const sel = c.clips.includes(it.id);
+      const b = el("button", `lp-chip${sel ? " on" : ""}`, it.name); b.dataset.clip = it.id;
+      b.setAttribute("aria-pressed", String(sel));
+      b.addEventListener("click", () => {
+        c.clips = c.clips.includes(it.id) ? c.clips.filter(x => x !== it.id) : [...c.clips, it.id];
+        this.update(true);
+      });
+      chips.push(b); box.append(b);
+    }
+    this.root.append(el("span", "lp-lab lp-chase-lab", c.clips.length ? t("Nur diese Clips ({n})", { n: chaseList(l).length }) : t("Alle Clips der Zeile ({n}) – antippen wählt einzelne aus", { n: items.length })), box);
+    const info = el("p", "muted small lp-hint");
+    this.root.append(info);
+    this.chaseUi = { gate, gateVal, info, chips };
+  }
+
+  /** Laufender Chase: aktueller Clip markiert, Hinweis bei „Sichere Blitze“. */
+  private updateChase(l: LayerState): void {
+    const u = this.chaseUi, c = l.chase;
+    if (!u || !c?.on) return;
+    if (document.activeElement !== u.gate) { u.gate.value = String(Math.round(c.gate * 100)); u.gateVal.textContent = `${Math.round(c.gate * 100)} %`; }
+    const { beat, bpm } = this.clock();
+    const safe = this.ctx.show.safeFlash !== false;
+    const now = chaseAt(l, beat, bpm, safe, this.layerOf());
+    u.chips.forEach(b => b.classList.toggle("live", b.dataset.clip === now?.clip));
+    const step = chaseStep(c.beats, bpm, safe);
+    const txt = !chaseList(l).length ? t("Diese Zeile hat noch keine Clips.")
+      : step > c.beats ? t("Sichere Blitze: höchstens 3 Wechsel pro Sekunde, bei {bpm} BPM daher {n} Beats pro Schritt.", { bpm: Math.round(bpm), n: step })
+      : t("Läuft auf allen Ausgängen synchron im Takt. Pult, MIDI und OSC: E{n} Chase, Schritt, Reihenfolge, Sichtbar.", { n: this.layerOf() + 1 });
+    if (u.info.textContent !== txt) u.info.textContent = txt;
   }
 
   private build(l: LayerState, isLaser: boolean, isGen: boolean): void {
@@ -118,6 +207,8 @@ export class LayerPanel {
         : t("{n} Farben: Verlauf durch alle gewählten Slots in dieser Reihenfolge.", { n: chosen.length })));
     }
 
+    this.buildChase(l, n);
+
     // Lage, Größe, Drehung (jedes Visual); Stärke und XY-Override nur bei Lasern
     if (!isGen) return;
     this.root.append(el("h4", "lp-sub", isLaser ? t("Lage · Laser") : t("Lage")));
@@ -151,7 +242,7 @@ export class LayerPanel {
     const reset = el("button", "btn small-btn", t("Lage zurücksetzen"));
     reset.addEventListener("click", () => { l.laser = { ...defaultLaser(), override: l.laser?.override ?? false }; });
     this.root.append(reset, el("p", "muted small lp-hint", isLaser
-      ? t("Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt sie von dort aus. „Stärke“ macht Linien und Punkte dicker, damit sie im Nebel besser wirken. Richte den Projektorstrahl nicht in Augenhöhe auf das Publikum. Alles lässt sich auch mappen. Doppelklick setzt einen Regler zurück.")
+      ? t("Laser liegen von sich aus im oberen Drittel (über dem Publikum); Y verschiebt sie von dort aus. „Linienstärke“ macht Linien und Punkte dicker, damit sie im Nebel besser wirken. Richte den Projektorstrahl nicht in Augenhöhe auf das Publikum. Alles lässt sich auch mappen. Doppelklick setzt einen Regler zurück.")
       : t("Verschieben, vergrößern, drehen – was über den Rand hinausragt, bleibt schwarz. Alles lässt sich auch mappen (MIDI, DMX, OSC). Doppelklick setzt einen Regler zurück.")));
   }
 }

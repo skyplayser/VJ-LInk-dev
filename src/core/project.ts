@@ -8,6 +8,7 @@ import { FITS, newCue, type Cue, type VideoItem, type VideoSettings } from "./vi
 import { MAX_RES, RES_FITS, defaultLayout, parseAspect, type OutputLayout, type OutputRes } from "./layout";
 import { parseMods, type Modulation } from "./modulation";
 import { parseTextSpec } from "./text";
+import { CHASE_ORDERS } from "./chase";
 import { t } from "./i18n";
 import {
   BLEND_MODES, COLOR_SOURCES_ALL, mainLayers, DRIVES, KEY_MODES, LASER_LIMITS, LAYER_COUNT, MAX_LAYERS, MAX_EFFECTS, MEDIA_ANIMS, TRANSITION_IDS, clamp01, defaultLayer, defaultMedia,
@@ -223,6 +224,14 @@ function partialLayer(v: unknown): Partial<LayerState> | null {
   const md = media(v.media); if (md) out.media = md;
   const vd = video(v.video); if (vd) out.video = vd;
   const cm = cam(v.cam); if (cm) out.cam = cm;
+  if (isObj(v.chase)) {
+    const c = v.chase;
+    out.chase = {
+      on: c.on === true, beats: num(c.beats, 1, 0.25, 32), order: oneOf(c.order, CHASE_ORDERS, "forward"),
+      clips: Array.isArray(c.clips) ? [...new Set(c.clips.map(clip).filter((x): x is string => !!x))].slice(0, 128) : [],
+      gate: num(c.gate, 1, 0.05, 1),
+    };
+  }
   return out;
 }
 
