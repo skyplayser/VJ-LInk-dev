@@ -41,23 +41,26 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement, opts: { openS
         pads.append(col);
       } else pads.append(pad(d, ctx, updaters));
     }
-    if (faders.childElementCount) box.append(faders);
-    if (pads.childElementCount) box.append(pads);
-    if (group === "Szenen") box.append(sceneButtons(ctx, updaters));
     if (group === "Strobe") {
-      const info = el("div", "info"), txt = el("span");
-      // „Sichere Blitze“ bremst: sichtbar machen, Klick öffnet Einstellungen → Sicherheit (dort mit Warnhinweis)
-      const lim = el("button", "safe-lim", t("begrenzt: Sichere Blitze"));
-      lim.title = t("Sichere Blitze: höchstens 3 Blitze pro Sekunde. Klick: Einstellungen → Sicherheit");
-      lim.addEventListener("click", () => opts.openSafety?.());
-      info.append(txt, lim); box.append(info);
+      // Rechts neben den Fadern: Blitze pro Sekunde und „Sichere Blitze“ (Klick öffnet Einstellungen → Sicherheit)
+      const side = el("div", "strobe-side"), hzEl = el("div", "hz"), mode = el("div", "mode");
+      const safeBtn = el("button", "safe-lim");
+      safeBtn.title = t("Sichere Blitze: höchstens 3 Blitze pro Sekunde. Klick: Einstellungen → Sicherheit");
+      safeBtn.addEventListener("click", () => opts.openSafety?.());
+      side.append(hzEl, mode, safeBtn);
+      const top = el("div", "strobe-top"); top.append(faders, side); box.append(top);
       updaters.push(() => {
         const s = ctx.show.strobe, safe = ctx.show.safeFlash !== false;
         const hz = strobeHz(s, ctx.tempo.bpm, flashMax(safe));
-        txt.textContent = `${hz.toFixed(1)} Hz · ${s.sync ? t("im Takt") : t("frei")}`;
-        lim.hidden = !(safe && strobeHz(s, ctx.tempo.bpm, flashMax(false)) > hz + 1e-6);
+        const limited = safe && strobeHz(s, ctx.tempo.bpm, flashMax(false)) > hz + 1e-6;
+        hzEl.textContent = `${hz.toFixed(1)} Hz`;
+        mode.textContent = s.sync ? t("im Takt") : t("frei");
+        safeBtn.textContent = limited ? t("begrenzt: Sichere Blitze") : safe ? t("Sichere Blitze an") : t("Sichere Blitze aus");
+        safeBtn.classList.toggle("lim", limited); safeBtn.classList.toggle("off", !safe);
       });
-    }
+    } else if (faders.childElementCount) box.append(faders);
+    if (pads.childElementCount) box.append(pads);
+    if (group === "Szenen") box.append(sceneButtons(ctx, updaters));
     mount.append(box);
   }
   return () => { for (const u of updaters) u(); };
