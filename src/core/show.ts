@@ -228,6 +228,8 @@ export interface ShowState {
   canvas?: string;
   /** Blinder: ganzes Bild statisch weiß (0–1), z. B. Taste oder Timeline. */
   blinder?: number;
+  /** Blinder Dauer-An (Schalter, unabhängig von der Taste zum Halten). */
+  blinderOn?: boolean;
   /** Now-Playing-Bauchbinde: an (Daten da), seit wann (ms), wie lange sichtbar (s, 0 = immer). */
   nowPlaying?: { on: boolean; since: number; hold: number };
   /** DJ-Wellenform des Master-Decks: Position (ms) zum Zeitpunkt `at`, Geschwindigkeit, Stil, Frames, Version der Daten. */

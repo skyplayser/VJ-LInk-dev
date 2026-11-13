@@ -1841,8 +1841,9 @@ async function loadProject(): Promise<void> {
   }
 }
 void (async () => { if (bridge) displays = await bridge.listDisplays(); renderDisplays(); outputTab.render(); fitPreview(); })();
-let updateDeck = buildDeck(ctx, $("deck"));
-function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck")); }
+const deckOpts = { openSafety: () => { if (!showLock.locked) openSettings("safety"); else showLock.hint(); } };
+let updateDeck = buildDeck(ctx, $("deck"), deckOpts);
+function rebuildDeck(): void { $("deck").replaceChildren(); updateDeck = buildDeck(ctx, $("deck"), deckOpts); }
 // Erst laden, wenn alle Teile der Oberfläche stehen (im Browser läuft das Laden ohne Wartezeit durch).
 void loadProject().then(() => { if (StartScreen.shouldShow()) void startScreen.show(); });
 // Sicherstellen, dass jeder Generator im Katalog auch in der Engine existiert.

@@ -62,6 +62,8 @@ export function strobeActive(s: StrobeState, beat: number): boolean {
 
 /** „Sichere Blitze“: höchstens so viele Blitze pro Sekunde (Richtwert gegen fotosensitive Anfälle). */
 export const SAFE_FLASH_HZ = 3;
+/** Höchste Blitzrate: mit „Sichere Blitze“ 3/s, sonst 20/s (mehr kann ein 60-Hz-Ausgang nicht sauber zeigen). */
+export const flashMax = (safe: boolean): number => (safe ? SAFE_FLASH_HZ : STROBE_MAX_HZ);
 
 /** Blitze pro Beat so lange halbieren, bis höchstens `maxHz` Blitze pro Sekunde herauskommen (bleibt im Takt). */
 export function limitRate(perBeat: number, bpm: number, maxHz: number): number {

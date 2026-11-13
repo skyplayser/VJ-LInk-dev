@@ -1892,6 +1892,25 @@ describe("Rechts-Check 0.1.3", () => {
     for (let i = 0; i <= 6000; i++) { const beat = (i / 1000) * 2; const g = strobeGate(beat, 5, 120, SAFE_FLASH_HZ); if (g && !last) flashes++; last = g; }
     expect(flashes / 6).toBeLessThanOrEqual(3);   // 6 s
   });
+  it("Strobe ohne „Sichere Blitze“: ×16 läuft schnell, aber höchstens 20 Hz (sauber auf 60-Hz-Ausgängen)", async () => {
+    const { strobeHz, flashMax } = await import("../src/core/audio");
+    const { defaultStrobe } = await import("../src/core/show");
+    const sy = { ...defaultStrobe(), sync: true, speed: 0.99 };    // 16 × pro Beat
+    expect(strobeHz(sy, 126, flashMax(true))).toBeLessThanOrEqual(3);
+    const fast = strobeHz(sy, 126, flashMax(false));
+    expect(fast).toBeGreaterThan(15); expect(fast).toBeLessThanOrEqual(20);
+    expect(strobeHz(sy, 70, flashMax(false))).toBeCloseTo(16 * 70 / 60); // langsames Tempo: echte ×16
+  });
+  it("Deck: Strobe, Strobe White und Blinder zum Halten, je mit Dauer-An", async () => {
+    const { CONTROLS, setControl } = await import("../src/core/controls");
+    const ids = CONTROLS.filter(c => c.group === "Strobe").map(c => `${c.id}:${c.kind}`);
+    for (const x of ["strobe.flash:hold", "strobe.on:toggle", "strobe.whiteFlash:hold", "strobe.white:toggle", "blinder:hold", "blinder.on:toggle"]) expect(ids).toContain(x);
+    const c = ctx();
+    setControl(c, "blinder.on", 1);
+    expect(c.show.blinderOn).toBe(true);
+    setControl(c, "blinder", 0);                      // Taste loslassen schaltet Dauer-An nicht aus
+    expect(c.show.blinderOn).toBe(true);
+  });
   it("Update: Prüfsumme aus GitHub und SHA256SUMS lesen", async () => {
     const { parseDigest, parseSums, pickRelease } = await import("../src/core/update");
     const h = "a".repeat(64);

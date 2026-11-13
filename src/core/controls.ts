@@ -1,7 +1,7 @@
 // Register aller Bedienelemente. Oberfläche, MIDI, OSC und Pult greifen alle darauf zu.
 // Jedes Element hat eine feste ID; Werte laufen immer von 0 bis 1.
 import { TEMPO_FACTORS, TRANSITION_BEATS } from "./dmx";
-import { SAFE_FLASH_HZ, STROBE_DIVISIONS, strobeHz } from "./audio";
+import { STROBE_DIVISIONS, flashMax, strobeHz } from "./audio";
 import { recallScene, showBack, showGo, showStop, stepScene, type ControlContext } from "./control";
 import { BLEND_MODES, COLOR_SOURCES, DRIVES, LASER_LIMITS, MAIN_STACK, MAX_IMAGES, MAX_LAYERS, SLOT_NAMES, TRANSITION_IDS, allStacks, clamp01, imageList, transitionLabel, selectCanvas, defaultLaser, stepTestPattern, type LaserSettings, type Rgb } from "./show";
 import { EFFECT_BY_ID } from "./effects";
@@ -58,19 +58,22 @@ export function buildControls(): ControlDef[] {
       get: c => c.show.strobe.speed, set: (c, v) => { c.show.strobe.speed = clamp01(v); },
       format: c => c.show.strobe.sync
         ? `${STROBE_DIVISIONS[stepIndex(c.show.strobe.speed, STROBE_DIVISIONS.length)]}×`
-        : `${strobeHz(c.show.strobe, 120, c.show.safeFlash === false ? Infinity : SAFE_FLASH_HZ).toFixed(0)}Hz` },
+        : `${strobeHz(c.show.strobe, 120, flashMax(c.show.safeFlash !== false)).toFixed(0)}Hz` },
     { id: "strobe.intensity", label: t("Intens."), group: "Strobe", kind: "fader", quick: true,
       get: c => c.show.strobe.intensity, set: (c, v) => { c.show.strobe.intensity = clamp01(v); } },
-    { id: "strobe.on", label: "Strobe", group: "Strobe", kind: "toggle", quick: true,
+    // Strobe, Strobe White und Blinder: großer Knopf wirkt, solange gedrückt; darunter klein „Dauer-An“ (Schalter)
+    { id: "strobe.on", label: t("Strobe Dauer-An"), group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.strobe.on ? 1 : 0), set: (c, v) => { c.show.strobe.on = on(v); } },
-    { id: "strobe.flash", label: "Flash", group: "Strobe", kind: "hold", quick: true,
+    { id: "strobe.flash", label: "Strobe", group: "Strobe", kind: "hold", quick: true,
       get: c => (c.show.strobe.flash ? 1 : 0), set: (c, v) => { c.show.strobe.flash = on(v); } },
-    { id: "strobe.white", label: t("Weiß"), group: "Strobe", kind: "toggle", quick: true,
+    { id: "strobe.white", label: t("Strobe White Dauer-An"), group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.strobe.white ? 1 : 0), set: (c, v) => { c.show.strobe.white = on(v); } },
-    { id: "strobe.whiteFlash", label: t("Weiß-Blitz"), group: "Strobe", kind: "hold", quick: true,
+    { id: "strobe.whiteFlash", label: "Strobe White", group: "Strobe", kind: "hold", quick: true,
       get: c => (c.show.strobe.whiteFlash ? 1 : 0), set: (c, v) => { c.show.strobe.whiteFlash = on(v); } },
     { id: "blinder", label: "Blinder", group: "Strobe", kind: "hold", quick: true,
       get: c => (c.show.blinder ?? 0) >= 0.5 ? 1 : 0, set: (c, v) => { c.show.blinder = on(v) ? 1 : 0; } },
+    { id: "blinder.on", label: t("Blinder Dauer-An"), group: "Strobe", kind: "toggle", quick: true,
+      get: c => (c.show.blinderOn ? 1 : 0), set: (c, v) => { c.show.blinderOn = on(v); } },
     { id: "strobe.sync", label: t("Takt"), group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.strobe.sync ? 1 : 0), set: (c, v) => { c.show.strobe.sync = on(v); } },
     { id: "fx.master", label: t("Effekte"), group: "Effekt", kind: "fader", quick: true,

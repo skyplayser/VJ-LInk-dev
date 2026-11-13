@@ -3,17 +3,20 @@
 // die später auch per MIDI belegt werden.
 import { CONTROLS, setControl, type ControlDef } from "../core/controls";
 import { recallScene, stepScene } from "../core/control";
-import { SAFE_FLASH_HZ, strobeHz } from "../core/audio";
+import { flashMax, strobeHz } from "../core/audio";
 import type { ControlContext } from "../core/control";
 import { t } from "../core/i18n";
 
 const GROUPS = ["Master", "Ebenen", "Effekt", "Strobe", "Tempo", "Szenen"] as const;
+/** Großer Knopf (wirkt, solange gedrückt) → kleiner „Dauer-An“-Schalter darunter. */
+const LATCH: Record<string, string> = { "strobe.flash": "strobe.on", "strobe.whiteFlash": "strobe.white", blinder: "blinder.on" };
+const LATCHES = new Set(Object.values(LATCH));
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
 }
 
-export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
+export function buildDeck(ctx: ControlContext, mount: HTMLElement, opts: { openSafety?: () => void } = {}): () => void {
   const updaters: (() => void)[] = [];
   const defs = CONTROLS.filter(c => {
     if (!c.quick) return false;
@@ -29,16 +32,30 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement): () => void {
     const faders = el("div", "faders"), pads = el("div", "pads");
     for (const d of items) {
       if (d.kind === "fader") faders.append(fader(d, ctx, updaters));
-      else pads.append(pad(d, ctx, updaters));
+      else if (LATCHES.has(d.id)) continue; // steht klein unter seinem großen Knopf
+      else if (LATCH[d.id]) {
+        const latch = items.find(x => x.id === LATCH[d.id]);
+        const col = el("div", "pad-col");
+        col.append(pad(d, ctx, updaters));
+        if (latch) { const p = pad(latch, ctx, updaters); p.textContent = t("Dauer-An"); p.title = latch.label; p.classList.add("pad-latch"); col.append(p); }
+        pads.append(col);
+      } else pads.append(pad(d, ctx, updaters));
     }
     if (faders.childElementCount) box.append(faders);
     if (pads.childElementCount) box.append(pads);
     if (group === "Szenen") box.append(sceneButtons(ctx, updaters));
     if (group === "Strobe") {
-      const info = el("div", "info"); box.append(info);
+      const info = el("div", "info"), txt = el("span");
+      // „Sichere Blitze“ bremst: sichtbar machen, Klick öffnet Einstellungen → Sicherheit (dort mit Warnhinweis)
+      const lim = el("button", "safe-lim", t("begrenzt: Sichere Blitze"));
+      lim.title = t("Sichere Blitze: höchstens 3 Blitze pro Sekunde. Klick: Einstellungen → Sicherheit");
+      lim.addEventListener("click", () => opts.openSafety?.());
+      info.append(txt, lim); box.append(info);
       updaters.push(() => {
-        const s = ctx.show.strobe;
-        info.textContent = `${strobeHz(s, ctx.tempo.bpm, ctx.show.safeFlash === false ? Infinity : SAFE_FLASH_HZ).toFixed(1)} Hz · ${s.sync ? t("im Takt") : t("frei")}`;
+        const s = ctx.show.strobe, safe = ctx.show.safeFlash !== false;
+        const hz = strobeHz(s, ctx.tempo.bpm, flashMax(safe));
+        txt.textContent = `${hz.toFixed(1)} Hz · ${s.sync ? t("im Takt") : t("frei")}`;
+        lim.hidden = !(safe && strobeHz(s, ctx.tempo.bpm, flashMax(false)) > hz + 1e-6);
       });
     }
     mount.append(box);
