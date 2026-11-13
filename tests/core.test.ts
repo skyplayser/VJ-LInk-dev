@@ -2058,3 +2058,30 @@ describe("Audio-Modulation", () => {
     expect(c.show.layers[0]!.opacity).toBe(1);
   });
 });
+
+describe("Szenen mit mehreren Bildern (Projektionsmapping)", () => {
+  it("speichert und ruft die Ebenen aller Bilder ab", async () => {
+    const { addSceneFromCurrent, recallScene } = await import("../src/core/control");
+    const { addImage, selectCanvas, MAIN_STACK } = await import("../src/core/show");
+    const c = ctx();
+    const id = addImage(c.show)!;
+    c.show.stacks![MAIN_STACK]![0]!.clip = "plasma";
+    c.show.stacks![id]![0]!.clip = "oscilloscope";
+    const i = addSceneFromCurrent(c);
+    c.show.stacks![MAIN_STACK]![0]!.clip = "tunnel";
+    c.show.stacks![id]![0]!.clip = "starfield";
+    recallScene(c, i, 1000);
+    expect(c.show.stacks![MAIN_STACK]![0]!.clip).toBe("plasma");
+    expect(c.show.stacks![id]![0]!.clip).toBe("oscilloscope");
+    // auch wenn gerade Bild 2 bearbeitet wird
+    selectCanvas(c.show, id);
+    c.show.layers[0]!.clip = "starfield";
+    const j = addSceneFromCurrent(c);
+    selectCanvas(c.show, MAIN_STACK);
+    c.show.stacks![id]![0]!.clip = "tunnel";
+    recallScene(c, j, 2000);
+    expect(c.show.stacks![id]![0]!.clip).toBe("starfield");
+    // Bild 1 hatte beim Speichern noch „plasma“ (aus der ersten Szene)
+    expect(c.show.stacks![MAIN_STACK]![0]!.clip).toBe("plasma");
+  });
+});

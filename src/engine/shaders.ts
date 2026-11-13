@@ -93,13 +93,20 @@ float wave(float x){ // Wellenform interpoliert, x 0–1
   return mix(uWave[i], uWave[j], f - float(i));
 }
 
-vec3 oscilloscope(vec2 uv){
-  float x = uv.x;
-  float y = uHasWave == 1
+float oscY(float x){ // Höhe der Linie (0–1) an der Stelle x
+  return uHasWave == 1
     ? 0.5 + 0.4 * wave(x)
     : 0.5 + 0.18 * (sin(x * 9.0 + uTime * 3.0) * uBands[0] + sin(x * 23.0 - uTime * 5.0) * uBands[3]
                          + sin(x * 47.0 + uTime * 9.0) * uBands[6] * 0.6);
-  float d = abs(uv.y - y);
+}
+
+vec3 oscilloscope(vec2 uv){
+  // Abstand zur Kurve senkrecht zur Linie (nicht nur senkrecht nach oben): sonst wird die Linie an steilen
+  // Stellen hauchdünn und zerfällt in Stücke, z. B. bei kräftigen Pegeln von LJ-Link.
+  float e = 1.0 / max(uRes.x, 1.0);
+  float y = oscY(uv.x);
+  float slope = (oscY(uv.x + e) - oscY(uv.x - e)) / (2.0 * e) * uRes.y / max(uRes.x, 1.0); // Steigung in Pixeln
+  float d = abs(uv.y - y) / sqrt(1.0 + slope * slope);  // in Bildhöhen
   float core = smoothstep(0.006, 0.0, d);
   float glow = 0.004 / (d + 0.004);
   return vec3(0.15, 1.0, 0.45) * (core + glow * 0.5);
@@ -1803,12 +1810,19 @@ vec3 spectrumCircle(vec2 uv){
   float bar = step(inner, r) * step(r, inner + b * 0.3) * step(0.25, abs(fract(x * 48.0) - 0.5) * 2.0 * 0.0 + 1.0) * smoothstep(0.45, 0.35, abs(fract(x * 48.0) - 0.5));
   return hsv(x * 0.6 + uTime * 0.03, 0.75, 1.0) * bar + vec3(0.9) * smoothstep(0.004, 0.0, abs(r - inner + 0.01));
 }
+float ribbonY(float x, float fi){
+  return 0.5 + (fi - 3.5) * 0.04 + (uHasWave > 0 ? wave(x) * 0.25 : sin(x * 10.0 + uTime * 3.0 + fi * 0.4) * 0.15 * (0.5 + band(fi / 8.0)));
+}
 vec3 waveRibbon(vec2 uv){
   vec3 col = vec3(0.0);
+  float e = 1.0 / max(uRes.x, 1.0), k = uRes.y / max(uRes.x, 1.0);
   for (int i = 0; i < 8; i++) {
     float fi = float(i);
-    float y = 0.5 + (fi - 3.5) * 0.04 + (uHasWave > 0 ? wave(uv.x) * 0.25 : sin(uv.x * 10.0 + uTime * 3.0 + fi * 0.4) * 0.15 * (0.5 + band(fi / 8.0)));
-    col += hsv(0.5 + fi * 0.06, 0.7, 1.0) * 0.0025 / max(abs(uv.y - y), 1e-3);
+    float y = ribbonY(uv.x, fi);
+    // Abstand senkrecht zur Linie, damit sie an steilen Stellen nicht abreißt (wie beim Oszilloskop)
+    float slope = (ribbonY(uv.x + e, fi) - ribbonY(uv.x - e, fi)) / (2.0 * e) * k;
+    float d = abs(uv.y - y) / sqrt(1.0 + slope * slope);
+    col += hsv(0.5 + fi * 0.06, 0.7, 1.0) * 0.0025 / max(d, 1e-3);
   }
   return col * 0.5;
 }
