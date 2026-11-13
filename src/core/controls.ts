@@ -74,6 +74,8 @@ export function buildControls(): ControlDef[] {
       get: c => (c.show.blinder ?? 0) >= 0.5 ? 1 : 0, set: (c, v) => { c.show.blinder = on(v) ? 1 : 0; } },
     { id: "blinder.on", label: t("Blinder Dauer-An"), group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.blinderOn ? 1 : 0), set: (c, v) => { c.show.blinderOn = on(v); } },
+    { id: "blackout.flash", label: t("Blackout halten"), group: "Strobe", kind: "hold", quick: true,
+      get: c => (c.show.blackoutFlash ? 1 : 0), set: (c, v) => { c.show.blackoutFlash = on(v); } },
     { id: "strobe.sync", label: t("Takt"), group: "Strobe", kind: "toggle", quick: true,
       get: c => (c.show.strobe.sync ? 1 : 0), set: (c, v) => { c.show.strobe.sync = on(v); } },
     { id: "fx.master", label: t("Effekte"), group: "Effekt", kind: "fader", quick: true,

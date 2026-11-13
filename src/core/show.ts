@@ -230,6 +230,8 @@ export interface ShowState {
   blinder?: number;
   /** Blinder Dauer-An (Schalter, unabhängig von der Taste zum Halten). */
   blinderOn?: boolean;
+  /** Blackout, solange die Taste gehalten wird (unabhängig vom Blackout-Schalter). */
+  blackoutFlash?: boolean;
   /** Now-Playing-Bauchbinde: an (Daten da), seit wann (ms), wie lange sichtbar (s, 0 = immer). */
   nowPlaying?: { on: boolean; since: number; hold: number };
   /** DJ-Wellenform des Master-Decks: Position (ms) zum Zeitpunkt `at`, Geschwindigkeit, Stil, Frames, Version der Daten. */

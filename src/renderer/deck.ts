@@ -9,7 +9,7 @@ import { t } from "../core/i18n";
 
 const GROUPS = ["Master", "Ebenen", "Effekt", "Strobe", "Tempo", "Szenen"] as const;
 /** Großer Knopf (wirkt, solange gedrückt) → kleiner „Dauer-An“-Schalter darunter. */
-const LATCH: Record<string, string> = { "strobe.flash": "strobe.on", "strobe.whiteFlash": "strobe.white", blinder: "blinder.on" };
+const LATCH: Record<string, string> = { "strobe.flash": "strobe.on", "strobe.whiteFlash": "strobe.white", blinder: "blinder.on", "blackout.flash": "blackout" };
 const LATCHES = new Set(Object.values(LATCH));
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
@@ -32,11 +32,13 @@ export function buildDeck(ctx: ControlContext, mount: HTMLElement, opts: { openS
     const faders = el("div", "faders"), pads = el("div", "pads");
     for (const d of items) {
       if (d.kind === "fader") faders.append(fader(d, ctx, updaters));
-      else if (LATCHES.has(d.id)) continue; // steht klein unter seinem großen Knopf
+      else if (LATCHES.has(d.id) && items.some(x => LATCH[x.id] === d.id)) continue; // steht klein unter seinem großen Knopf
       else if (LATCH[d.id]) {
-        const latch = items.find(x => x.id === LATCH[d.id]);
+        const latch = defs.find(x => x.id === LATCH[d.id]);
         const col = el("div", "pad-col");
-        col.append(pad(d, ctx, updaters));
+        const big = pad(d, ctx, updaters);
+        if (d.id === "blackout.flash") big.textContent = "Blackout";
+        col.append(big);
         if (latch) { const p = pad(latch, ctx, updaters); p.textContent = t("Dauer-An"); p.title = latch.label; p.classList.add("pad-latch"); col.append(p); }
         pads.append(col);
       } else pads.append(pad(d, ctx, updaters));
@@ -91,7 +93,7 @@ function fader(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HT
 function pad(d: ControlDef, ctx: ControlContext, updaters: (() => void)[]): HTMLElement {
   const b = el("button", `pad pad-${d.kind}`, d.label);
   b.dataset.ctl = d.id;
-  if (d.id === "blackout") b.classList.add("pad-danger");
+  if (d.id.startsWith("blackout")) b.classList.add("pad-danger");
   if (d.id.startsWith("strobe.white")) b.classList.add("pad-white");
   else if (d.id.startsWith("strobe")) b.classList.add("pad-strobe");
   if (d.kind === "hold") {

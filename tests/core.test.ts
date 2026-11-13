@@ -1904,7 +1904,7 @@ describe("Rechts-Check 0.1.3", () => {
   it("Deck: Strobe, Strobe White und Blinder zum Halten, je mit Dauer-An", async () => {
     const { CONTROLS, setControl } = await import("../src/core/controls");
     const ids = CONTROLS.filter(c => c.group === "Strobe").map(c => `${c.id}:${c.kind}`);
-    for (const x of ["strobe.flash:hold", "strobe.on:toggle", "strobe.whiteFlash:hold", "strobe.white:toggle", "blinder:hold", "blinder.on:toggle"]) expect(ids).toContain(x);
+    for (const x of ["strobe.flash:hold", "strobe.on:toggle", "strobe.whiteFlash:hold", "strobe.white:toggle", "blinder:hold", "blinder.on:toggle", "blackout.flash:hold"]) expect(ids).toContain(x);
     const c = ctx();
     setControl(c, "blinder.on", 1);
     expect(c.show.blinderOn).toBe(true);

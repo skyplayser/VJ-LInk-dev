@@ -1274,6 +1274,7 @@ function frame(rafTime: number = performance.now()): void {
   // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert
   const modBands = liveBands(ctx.show.audio, beat, now / 1000);
   let shown = modulatedShow(ctx, ctx.mods ?? [], beat, modBands);
+  if (ctx.show.blackoutFlash) shown = { ...shown, blackout: true };
   if (draw) modFeedback(shown, beat, modBands);
   // Timeline: Effekt-Blöcke (Strobe, Flash, White, W-Flash, Blinder, Blackout) und Helligkeit je Bild
   const tlo = timelineOverride(ctx.cues, now, cueEnv, imageList(ctx.show).map(im => im.id), multiImage() ? showImage() : "");
@@ -1360,7 +1361,7 @@ function updateUi(now: number, beat: number): void {
     if ($("mon-info").textContent !== info) $("mon-info").textContent = info;
     resPanel.sync();
   }
-  $("blackout").classList.toggle("on", s.blackout);
+  $("blackout").classList.toggle("on", s.blackout || !!s.blackoutFlash);
 
   if (!document.activeElement || document.activeElement !== bpmIn) bpmBtn.textContent = ctx.tempo.bpm.toFixed(2);
   for (let l = 0; l < s.layers.length; l++) {

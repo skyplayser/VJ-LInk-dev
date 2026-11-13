@@ -184,6 +184,7 @@ export const EN: Record<string, string> = {
   "Strobe White Dauer-An": "Strobe White latch",
   "Blinder Dauer-An": "Blinder latch",
   "Dauer-An": "Latch",
+  "Blackout halten": "Blackout hold",
   "Sichere Blitze an": "Safe flashes on",
   "Sichere Blitze aus": "Safe flashes off",
   "begrenzt: Sichere Blitze": "limited: safe flashes",
