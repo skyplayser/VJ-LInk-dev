@@ -1237,7 +1237,22 @@ function setPill(id: string, state: "ok" | "off" | "warn", text?: string): void 
   if (text !== undefined) { const d = p.querySelector(".dot"); p.replaceChildren(...(d ? [d] : []), document.createTextNode(text)); }
 }
 
-function frame(): void {
+/**
+ * Vorschau im Bedienfenster höchstens 60-mal pro Sekunde zeichnen, auch auf 120/165-Hz-Monitoren: sonst lastet
+ * allein die Vorschau die Grafikkarte voll aus. Tempo, Übergänge, Cues und das Senden an die Ausgänge laufen
+ * weiter bei jedem Bild; die Ausgabefenster zeichnen im Takt ihres Monitors.
+ */
+const PREVIEW_FPS = 60;
+let nextRender = 0, renderTurn = 0;
+function renderDue(t: number): boolean {
+  const step = 1000 / PREVIEW_FPS;
+  if (t < nextRender - 1) return false;
+  nextRender = t - nextRender > step ? t + step : nextRender + step;
+  return true;
+}
+
+function frame(rafTime: number = performance.now()): void {
+  const draw = renderDue(rafTime);
   ctx.show.safeFlash = settings.safeFlash;
   const now = Date.now();
   ctx.tempo.tick(now);
@@ -1259,7 +1274,7 @@ function frame(): void {
   // Modulationen (LFO, Audio) wirken auf das Bild, die Regler behalten ihren Grundwert
   const modBands = liveBands(ctx.show.audio, beat, now / 1000);
   let shown = modulatedShow(ctx, ctx.mods ?? [], beat, modBands);
-  modFeedback(shown, beat, modBands);
+  if (draw) modFeedback(shown, beat, modBands);
   // Timeline: Effekt-Blöcke (Strobe, Flash, White, W-Flash, Blinder, Blackout) und Helligkeit je Bild
   const tlo = timelineOverride(ctx.cues, now, cueEnv, imageList(ctx.show).map(im => im.id), multiImage() ? showImage() : "");
   if (tlo) {
@@ -1273,9 +1288,10 @@ function frame(): void {
       stackGain: Object.fromEntries([...new Set([...Object.keys(tlo.gains), ...Object.keys(shown.stackGain ?? {})])]
         .map(id => [id, (tlo.gains[id] ?? 1) * (shown.stackGain?.[id] ?? 1)])) };
   }
-  // Projektionsmapping: Live-Vorschauen der Bilder (je Bild abwechselnd eins pro Durchlauf), dann das bearbeitete groß
+  // Projektionsmapping: Live-Vorschauen der Bilder (je Bild abwechselnd eins, nur jedes zweite Bild), dann das bearbeitete groß
   const cv = shown.canvas ?? MAIN_STACK;
-  if (engine && mappingOn() && tileCanvases.size > 1) {
+  if (draw) renderTurn++;
+  if (draw && engine && mappingOn() && tileCanvases.size > 1 && renderTurn % 2 === 0) {
     const ids = [...tileCanvases.keys()].filter(id => id !== cv);
     const id = ids[tileTurn++ % Math.max(1, ids.length)];
     if (id) {
@@ -1283,10 +1299,12 @@ function frame(): void {
       { const c = tileCanvases.get(id); c?.getContext("2d")?.drawImage(preview, 0, 0, c.width, c.height); }
     }
   }
-  engine?.render(showForImage(shown, cv), beat, now, ctx.tempo.bpm, null, lt);
-  if (mappingOn()) { const c = tileCanvases.get(cv); c?.getContext("2d")?.drawImage(preview, 0, 0, c.width, c.height); }
-  thumbs.draw(now);
-  gallery.tick(now);
+  if (draw) {
+    engine?.render(showForImage(shown, cv), beat, now, ctx.tempo.bpm, null, lt);
+    if (mappingOn()) { const c = tileCanvases.get(cv); c?.getContext("2d")?.drawImage(preview, 0, 0, c.width, c.height); }
+    thumbs.draw(now);
+    gallery.tick(now);
+  }
 
   if (now - lastPublish > 33 && bridge) {
     lastPublish = now;
